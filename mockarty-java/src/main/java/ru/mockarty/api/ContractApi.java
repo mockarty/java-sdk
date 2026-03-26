@@ -1,0 +1,233 @@
+// Copyright (c) 2024-2026 Mockarty. All rights reserved.
+// Licensed under the MIT License. See LICENSE file for details.
+
+package ru.mockarty.api;
+
+import com.fasterxml.jackson.databind.JavaType;
+import ru.mockarty.MockartyClient;
+import ru.mockarty.exception.MockartyException;
+import ru.mockarty.model.CanIDeployResult;
+import ru.mockarty.model.Contract;
+import ru.mockarty.model.ContractValidationResult;
+import ru.mockarty.model.Mock;
+import ru.mockarty.model.Pact;
+import ru.mockarty.model.PactVerificationResult;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * API for contract testing operations.
+ *
+ * <p>The contract API provides mock validation, provider verification,
+ * compatibility checking, payload validation, and contract config management.</p>
+ */
+public class ContractApi {
+
+    private final MockartyClient client;
+
+    public ContractApi(MockartyClient client) {
+        this.client = client;
+    }
+
+    /**
+     * Validates mocks against a contract specification.
+     *
+     * @param request the validation request (mockIds, spec, etc.)
+     * @return the validation result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> validateMocks(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/validate-mocks", request, Map.class);
+    }
+
+    /**
+     * Verifies a provider against a contract.
+     *
+     * @param request the verification request (providerUrl, spec, etc.)
+     * @return the verification result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> verifyProvider(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/verify-provider", request, Map.class);
+    }
+
+    /**
+     * Checks compatibility between consumer and provider contracts.
+     *
+     * @param request the compatibility check request
+     * @return the compatibility result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> checkCompatibility(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/check-compatibility", request, Map.class);
+    }
+
+    /**
+     * Validates a payload against a contract specification.
+     *
+     * @param request the payload validation request
+     * @return the validation result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> validatePayload(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/validate-payload", request, Map.class);
+    }
+
+    // ---- Contract Configs ----
+
+    /**
+     * Lists all contract configurations.
+     *
+     * @return list of contract configs
+     */
+    public List<Contract> listConfigs() throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, Contract.class);
+        return client.get("/api/v1/contract/configs", listType);
+    }
+
+    /**
+     * Creates a new contract configuration.
+     *
+     * @param config the contract config to create
+     * @return the created config
+     */
+    public Contract createConfig(Contract config) throws MockartyException {
+        return client.post("/api/v1/contract/configs", config, Contract.class);
+    }
+
+    /**
+     * Deletes a contract configuration.
+     *
+     * @param id the config ID to delete
+     */
+    public void deleteConfig(String id) throws MockartyException {
+        client.delete("/api/v1/contract/configs/" + encode(id));
+    }
+
+    // ---- Contract Results ----
+
+    /**
+     * Lists all contract validation results.
+     *
+     * @return list of validation results
+     */
+    public List<ContractValidationResult> listResults() throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, ContractValidationResult.class);
+        return client.get("/api/v1/contract/results", listType);
+    }
+
+    /**
+     * Gets a specific contract validation result by ID.
+     *
+     * @param id the result ID
+     * @return the validation result
+     */
+    public ContractValidationResult getResult(String id) throws MockartyException {
+        return client.get("/api/v1/contract/results/" + encode(id), ContractValidationResult.class);
+    }
+
+    // ---- Pacts ----
+
+    /**
+     * Lists all pacts.
+     *
+     * @return list of pacts
+     */
+    public List<Pact> listPacts() throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, Pact.class);
+        return client.get("/api/v1/contract/pacts", listType);
+    }
+
+    /**
+     * Gets a specific pact by ID.
+     *
+     * @param id the pact ID
+     * @return the pact
+     */
+    public Pact getPact(String id) throws MockartyException {
+        return client.get("/api/v1/contract/pacts/" + encode(id), Pact.class);
+    }
+
+    /**
+     * Publishes a new pact.
+     *
+     * @param pact the pact to publish
+     * @return the published pact
+     */
+    public Pact publishPact(Pact pact) throws MockartyException {
+        return client.post("/api/v1/contract/pacts", pact, Pact.class);
+    }
+
+    /**
+     * Verifies a pact against a provider.
+     *
+     * @param request the verification request
+     * @return the verification result
+     */
+    public PactVerificationResult verifyPact(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/pacts/verify", request, PactVerificationResult.class);
+    }
+
+    /**
+     * Checks if it is safe to deploy based on pact verification status.
+     *
+     * @param request the can-I-deploy request
+     * @return the deployment check result
+     */
+    public CanIDeployResult canIDeploy(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/pacts/can-i-deploy", request, CanIDeployResult.class);
+    }
+
+    /**
+     * Deletes a pact.
+     *
+     * @param id the pact ID to delete
+     */
+    public void deletePact(String id) throws MockartyException {
+        client.delete("/api/v1/contract/pacts/" + encode(id));
+    }
+
+    /**
+     * Generates mocks from a pact.
+     *
+     * @param pactId the pact ID
+     * @return list of generated mocks
+     */
+    public List<Mock> generateMocksFromPact(String pactId) throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, Mock.class);
+        return client.post("/api/v1/contract/pacts/" + encode(pactId) + "/mocks", null, listType);
+    }
+
+    /**
+     * Lists all pact verifications.
+     *
+     * @return list of verification results
+     */
+    public List<PactVerificationResult> listVerifications() throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, PactVerificationResult.class);
+        return client.get("/api/v1/contract/pacts/verifications", listType);
+    }
+
+    /**
+     * Detects drift between contracts and implementations.
+     *
+     * @param request the drift detection request
+     * @return drift detection results
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift", request, Map.class);
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+}

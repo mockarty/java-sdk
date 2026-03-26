@@ -1,0 +1,70 @@
+name: Publish to Maven Central
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+
+      - name: Publish to Maven Central
+        run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.GPG_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git tag --sort=-creatordate | grep -A1 "^${TAG}$" | tail -1)
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$TAG" ]; then
+            NOTES="Initial release of Mockarty Java SDK"
+          else
+            NOTES=$(git log "${PREV_TAG}..${TAG}" --pretty=format:"- %s" --no-merges)
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body: |
+            ## Mockarty Java SDK ${{ github.ref_name }}
+
+            ### Maven
+            ```xml
+            <dependency>
+                <groupId>ru.mockarty</groupId>
+                <artifactId>mockarty-java</artifactId>
+                <version>${{ github.ref_name }}</version>
+            </dependency>
+            ```
+
+            ### Gradle
+            ```kotlin
+            implementation("ru.mockarty:mockarty-java:${{ github.ref_name }}")
+            testImplementation("ru.mockarty:mockarty-junit5:${{ github.ref_name }}")
+            implementation("ru.mockarty:mockarty-kotlin:${{ github.ref_name }}")
+            ```
+
+            ### Changes
+            ${{ steps.notes.outputs.notes }}

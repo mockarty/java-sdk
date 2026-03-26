@@ -1,0 +1,247 @@
+// Copyright (c) 2024-2026 Mockarty. All rights reserved.
+// Licensed under the MIT License. See LICENSE file for details.
+
+package ru.mockarty.api;
+
+import com.fasterxml.jackson.databind.JavaType;
+import ru.mockarty.MockartyClient;
+import ru.mockarty.exception.MockartyException;
+import ru.mockarty.model.ImportResult;
+import ru.mockarty.model.RecorderEntry;
+import ru.mockarty.model.RecorderSession;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * API for traffic recording operations.
+ */
+public class RecorderApi {
+
+    private final MockartyClient client;
+
+    public RecorderApi(MockartyClient client) {
+        this.client = client;
+    }
+
+    /**
+     * Starts a new recording session.
+     *
+     * @param config the recorder start configuration (name, targetUrl, namespace, etc.)
+     * @return the created session
+     */
+    public RecorderSession start(Map<String, Object> config) throws MockartyException {
+        return client.post("/api/v1/recorder/start", config, RecorderSession.class);
+    }
+
+    /**
+     * Lists all recording sessions.
+     *
+     * @return list of sessions
+     */
+    public List<RecorderSession> listSessions() throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, RecorderSession.class);
+        return client.get("/api/v1/recorder/sessions", listType);
+    }
+
+    /**
+     * Gets a recording session by ID.
+     *
+     * @param id the session ID
+     * @return the session
+     */
+    public RecorderSession getSession(String id) throws MockartyException {
+        return client.get("/api/v1/recorder/" + encode(id), RecorderSession.class);
+    }
+
+    /**
+     * Stops recording on a session.
+     *
+     * @param id the session ID
+     * @return the updated session
+     */
+    public RecorderSession stopRecording(String id) throws MockartyException {
+        return client.post("/api/v1/recorder/" + encode(id) + "/stop", null, RecorderSession.class);
+    }
+
+    /**
+     * Deletes a recording session and all its entries.
+     *
+     * @param id the session ID
+     */
+    public void deleteSession(String id) throws MockartyException {
+        client.delete("/api/v1/recorder/" + encode(id));
+    }
+
+    /**
+     * Gets all recorded entries for a session.
+     *
+     * @param id the session ID
+     * @return list of recorded entries
+     */
+    public List<RecorderEntry> getEntries(String id) throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, RecorderEntry.class);
+        return client.get("/api/v1/recorder/" + encode(id) + "/entries", listType);
+    }
+
+    /**
+     * Creates mocks from recorded entries in a session.
+     *
+     * @param id      the session ID
+     * @param options optional configuration for mock creation
+     * @return the import result with created mock IDs
+     */
+    public ImportResult createMocks(String id, Map<String, Object> options) throws MockartyException {
+        return client.post("/api/v1/recorder/" + encode(id) + "/mocks", options, ImportResult.class);
+    }
+
+    /**
+     * Exports a recording session.
+     *
+     * @param id      the session ID
+     * @param options optional export configuration
+     * @return the export result
+     */
+    public ImportResult export(String id, Map<String, Object> options) throws MockartyException {
+        return client.post("/api/v1/recorder/" + encode(id) + "/export", options, ImportResult.class);
+    }
+
+    // ---- Recorder Configs ----
+
+    /**
+     * Lists all recorder configurations.
+     *
+     * @return list of config maps
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listConfigs() throws MockartyException {
+        JavaType listType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, Map.class);
+        return client.get("/api/v1/recorder/configs", listType);
+    }
+
+    /**
+     * Saves a recorder configuration.
+     *
+     * @param config the configuration to save
+     */
+    public void saveConfig(Map<String, Object> config) throws MockartyException {
+        client.post("/api/v1/recorder/configs", config);
+    }
+
+    /**
+     * Deletes a recorder configuration.
+     *
+     * @param id the configuration ID
+     */
+    public void deleteConfig(String id) throws MockartyException {
+        client.delete("/api/v1/recorder/configs/" + encode(id));
+    }
+
+    /**
+     * Exports a recorder configuration as bytes.
+     *
+     * @param id the configuration ID
+     * @return the exported configuration data
+     */
+    public byte[] exportConfig(String id) throws MockartyException {
+        return client.getBytes("/api/v1/recorder/configs/" + encode(id) + "/export");
+    }
+
+    // ---- CA (Certificate Authority) ----
+
+    /**
+     * Gets the CA certificate status.
+     *
+     * @return CA status
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getCAStatus() throws MockartyException {
+        return client.get("/api/v1/recorder/ca/status", Map.class);
+    }
+
+    /**
+     * Generates a new CA certificate.
+     *
+     * @return generation result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> generateCA() throws MockartyException {
+        return client.post("/api/v1/recorder/ca/generate", null, Map.class);
+    }
+
+    /**
+     * Downloads the CA certificate.
+     *
+     * @return the CA certificate bytes
+     */
+    public byte[] downloadCA() throws MockartyException {
+        return client.getBytes("/api/v1/recorder/ca/download");
+    }
+
+    // ---- Advanced Entry Operations ----
+
+    /**
+     * Annotates a recorded entry.
+     *
+     * @param sessionId  the session ID
+     * @param entryId    the entry ID
+     * @param annotation the annotation data
+     */
+    public void annotateEntry(String sessionId, String entryId, Map<String, Object> annotation) throws MockartyException {
+        client.patch("/api/v1/recorder/" + encode(sessionId) + "/entries/" + encode(entryId), annotation);
+    }
+
+    /**
+     * Replays a recorded entry.
+     *
+     * @param sessionId the session ID
+     * @param entryId   the entry ID
+     */
+    public void replayEntry(String sessionId, String entryId) throws MockartyException {
+        client.post("/api/v1/recorder/" + encode(sessionId) + "/entries/" + encode(entryId) + "/replay", null);
+    }
+
+    // ---- Modifications ----
+
+    /**
+     * Gets request/response modifications for a session.
+     *
+     * @param sessionId the session ID
+     * @return modifications data
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getModifications(String sessionId) throws MockartyException {
+        return client.get("/api/v1/recorder/" + encode(sessionId) + "/modifications", Map.class);
+    }
+
+    /**
+     * Updates request/response modifications for a session.
+     *
+     * @param sessionId     the session ID
+     * @param modifications the modifications data
+     */
+    public void updateModifications(String sessionId, Map<String, Object> modifications) throws MockartyException {
+        client.put("/api/v1/recorder/" + encode(sessionId) + "/modifications", modifications);
+    }
+
+    // ---- Ports ----
+
+    /**
+     * Gets the currently used recorder ports.
+     *
+     * @return ports data
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getPorts() throws MockartyException {
+        return client.get("/api/v1/recorder/ports", Map.class);
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+}
