@@ -227,6 +227,18 @@ public class ContractApi {
         return client.post("/api/v1/contract/detect-drift", request, Map.class);
     }
 
+    /** Detect GraphQL schema drift via introspection. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectGraphQLDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/graphql", request, Map.class);
+    }
+
+    /** Detect gRPC service drift via reflection. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectGRPCDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/grpc", request, Map.class);
+    }
+
     // ─── API Registry ─────────────────────────────────────────────
 
     /**
@@ -381,6 +393,35 @@ public class ContractApi {
     @SuppressWarnings("unchecked")
     public List<String> getParticipants() throws MockartyException {
         return client.get("/api/v1/contract/pacts/participants", List.class);
+    }
+
+        /**
+     * Validate mocks against a registry entry specification.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> validateFromRegistry(String entryId) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + entryId + "/validate", null, Map.class);
+    }
+
+        @SuppressWarnings("unchecked")
+    public Map<String, Object> submitForReview(String entryId, String reviewerId) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + entryId + "/submit-review", Map.of("reviewerId", reviewerId != null ? reviewerId : ""), Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> approveReview(String entryId, String comment) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + entryId + "/approve-review", Map.of("comment", comment != null ? comment : ""), Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rejectReview(String entryId, String comment) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + entryId + "/reject-review", Map.of("comment", comment != null ? comment : ""), Map.class);
+    }
+
+    /** Assign a reviewer to a registry entry. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> assignReviewer(String entryId, String reviewerId) throws MockartyException {
+        return client.put("/api/v1/contract/registry/" + entryId + "/reviewer", Map.of("reviewerId", reviewerId), Map.class);
     }
 
         private static String encode(String value) {
