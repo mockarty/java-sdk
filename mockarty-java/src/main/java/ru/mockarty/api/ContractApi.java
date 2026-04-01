@@ -424,7 +424,108 @@ public class ContractApi {
         return client.put("/api/v1/contract/registry/" + entryId + "/reviewer", Map.of("reviewerId", reviewerId), Map.class);
     }
 
-        private static String encode(String value) {
+    // ── Consumer Contracts (Dependency Bundles) ────────────────────
+
+    /** List all consumer contracts in the current namespace. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listConsumerContracts() throws MockartyException {
+        return client.get("/api/v1/contract/consumer-contracts", List.class);
+    }
+
+    /** Get a consumer contract by ID. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getConsumerContract(String contractId) throws MockartyException {
+        return client.get("/api/v1/contract/consumer-contracts/" + encode(contractId), Map.class);
+    }
+
+    /** Create or update a consumer contract. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createConsumerContract(Map<String, Object> contract) throws MockartyException {
+        return client.post("/api/v1/contract/consumer-contracts", contract, Map.class);
+    }
+
+    /** Delete a consumer contract. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> deleteConsumerContract(String contractId) throws MockartyException {
+        return client.delete("/api/v1/contract/consumer-contracts/" + encode(contractId), Map.class);
+    }
+
+    // ── Can I Deploy V2 (Bidirectional) ─────────────────────────────
+
+    /** Bidirectional deployment readiness check. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> canIDeployV2(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/can-i-deploy", request, Map.class);
+    }
+
+    // ── Spec Parsing (Wizard Support) ───────────────────────────────
+
+    /** Parse endpoints from a registry entry specification. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> parseEndpoints(String entryId) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + encode(entryId) + "/parse-endpoints", Map.of(), Map.class);
+    }
+
+    /** Parse response fields for a specific endpoint. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> parseFields(String entryId, String route, int statusCode) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + encode(entryId) + "/parse-fields",
+            Map.of("route", route, "statusCode", statusCode), Map.class);
+    }
+
+    // ── Versioning ──────────────────────────────────────────────────
+
+    /** List version history for a registry entry. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listRegistryVersions(String entryId) throws MockartyException {
+        return client.get("/api/v1/contract/registry/" + encode(entryId) + "/versions", List.class);
+    }
+
+    /** Get a specific version of a registry entry. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getRegistryVersion(String entryId, int version) throws MockartyException {
+        return client.get("/api/v1/contract/registry/" + encode(entryId) + "/versions/" + version, Map.class);
+    }
+
+    /** Rollback a registry entry to a previous version. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rollbackRegistryVersion(String entryId, int version) throws MockartyException {
+        return client.post("/api/v1/contract/registry/" + encode(entryId) + "/versions/" + version + "/rollback", Map.of(), Map.class);
+    }
+
+    /** Compute diff between two versions of a registry entry. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> diffRegistryVersions(String entryId, int v1, int v2) throws MockartyException {
+        return client.get("/api/v1/contract/registry/" + encode(entryId) + "/versions/" + v1 + "/diff/" + v2, Map.class);
+    }
+
+    /** List version history for a consumer contract. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listConsumerContractVersions(String contractId) throws MockartyException {
+        return client.get("/api/v1/contract/consumer-contracts/" + encode(contractId) + "/versions", List.class);
+    }
+
+    /** Get a specific version of a consumer contract. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getConsumerContractVersion(String contractId, int version) throws MockartyException {
+        return client.get("/api/v1/contract/consumer-contracts/" + encode(contractId) + "/versions/" + version, Map.class);
+    }
+
+    /** Rollback a consumer contract to a previous version. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rollbackConsumerContractVersion(String contractId, int version) throws MockartyException {
+        return client.post("/api/v1/contract/consumer-contracts/" + encode(contractId) + "/versions/" + version + "/rollback", Map.of(), Map.class);
+    }
+
+    // ── Health ──────────────────────────────────────────────────────
+
+    /** Get contract health status for the current namespace. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> health() throws MockartyException {
+        return client.get("/api/v1/contract/health", Map.class);
+    }
+
+    private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }
