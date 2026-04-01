@@ -322,4 +322,126 @@ public class ContractsExample {
         System.out.println("  Drifted: " + driftResult.get("hasDrift"));
         System.out.println("  Details: " + driftResult.get("driftDetails"));
     }
+
+    /**
+     * Consumer contracts — dependency bundles declaring provider dependencies.
+     */
+    static void consumerContracts(MockartyClient client) {
+        System.out.println("\n=== Consumer Contracts (Dependency Bundles) ===");
+
+        // Create a consumer contract
+        Map<String, Object> contract = client.contracts().createConsumerContract(Map.of(
+                "name", "OrderService",
+                "dependencies", List.of(Map.of(
+                        "registryEntryId", "user-service-api",
+                        "providerName", "UserService",
+                        "providerVersion", "latest",
+                        "endpoints", List.of(Map.of(
+                                "route", "GET /api/users/{id}",
+                                "protocol", "openapi",
+                                "expectedStatus", List.of(200),
+                                "requiredFields", List.of(
+                                        Map.of("path", "$.id", "type", "integer", "required", true),
+                                        Map.of("path", "$.email", "type", "string", "required", true)
+                                )
+                        ))
+                )),
+                "tags", List.of("critical")
+        ));
+        String contractId = (String) contract.get("id");
+        System.out.println("Created: " + contract.get("name") + " (v" + contract.get("version") + ")");
+
+        // List contracts
+        List<Map<String, Object>> contracts = client.contracts().listConsumerContracts();
+        System.out.println("Found " + contracts.size() + " consumer contracts");
+
+        // Cleanup
+        if (contractId != null) {
+            client.contracts().deleteConsumerContract(contractId);
+            System.out.println("Deleted contract " + contractId);
+        }
+    }
+
+    /**
+     * Bidirectional Can-I-Deploy check.
+     */
+    static void canIDeployV2(MockartyClient client) {
+        System.out.println("\n=== Can I Deploy V2 (Bidirectional) ===");
+
+        // Consumer check
+        System.out.println("--- Consumer check ---");
+        try {
+            Map<String, Object> result = client.contracts().canIDeployV2(Map.of(
+                    "role", "consumer",
+                    "contractId", "order-service-contract-id"
+            ));
+            boolean deployable = Boolean.TRUE.equals(result.get("deployable"));
+            System.out.println("  [" + (deployable ? "SAFE" : "BLOCKED") + "] " + result.get("summary"));
+        } catch (Exception e) {
+            System.out.println("  Consumer check: " + e.getMessage());
+        }
+
+        // Provider pre-deploy check
+        System.out.println("--- Provider check ---");
+        try {
+            Map<String, Object> result = client.contracts().canIDeployV2(Map.of(
+                    "role", "provider",
+                    "registryEntryId", "user-service-api",
+                    "newSpec", "{\"openapi\":\"3.0.0\",\"info\":{\"title\":\"UserService\",\"version\":\"2.0\"},\"paths\":{}}"
+            ));
+            boolean deployable = Boolean.TRUE.equals(result.get("deployable"));
+            List<?> affected = (List<?>) result.getOrDefault("affectedConsumers", List.of());
+            System.out.println("  [" + (deployable ? "SAFE" : "BLOCKED") + "] " + affected.size() + " consumers affected");
+        } catch (Exception e) {
+            System.out.println("  Provider check: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Registry version history — list, diff, rollback.
+     */
+    static void registryVersions(MockartyClient client) {
+        System.out.println("\n=== Registry Versions ===");
+
+        String entryId = "user-service-api";
+
+        try {
+            List<Map<String, Object>> versions = client.contracts().listRegistryVersions(entryId);
+            System.out.println("Found " + versions.size() + " versions");
+            for (Map<String, Object> v : versions) {
+                String current = Boolean.TRUE.equals(v.get("isCurrent")) ? " (current)" : "";
+                System.out.println("  - v" + v.get("version") + " by " + v.get("createdBy") + current);
+            }
+
+            // Diff two versions
+            if (versions.size() >= 2) {
+                int oldVer = ((Number) versions.get(1).get("version")).intValue();
+                int newVer = ((Number) versions.get(0).get("version")).intValue();
+                Map<String, Object> diff = client.contracts().diffRegistryVersions(entryId, oldVer, newVer);
+                Map<?, ?> summary = (Map<?, ?>) diff.getOrDefault("summary", Map.of());
+                System.out.println("Diff: " + summary.get("totalChanges") + " changes (" + summary.get("breakingChanges") + " breaking)");
+            }
+        } catch (Exception e) {
+            System.out.println("  Versions: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Contract health dashboard.
+     */
+    static void contractHealth(MockartyClient client) {
+        System.out.println("\n=== Contract Health ===");
+
+        try {
+            Map<String, Object> health = client.contracts().health();
+            System.out.println("Overall: " + health.get("overall"));
+            List<?> items = (List<?>) health.getOrDefault("items", List.of());
+            for (Object item : items) {
+                Map<?, ?> m = (Map<?, ?>) item;
+                System.out.println("  [" + m.get("status") + "] " + m.get("name") + " (" + m.get("type") + ")");
+            }
+        } catch (Exception e) {
+            System.out.println("  Health: " + e.getMessage());
+        }
+    }
 }
