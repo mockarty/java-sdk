@@ -445,9 +445,8 @@ public class ContractApi {
     }
 
     /** Delete a consumer contract. */
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> deleteConsumerContract(String contractId) throws MockartyException {
-        return client.delete("/api/v1/contract/consumer-contracts/" + encode(contractId), Map.class);
+    public void deleteConsumerContract(String contractId) throws MockartyException {
+        client.delete("/api/v1/contract/consumer-contracts/" + encode(contractId));
     }
 
     // ── Can I Deploy V2 (Bidirectional) ─────────────────────────────
