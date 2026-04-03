@@ -239,6 +239,18 @@ public class ContractApi {
         return client.post("/api/v1/contract/detect-drift/grpc", request, Map.class);
     }
 
+    /** Detect SOAP/WSDL service drift. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectWSDLDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/wsdl", request, Map.class);
+    }
+
+    /** Detect MCP server drift. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectMCPDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/mcp", request, Map.class);
+    }
+
     // ─── API Registry ─────────────────────────────────────────────
 
     /**
