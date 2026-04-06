@@ -90,11 +90,8 @@ public class StoreApi {
      * @param key the key to delete
      */
     public void globalDelete(String key) throws MockartyException {
-        Map<String, Object> body = Map.of(
-                "namespace", client.getConfig().getNamespace(),
-                "key", key
-        );
-        client.delete("/api/v1/stores/global");
+        String namespace = client.getConfig().getNamespace();
+        client.delete("/api/v1/stores/global/" + encode(key) + "?namespace=" + encode(namespace));
     }
 
     // Chain Store operations
@@ -163,7 +160,8 @@ public class StoreApi {
      * @param key     the key to delete
      */
     public void chainDelete(String chainId, String key) throws MockartyException {
-        client.delete("/api/v1/stores/chain/" + encode(chainId));
+        String namespace = client.getConfig().getNamespace();
+        client.delete("/api/v1/stores/chain/" + encode(chainId) + "/" + encode(key) + "?namespace=" + encode(namespace));
     }
 
     private static String encode(String value) {
