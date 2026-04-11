@@ -261,7 +261,7 @@ class MockartyAdvancedApiTest {
 
             FuzzingConfig config = new FuzzingConfig()
                     .name("Test Config")
-                    .targetUrl("http://example.com");
+                    .targetBaseUrl("http://example.com");
             FuzzingConfig result = client.fuzzing().createConfig(config);
             assertEquals("cfg-new", result.getId());
             assertEquals("Test Config", result.getName());
@@ -864,14 +864,14 @@ class MockartyAdvancedApiTest {
         void fuzzingConfigBuilder() {
             FuzzingConfig config = new FuzzingConfig()
                     .name("SQL Injection Test")
-                    .targetUrl("http://target.example.com/api")
+                    .targetBaseUrl("http://target.example.com/api")
                     .method("POST")
                     .duration(60)
                     .concurrency(10)
                     .securityChecks(true);
 
             assertEquals("SQL Injection Test", config.getName());
-            assertEquals("http://target.example.com/api", config.getTargetUrl());
+            assertEquals("http://target.example.com/api", config.getTargetBaseUrl());
             assertEquals("POST", config.getMethod());
             assertEquals(60, config.getDuration());
             assertEquals(10, config.getConcurrency());
