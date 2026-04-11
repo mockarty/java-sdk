@@ -30,11 +30,17 @@ import ru.mockarty.api.TemplateApi;
 import ru.mockarty.api.TestRunApi;
 import ru.mockarty.api.UndefinedApi;
 import ru.mockarty.exception.MockartyApiException;
+import ru.mockarty.exception.MockartyConflictException;
 import ru.mockarty.exception.MockartyConnectionException;
 import ru.mockarty.exception.MockartyException;
+import ru.mockarty.exception.MockartyExternalException;
 import ru.mockarty.exception.MockartyForbiddenException;
 import ru.mockarty.exception.MockartyNotFoundException;
+import ru.mockarty.exception.MockartyRateLimitException;
+import ru.mockarty.exception.MockartyServerException;
 import ru.mockarty.exception.MockartyUnauthorizedException;
+import ru.mockarty.exception.MockartyUnavailableException;
+import ru.mockarty.exception.MockartyValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -438,6 +444,17 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Performs a DELETE request with a JSON body and deserializes the response.
+     */
+    public <T> T delete(String path, Object body, Class<T> responseType) throws MockartyException {
+        HttpRequest request = buildRequest(path)
+                .method("DELETE", jsonBody(body))
+                .header("Content-Type", "application/json")
+                .build();
+        return execute(request, responseType);
+    }
+
+    /**
      * Performs a GET request and returns the raw response bytes.
      */
     public byte[] getBytes(String path) throws MockartyException {
@@ -553,40 +570,136 @@ public class MockartyClient implements AutoCloseable {
         }
     }
 
-    private void handleErrorResponse(int statusCode, String responseBody) throws MockartyApiException {
-        String errorMessage = extractErrorMessage(responseBody);
+    /**
+     * Parsed representation of the Mockarty uniform error envelope:
+     * <pre>{"error": "...", "code": "...", "request_id": "..."}</pre>
+     */
+    private static final class ParsedError {
+        final String message;
+        final String code;
+        final String requestId;
 
-        switch (statusCode) {
-            case 401:
-                throw new MockartyUnauthorizedException(errorMessage, responseBody);
-            case 403:
-                throw new MockartyForbiddenException(errorMessage, responseBody);
-            case 404:
-                throw new MockartyNotFoundException(errorMessage, responseBody);
-            default:
-                throw new MockartyApiException(statusCode, errorMessage, responseBody);
+        ParsedError(String message, String code, String requestId) {
+            this.message = message;
+            this.code = code;
+            this.requestId = requestId;
         }
     }
 
-    private String extractErrorMessage(String responseBody) {
+    private void handleErrorResponse(int statusCode, String responseBody) throws MockartyApiException {
+        ParsedError parsed = parseErrorEnvelope(responseBody);
+        String errorMessage = parsed.message;
+        String code = parsed.code;
+        String requestId = parsed.requestId;
+
+        // Primary dispatch: by stable code field (preferred for new servers).
+        if (code != null && !code.isEmpty()) {
+            switch (code) {
+                case "validation":
+                    throw new MockartyValidationException(errorMessage, responseBody, code, requestId);
+                case "unauthorized":
+                    throw new MockartyUnauthorizedException(errorMessage, responseBody, code, requestId);
+                case "forbidden":
+                    throw new MockartyForbiddenException(errorMessage, responseBody, code, requestId);
+                case "not_found":
+                    throw new MockartyNotFoundException(errorMessage, responseBody, code, requestId);
+                case "conflict":
+                    throw new MockartyConflictException(errorMessage, responseBody, code, requestId);
+                case "rate_limit":
+                    throw new MockartyRateLimitException(errorMessage, responseBody, code, requestId);
+                case "unavailable":
+                    throw new MockartyUnavailableException(errorMessage, responseBody, code, requestId);
+                case "external":
+                    throw new MockartyExternalException(errorMessage, responseBody, code, requestId);
+                case "internal":
+                    throw new MockartyServerException(statusCode, errorMessage, responseBody, code, requestId);
+                default:
+                    // Unknown code from a newer server — fall through to status-based dispatch.
+                    break;
+            }
+        }
+
+        // Fallback: dispatch by HTTP status (legacy servers or unknown codes).
+        switch (statusCode) {
+            case 400:
+                throw new MockartyValidationException(errorMessage, responseBody, code, requestId);
+            case 401:
+                throw new MockartyUnauthorizedException(errorMessage, responseBody, code, requestId);
+            case 403:
+                throw new MockartyForbiddenException(errorMessage, responseBody, code, requestId);
+            case 404:
+                throw new MockartyNotFoundException(errorMessage, responseBody, code, requestId);
+            case 409:
+                throw new MockartyConflictException(errorMessage, responseBody, code, requestId);
+            case 429:
+                throw new MockartyRateLimitException(errorMessage, responseBody, code, requestId);
+            case 502:
+                throw new MockartyExternalException(errorMessage, responseBody, code, requestId);
+            case 503:
+                throw new MockartyUnavailableException(errorMessage, responseBody, code, requestId);
+            default:
+                if (statusCode >= 500) {
+                    throw new MockartyServerException(statusCode, errorMessage, responseBody, code, requestId);
+                }
+                throw new MockartyApiException(statusCode, errorMessage, responseBody, code, requestId);
+        }
+    }
+
+    /**
+     * Parses the uniform Mockarty error envelope:
+     * <pre>{"error": "...", "code": "...", "request_id": "..."}</pre>
+     * Falls back to raw text for non-JSON or empty bodies. The {@code message}
+     * field (legacy fallback) is accepted if {@code error} is missing.
+     */
+    private ParsedError parseErrorEnvelope(String responseBody) {
         if (responseBody == null || responseBody.isEmpty()) {
-            return "Unknown error";
+            return new ParsedError("Unknown error", null, null);
         }
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> errorMap = objectMapper.readValue(responseBody, Map.class);
+
+            String message = null;
             Object error = errorMap.get("error");
             if (error != null) {
-                return error.toString();
+                message = error.toString();
+            } else {
+                Object legacy = errorMap.get("message");
+                if (legacy != null) {
+                    message = legacy.toString();
+                }
             }
-            Object message = errorMap.get("message");
-            if (message != null) {
-                return message.toString();
+            if (message == null) {
+                message = truncate(responseBody);
             }
+
+            String code = null;
+            Object rawCode = errorMap.get("code");
+            if (rawCode != null) {
+                String s = rawCode.toString();
+                if (!s.isEmpty()) {
+                    code = s;
+                }
+            }
+
+            String requestId = null;
+            Object rawReqId = errorMap.get("request_id");
+            if (rawReqId != null) {
+                String s = rawReqId.toString();
+                if (!s.isEmpty()) {
+                    requestId = s;
+                }
+            }
+
+            return new ParsedError(message, code, requestId);
         } catch (JsonProcessingException e) {
-            // Response is not JSON, return as-is
+            // Response is not JSON — return raw text as the message.
+            return new ParsedError(truncate(responseBody), null, null);
         }
-        return responseBody.length() > 200 ? responseBody.substring(0, 200) + "..." : responseBody;
+    }
+
+    private static String truncate(String s) {
+        return s.length() > 200 ? s.substring(0, 200) + "..." : s;
     }
 
     private static ObjectMapper createObjectMapper() {

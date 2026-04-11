@@ -8,9 +8,11 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.FuzzingConfig;
 import ru.mockarty.model.FuzzingFinding;
+import ru.mockarty.model.FuzzingQuarantinePage;
 import ru.mockarty.model.FuzzingResult;
 import ru.mockarty.model.FuzzingRun;
 import ru.mockarty.model.FuzzingSchedule;
+import ru.mockarty.model.QuarantineEntry;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -59,6 +61,17 @@ public class FuzzingApi {
         JavaType listType = client.getObjectMapper().getTypeFactory()
                 .constructCollectionType(List.class, FuzzingConfig.class);
         return client.get("/api/v1/fuzzing/configs", listType);
+    }
+
+    /**
+     * Updates a fuzzing configuration.
+     *
+     * @param configId the configuration ID to update
+     * @param config   the updated configuration
+     * @return the updated configuration
+     */
+    public FuzzingConfig updateConfig(String configId, FuzzingConfig config) throws MockartyException {
+        return client.put("/api/v1/fuzzing/configs/" + encode(configId), config, FuzzingConfig.class);
     }
 
     /**
@@ -223,6 +236,48 @@ public class FuzzingApi {
     }
 
     /**
+     * Batch applies a manual triage status to multiple fuzzing findings.
+     *
+     * @param ids    the finding IDs to triage
+     * @param status the triage status (new, confirmed, false_positive, fixed, accepted, quarantined)
+     * @return a map containing the "updated" count
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> batchManualTriage(List<String> ids, String status) throws MockartyException {
+        return batchManualTriage(ids, status, null);
+    }
+
+    /**
+     * Batch applies a manual triage status to multiple fuzzing findings with an optional note.
+     *
+     * @param ids    the finding IDs to triage
+     * @param status the triage status (new, confirmed, false_positive, fixed, accepted, quarantined)
+     * @param note   optional note for the triage action
+     * @return a map containing the "updated" count
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> batchManualTriage(List<String> ids, String status, String note) throws MockartyException {
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("ids", ids);
+        body.put("status", status);
+        if (note != null) {
+            body.put("note", note);
+        }
+        return client.post("/api/v1/fuzzing/findings/batch-manual-triage", body, Map.class);
+    }
+
+    /**
+     * Batch deletes multiple fuzzing findings.
+     *
+     * @param ids the finding IDs to delete
+     * @return a map containing the "deleted" count
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> batchDeleteFindings(List<String> ids) throws MockartyException {
+        return client.delete("/api/v1/fuzzing/findings/batch", Map.of("ids", ids), Map.class);
+    }
+
+    /**
      * Exports fuzzing findings.
      *
      * @param request export parameters
@@ -293,6 +348,16 @@ public class FuzzingApi {
     }
 
     /**
+     * Gets a fuzzing schedule by ID.
+     *
+     * @param id the schedule ID
+     * @return the fuzzing schedule
+     */
+    public FuzzingSchedule getSchedule(String id) throws MockartyException {
+        return client.get("/api/v1/fuzzing/schedules/" + encode(id), FuzzingSchedule.class);
+    }
+
+    /**
      * Creates a new fuzzing schedule.
      *
      * @param schedule the schedule to create
@@ -320,6 +385,88 @@ public class FuzzingApi {
      */
     public void deleteSchedule(String id) throws MockartyException {
         client.delete("/api/v1/fuzzing/schedules/" + encode(id));
+    }
+
+    // ---- Quarantine ----
+
+    /**
+     * Lists quarantine entries with pagination.
+     *
+     * @param limit  maximum number of entries to return
+     * @param offset pagination offset
+     * @return paginated quarantine entries
+     */
+    public FuzzingQuarantinePage listQuarantine(int limit, int offset) throws MockartyException {
+        String query = "?limit=" + limit + "&offset=" + offset;
+        return client.get("/api/v1/fuzzing/quarantine" + query, FuzzingQuarantinePage.class);
+    }
+
+    /**
+     * Lists quarantine entries with default pagination (limit=50, offset=0).
+     *
+     * @return paginated quarantine entries
+     */
+    public FuzzingQuarantinePage listQuarantine() throws MockartyException {
+        return listQuarantine(50, 0);
+    }
+
+    /**
+     * Creates a new quarantine entry.
+     *
+     * @param entry the quarantine entry to create
+     * @return the created quarantine entry
+     */
+    public QuarantineEntry createQuarantine(QuarantineEntry entry) throws MockartyException {
+        return client.post("/api/v1/fuzzing/quarantine", entry, QuarantineEntry.class);
+    }
+
+    /**
+     * Deletes a quarantine entry by ID.
+     *
+     * @param id the quarantine entry ID to delete
+     */
+    public void deleteQuarantine(String id) throws MockartyException {
+        client.delete("/api/v1/fuzzing/quarantine/" + encode(id));
+    }
+
+    /**
+     * Batch deletes multiple quarantine entries.
+     *
+     * @param ids the quarantine entry IDs to delete
+     * @return a map containing the "deleted" count
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> batchDeleteQuarantine(List<String> ids) throws MockartyException {
+        return client.post("/api/v1/fuzzing/quarantine/batch-delete", Map.of("ids", ids), Map.class);
+    }
+
+    /**
+     * Creates a quarantine entry from an existing finding.
+     * Computes the fingerprint from the finding and adds it to quarantine,
+     * then triages the finding as "false_positive".
+     *
+     * @param findingId the finding ID to quarantine
+     * @param reason    the reason for quarantining
+     * @return the created quarantine entry
+     */
+    public QuarantineEntry quarantineFinding(String findingId, String reason) throws MockartyException {
+        return client.post("/api/v1/fuzzing/quarantine/from-finding",
+                Map.of("findingId", findingId, "reason", reason), QuarantineEntry.class);
+    }
+
+    /**
+     * Batch creates quarantine entries from multiple findings.
+     * Computes fingerprints from each finding and adds them to quarantine,
+     * then triages the findings as "false_positive".
+     *
+     * @param findingIds the finding IDs to quarantine
+     * @param reason     the reason for quarantining
+     * @return a map containing "created", "triaged", and "failed" counts
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> batchQuarantineFindings(List<String> findingIds, String reason) throws MockartyException {
+        return client.post("/api/v1/fuzzing/quarantine/from-findings",
+                Map.of("findingIds", findingIds, "reason", reason), Map.class);
     }
 
     private static String encode(String value) {

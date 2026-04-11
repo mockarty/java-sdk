@@ -54,7 +54,7 @@ public class FuzzingExample {
         FuzzingConfig config = new FuzzingConfig()
                 .name("User API Fuzzing")
                 .namespace("sandbox")
-                .targetUrl("http://localhost:8080/api/users")
+                .targetBaseUrl("http://localhost:8080/api/users")
                 .method("POST")
                 .headers(Map.of(
                         "Content-Type", "application/json",
@@ -100,7 +100,7 @@ public class FuzzingExample {
         FuzzingConfig sqlConfig = new FuzzingConfig()
                 .name("SQL Injection Test - Login Endpoint")
                 .namespace("sandbox")
-                .targetUrl("http://localhost:8080/api/auth/login")
+                .targetBaseUrl("http://localhost:8080/api/auth/login")
                 .method("POST")
                 .headers(Map.of("Content-Type", "application/json"))
                 .body(Map.of(
@@ -121,7 +121,7 @@ public class FuzzingExample {
         FuzzingConfig xssConfig = new FuzzingConfig()
                 .name("XSS Test - Comment API")
                 .namespace("sandbox")
-                .targetUrl("http://localhost:8080/api/comments")
+                .targetBaseUrl("http://localhost:8080/api/comments")
                 .method("POST")
                 .headers(Map.of("Content-Type", "application/json"))
                 .body(Map.of(
@@ -143,7 +143,7 @@ public class FuzzingExample {
         FuzzingConfig boundaryConfig = new FuzzingConfig()
                 .name("Boundary Test - Pagination")
                 .namespace("sandbox")
-                .targetUrl("http://localhost:8080/api/products?page=1&limit=10")
+                .targetBaseUrl("http://localhost:8080/api/products?page=1&limit=10")
                 .method("GET")
                 .headers(Map.of("Accept", "application/json"))
                 .fuzzFields(List.of("page", "limit"))
@@ -163,13 +163,8 @@ public class FuzzingExample {
         System.out.println("\n=== Quick Fuzz ===");
 
         FuzzingRun run = client.fuzzing().quickFuzz(Map.of(
-                "targetUrl", "http://localhost:8080/api/search",
-                "method", "GET",
-                "fuzzFields", List.of("q", "limit", "offset"),
-                "duration", 15,
-                "concurrency", 2,
-                "maxRequests", 100,
-                "mutationTypes", List.of("boundary", "type_confusion", "special_chars")
+                "url", "http://localhost:8080/api/search",
+                "method", "GET"
         ));
 
         System.out.println("Quick fuzz started: " + run.getId());
@@ -186,7 +181,7 @@ public class FuzzingExample {
         List<FuzzingConfig> configs = client.fuzzing().listConfigs();
         System.out.println("Total fuzzing configs: " + configs.size());
         for (FuzzingConfig cfg : configs) {
-            System.out.println("  - " + cfg.getName() + " (target: " + cfg.getTargetUrl() + ")");
+            System.out.println("  - " + cfg.getName() + " (target: " + cfg.getTargetBaseUrl() + ")");
         }
 
         // List all fuzzing results
@@ -197,7 +192,7 @@ public class FuzzingExample {
             System.out.println("  Result: " + result.getId());
             System.out.println("    Status: " + result.getStatus());
             System.out.println("    Total requests: " + result.getTotalRequests());
-            System.out.println("    Findings: " + result.getFindings());
+            System.out.println("    Total findings: " + result.getTotalFindings());
         }
 
         // Get details of a specific result
@@ -211,7 +206,7 @@ public class FuzzingExample {
         System.out.println("Fuzzing summary:");
         System.out.println("  Total runs: " + summary.get("totalRuns"));
         System.out.println("  Total findings: " + summary.get("totalFindings"));
-        System.out.println("  Critical: " + summary.get("criticalFindings"));
+        System.out.println("  Critical: " + summary.get("criticalCount"));
     }
 
     /**
@@ -227,8 +222,8 @@ public class FuzzingExample {
         for (FuzzingFinding finding : findings) {
             System.out.println("  Finding: " + finding.getId());
             System.out.println("    Severity: " + finding.getSeverity());
-            System.out.println("    Type: " + finding.getType());
-            System.out.println("    Status: " + finding.getStatus());
+            System.out.println("    Category: " + finding.getCategory());
+            System.out.println("    Triaged: " + finding.getTriagedStatus());
         }
 
         if (findings.isEmpty()) {
@@ -238,7 +233,7 @@ public class FuzzingExample {
 
         // Get a specific finding
         FuzzingFinding first = client.fuzzing().getFinding(findings.get(0).getId());
-        System.out.println("Finding detail: " + first.getType() + " - " + first.getSeverity());
+        System.out.println("Finding detail: " + first.getCategory() + " - " + first.getSeverity());
 
         // Triage a finding (mark as confirmed/false_positive/accepted)
         client.fuzzing().triageFinding(
@@ -343,20 +338,20 @@ public class FuzzingExample {
         FuzzingSchedule schedule = new FuzzingSchedule()
                 .name("Nightly Security Scan")
                 .configId(configId)
-                .cron("0 2 * * *")    // Every day at 2 AM
+                .cronExpression("0 2 * * *")    // Every day at 2 AM
                 .enabled(true)
-                .notifyOnFindings(true);
+                .notifyOnFailure(true);
 
         FuzzingSchedule created = client.fuzzing().createSchedule(schedule);
         System.out.println("Created schedule: " + created.getId());
         System.out.println("  Name: " + created.getName());
-        System.out.println("  Cron: " + created.getCron());
+        System.out.println("  Cron: " + created.getCronExpression());
 
         // List all schedules
         List<FuzzingSchedule> schedules = client.fuzzing().listSchedules();
         System.out.println("Total schedules: " + schedules.size());
         for (FuzzingSchedule s : schedules) {
-            System.out.println("  " + s.getName() + " (enabled=" + s.isEnabled() + ")");
+            System.out.println("  " + s.getName() + " (enabled=" + s.getEnabled() + ")");
         }
 
         // Update a schedule (change cron, disable)
@@ -364,9 +359,9 @@ public class FuzzingExample {
                 new FuzzingSchedule()
                         .name("Weekly Security Scan")
                         .configId(configId)
-                        .cron("0 2 * * 0")    // Every Sunday at 2 AM
+                        .cronExpression("0 2 * * 0")    // Every Sunday at 2 AM
                         .enabled(false)
-                        .notifyOnFindings(true)
+                        .notifyOnFailure(true)
         );
         System.out.println("Updated schedule: " + updated.getName());
 

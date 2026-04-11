@@ -405,7 +405,7 @@ public class CiCdPipelineExample {
         FuzzingConfig config = new FuzzingConfig()
                 .name("CI Pipeline Fuzzing - " + BUILD_ID)
                 .namespace(PIPELINE_NAMESPACE)
-                .targetUrl(client.getConfig().getBaseUrl() + "/api/users")
+                .targetBaseUrl(client.getConfig().getBaseUrl() + "/api/users")
                 .method("POST")
                 .headers(Map.of("Content-Type", "application/json"))
                 .body(Map.of(

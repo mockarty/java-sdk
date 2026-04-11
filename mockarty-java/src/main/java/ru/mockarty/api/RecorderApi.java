@@ -206,6 +206,63 @@ public class RecorderApi {
         client.post("/api/v1/recorder/" + encode(sessionId) + "/entries/" + encode(entryId) + "/replay", null);
     }
 
+    // ---- Session-level replay & correlation ----
+
+    /**
+     * Replays every (or selected) captured entry against a target.
+     * <p>
+     * Re-runs entries against either their original URL or a different
+     * target (e.g. point a production capture at staging) and returns a
+     * summary with match/mismatch/fail/skip counts.
+     * <p>
+     * Supported option keys (all optional):
+     * <ul>
+     *   <li>{@code targetUrl} (String) — base URL to replay against</li>
+     *   <li>{@code concurrency} (int) — parallel replay workers</li>
+     *   <li>{@code timeoutMs} (int) — per-request timeout in ms</li>
+     *   <li>{@code entryIds} (List&lt;String&gt;) — replay only these entry IDs</li>
+     *   <li>{@code includeNonHttp} (bool) — include WS/SSE entries</li>
+     *   <li>{@code followRedirects} (bool) — follow HTTP redirects</li>
+     * </ul>
+     *
+     * @param sessionId the session ID
+     * @param options   replay options (may be null)
+     * @return replay summary as a map
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> replaySession(String sessionId, Map<String, Object> options) throws MockartyException {
+        return client.post("/api/v1/recorder/" + encode(sessionId) + "/replay",
+                options == null ? Map.of() : options, Map.class);
+    }
+
+    /**
+     * Discovers dynamic-value flow between captured entries.
+     * <p>
+     * Runs the deterministic value-matching correlation engine: scans
+     * each entry's response (JSON, headers, Set-Cookie) for values that
+     * are then re-used by a later entry's request (URL, header, body,
+     * form, cookie). The output highlights tokens, IDs and CSRF values
+     * that need to be extracted at runtime.
+     * <p>
+     * Supported option keys (all optional):
+     * <ul>
+     *   <li>{@code minValueLength} (int)</li>
+     *   <li>{@code maxValueLength} (int)</li>
+     *   <li>{@code excludeNumeric} (bool)</li>
+     *   <li>{@code maxCorrelationsPerSource} (int)</li>
+     *   <li>{@code entryIds} (List&lt;String&gt;)</li>
+     * </ul>
+     *
+     * @param sessionId the session ID
+     * @param options   correlation options (may be null)
+     * @return correlation report as a map
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> correlateSession(String sessionId, Map<String, Object> options) throws MockartyException {
+        return client.post("/api/v1/recorder/" + encode(sessionId) + "/correlate",
+                options == null ? Map.of() : options, Map.class);
+    }
+
     // ---- Modifications ----
 
     /**

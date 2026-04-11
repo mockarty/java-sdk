@@ -22,6 +22,8 @@ import java.util.Map;
  *   <li>Recorder configurations (save, list, export, delete)</li>
  *   <li>CA certificate management (status, generate, download)</li>
  *   <li>Entry operations (annotate, replay, modifications)</li>
+ *   <li>Session-level replay against a different target</li>
+ *   <li>Correlation engine: discover dynamic-value flow between entries</li>
  *   <li>Session management and cleanup</li>
  * </ul>
  */
@@ -40,6 +42,7 @@ public class RecorderExample {
             certificateAuthority(client);
             entryAnnotations(client);
             modificationsAndReplay(client);
+            sessionReplayAndCorrelation(client);
         }
     }
 
@@ -279,6 +282,72 @@ public class RecorderExample {
         if (!entries.isEmpty()) {
             client.recorder().replayEntry(sessionId, entries.get(0).getId());
             System.out.println("Replayed entry: " + entries.get(0).getId());
+        }
+    }
+
+    /**
+     * Replay an entire captured session against a different target and run
+     * the correlation engine to discover dynamic values that need to be
+     * extracted at runtime (auth tokens, IDs, CSRF cookies, etc.).
+     *
+     * <p>Useful for:</p>
+     * <ul>
+     *   <li>Smoke-testing a new deployment with realistic traffic</li>
+     *   <li>Verifying staging vs production parity</li>
+     *   <li>Spotting hard-coded auth tokens before authoring tests</li>
+     * </ul>
+     */
+    static void sessionReplayAndCorrelation(MockartyClient client) {
+        System.out.println("\n=== Session Replay & Correlation ===");
+
+        List<RecorderSession> sessions = client.recorder().listSessions();
+        if (sessions.isEmpty()) {
+            System.out.println("No sessions to replay or correlate");
+            return;
+        }
+        String sessionId = sessions.get(0).getId();
+
+        // 1) Replay every captured entry against a different target.
+        Map<String, Object> summary = client.recorder().replaySession(sessionId, Map.of(
+                "targetUrl", "https://staging.example.com",
+                "concurrency", 5,
+                "timeoutMs", 5000,
+                "followRedirects", true
+        ));
+        System.out.println("Replay summary: " +
+                "total=" + summary.get("totalEntries") +
+                " matched=" + summary.get("matched") +
+                " mismatched=" + summary.get("mismatched") +
+                " failed=" + summary.get("failed") +
+                " skipped=" + summary.get("skipped"));
+
+        // 2) Run the correlation engine. The output highlights tokens, IDs
+        //    and CSRF values that need to be extracted at runtime instead
+        //    of being hard-coded from the original capture.
+        Map<String, Object> report = client.recorder().correlateSession(sessionId, Map.of(
+                "minValueLength", 6,
+                "excludeNumeric", false, // numeric IDs are valuable in REST flows
+                "maxCorrelationsPerSource", 50
+        ));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> correlations =
+                (List<Map<String, Object>>) report.getOrDefault("correlations", List.of());
+        System.out.println("Correlation report: " + correlations.size() +
+                " correlations across " + report.get("totalEntries") + " entries");
+
+        int shown = 0;
+        for (Map<String, Object> c : correlations) {
+            if (shown++ >= 5) {
+                System.out.println("  ... (" + (correlations.size() - 5) + " more)");
+                break;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) c.getOrDefault("source", Map.of());
+            @SuppressWarnings("unchecked")
+            List<Object> targets = (List<Object>) c.getOrDefault("targets", List.of());
+            System.out.printf("  [%s] %s=%s (confidence %s, %d targets)%n",
+                    c.get("valueType"), source.get("section"), c.get("value"),
+                    c.get("confidence"), targets.size());
         }
     }
 }

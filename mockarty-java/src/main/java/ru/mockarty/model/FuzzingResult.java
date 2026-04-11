@@ -6,9 +6,6 @@ package ru.mockarty.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
-import java.util.Map;
-
 /**
  * Result of a completed fuzzing run, including findings and statistics.
  */
@@ -27,6 +24,9 @@ public class FuzzingResult {
     @JsonProperty("status")
     private String status;
 
+    @JsonProperty("strategy")
+    private String strategy;
+
     @JsonProperty("totalRequests")
     private Integer totalRequests;
 
@@ -36,17 +36,32 @@ public class FuzzingResult {
     @JsonProperty("errorCount")
     private Integer errorCount;
 
-    @JsonProperty("findings")
-    private List<Map<String, Object>> findings;
+    @JsonProperty("criticalFindings")
+    private Integer criticalFindings;
+
+    @JsonProperty("highFindings")
+    private Integer highFindings;
+
+    @JsonProperty("mediumFindings")
+    private Integer mediumFindings;
+
+    @JsonProperty("lowFindings")
+    private Integer lowFindings;
+
+    @JsonProperty("infoFindings")
+    private Integer infoFindings;
 
     @JsonProperty("startedAt")
     private String startedAt;
 
-    @JsonProperty("finishedAt")
-    private String finishedAt;
+    @JsonProperty("completedAt")
+    private String completedAt;
 
-    @JsonProperty("duration")
-    private Long duration;
+    @JsonProperty("totalFindings")
+    private Integer totalFindings;
+
+    @JsonProperty("durationMs")
+    private Long durationMs;
 
     @JsonProperty("namespace")
     private String namespace;
@@ -76,6 +91,11 @@ public class FuzzingResult {
         return this;
     }
 
+    public FuzzingResult strategy(String strategy) {
+        this.strategy = strategy;
+        return this;
+    }
+
     public FuzzingResult totalRequests(Integer totalRequests) {
         this.totalRequests = totalRequests;
         return this;
@@ -91,8 +111,28 @@ public class FuzzingResult {
         return this;
     }
 
-    public FuzzingResult findings(List<Map<String, Object>> findings) {
-        this.findings = findings;
+    public FuzzingResult criticalFindings(Integer criticalFindings) {
+        this.criticalFindings = criticalFindings;
+        return this;
+    }
+
+    public FuzzingResult highFindings(Integer highFindings) {
+        this.highFindings = highFindings;
+        return this;
+    }
+
+    public FuzzingResult mediumFindings(Integer mediumFindings) {
+        this.mediumFindings = mediumFindings;
+        return this;
+    }
+
+    public FuzzingResult lowFindings(Integer lowFindings) {
+        this.lowFindings = lowFindings;
+        return this;
+    }
+
+    public FuzzingResult infoFindings(Integer infoFindings) {
+        this.infoFindings = infoFindings;
         return this;
     }
 
@@ -101,13 +141,18 @@ public class FuzzingResult {
         return this;
     }
 
-    public FuzzingResult finishedAt(String finishedAt) {
-        this.finishedAt = finishedAt;
+    public FuzzingResult completedAt(String completedAt) {
+        this.completedAt = completedAt;
         return this;
     }
 
-    public FuzzingResult duration(Long duration) {
-        this.duration = duration;
+    public FuzzingResult totalFindings(Integer totalFindings) {
+        this.totalFindings = totalFindings;
+        return this;
+    }
+
+    public FuzzingResult durationMs(Long durationMs) {
+        this.durationMs = durationMs;
         return this;
     }
 
@@ -134,6 +179,10 @@ public class FuzzingResult {
         return status;
     }
 
+    public String getStrategy() {
+        return strategy;
+    }
+
     public Integer getTotalRequests() {
         return totalRequests;
     }
@@ -146,20 +195,40 @@ public class FuzzingResult {
         return errorCount;
     }
 
-    public List<Map<String, Object>> getFindings() {
-        return findings;
+    public Integer getCriticalFindings() {
+        return criticalFindings;
+    }
+
+    public Integer getHighFindings() {
+        return highFindings;
+    }
+
+    public Integer getMediumFindings() {
+        return mediumFindings;
+    }
+
+    public Integer getLowFindings() {
+        return lowFindings;
+    }
+
+    public Integer getInfoFindings() {
+        return infoFindings;
     }
 
     public String getStartedAt() {
         return startedAt;
     }
 
-    public String getFinishedAt() {
-        return finishedAt;
+    public String getCompletedAt() {
+        return completedAt;
     }
 
-    public Long getDuration() {
-        return duration;
+    public Integer getTotalFindings() {
+        return totalFindings;
+    }
+
+    public Long getDurationMs() {
+        return durationMs;
     }
 
     public String getNamespace() {
@@ -172,7 +241,7 @@ public class FuzzingResult {
                 "id='" + id + '\'' +
                 ", status='" + status + '\'' +
                 ", totalRequests=" + totalRequests +
-                ", findings=" + (findings != null ? findings.size() : 0) +
+                ", totalFindings=" + totalFindings +
                 '}';
     }
 }

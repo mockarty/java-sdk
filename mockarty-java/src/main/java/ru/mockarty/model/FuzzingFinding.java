@@ -18,8 +18,8 @@ public class FuzzingFinding {
     @JsonProperty("runId")
     private String runId;
 
-    @JsonProperty("type")
-    private String type;
+    @JsonProperty("category")
+    private String category;
 
     @JsonProperty("severity")
     private String severity;
@@ -30,8 +30,20 @@ public class FuzzingFinding {
     @JsonProperty("description")
     private String description;
 
-    @JsonProperty("triageStatus")
-    private String triageStatus;
+    @JsonProperty("triagedStatus")
+    private String triagedStatus;
+
+    @JsonProperty("requestMethod")
+    private String requestMethod;
+
+    @JsonProperty("requestUrl")
+    private String requestUrl;
+
+    @JsonProperty("responseStatus")
+    private Integer responseStatus;
+
+    @JsonProperty("createdAt")
+    private String createdAt;
 
     public FuzzingFinding() {
     }
@@ -48,8 +60,8 @@ public class FuzzingFinding {
         return this;
     }
 
-    public FuzzingFinding type(String type) {
-        this.type = type;
+    public FuzzingFinding category(String category) {
+        this.category = category;
         return this;
     }
 
@@ -68,8 +80,23 @@ public class FuzzingFinding {
         return this;
     }
 
-    public FuzzingFinding triageStatus(String triageStatus) {
-        this.triageStatus = triageStatus;
+    public FuzzingFinding triagedStatus(String triagedStatus) {
+        this.triagedStatus = triagedStatus;
+        return this;
+    }
+
+    public FuzzingFinding requestMethod(String requestMethod) {
+        this.requestMethod = requestMethod;
+        return this;
+    }
+
+    public FuzzingFinding requestUrl(String requestUrl) {
+        this.requestUrl = requestUrl;
+        return this;
+    }
+
+    public FuzzingFinding responseStatus(Integer responseStatus) {
+        this.responseStatus = responseStatus;
         return this;
     }
 
@@ -83,8 +110,8 @@ public class FuzzingFinding {
         return runId;
     }
 
-    public String getType() {
-        return type;
+    public String getCategory() {
+        return category;
     }
 
     public String getSeverity() {
@@ -99,15 +126,31 @@ public class FuzzingFinding {
         return description;
     }
 
-    public String getTriageStatus() {
-        return triageStatus;
+    public String getTriagedStatus() {
+        return triagedStatus;
+    }
+
+    public String getRequestMethod() {
+        return requestMethod;
+    }
+
+    public String getRequestUrl() {
+        return requestUrl;
+    }
+
+    public Integer getResponseStatus() {
+        return responseStatus;
+    }
+
+    public String getCreatedAt() {
+        return createdAt;
     }
 
     @Override
     public String toString() {
         return "FuzzingFinding{" +
                 "id='" + id + '\'' +
-                ", type='" + type + '\'' +
+                ", category='" + category + '\'' +
                 ", severity='" + severity + '\'' +
                 ", title='" + title + '\'' +
                 '}';

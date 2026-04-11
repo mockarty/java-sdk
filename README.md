@@ -33,13 +33,13 @@
 ```kotlin
 dependencies {
     // Core SDK
-    implementation("ru.mockarty:mockarty-java:0.1.0")
+    implementation("ru.mockarty:mockarty-java:0.2.2")
 
     // JUnit 5 extension (test scope)
-    testImplementation("ru.mockarty:mockarty-junit5:0.1.0")
+    testImplementation("ru.mockarty:mockarty-junit5:0.2.2")
 
     // Kotlin DSL (optional)
-    implementation("ru.mockarty:mockarty-kotlin:0.1.0")
+    implementation("ru.mockarty:mockarty-kotlin:0.2.2")
 }
 ```
 
@@ -49,7 +49,7 @@ dependencies {
 <dependency>
     <groupId>ru.mockarty</groupId>
     <artifactId>mockarty-java</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.2</version>
 </dependency>
 ```
 

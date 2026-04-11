@@ -15,4 +15,8 @@ public class MockartyNotFoundException extends MockartyApiException {
     public MockartyNotFoundException(String errorMessage, String responseBody) {
         super(404, errorMessage, responseBody);
     }
+
+    public MockartyNotFoundException(String errorMessage, String responseBody, String code, String requestId) {
+        super(404, errorMessage, responseBody, code, requestId);
+    }
 }

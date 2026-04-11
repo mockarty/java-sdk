@@ -6,10 +6,16 @@ package ru.mockarty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import ru.mockarty.exception.MockartyApiException;
+import ru.mockarty.exception.MockartyConflictException;
 import ru.mockarty.exception.MockartyConnectionException;
+import ru.mockarty.exception.MockartyExternalException;
 import ru.mockarty.exception.MockartyForbiddenException;
 import ru.mockarty.exception.MockartyNotFoundException;
+import ru.mockarty.exception.MockartyRateLimitException;
+import ru.mockarty.exception.MockartyServerException;
 import ru.mockarty.exception.MockartyUnauthorizedException;
+import ru.mockarty.exception.MockartyUnavailableException;
+import ru.mockarty.exception.MockartyValidationException;
 import ru.mockarty.model.HealthResponse;
 import ru.mockarty.model.Mock;
 import ru.mockarty.model.SaveMockResponse;
@@ -322,6 +328,160 @@ class MockartyClientTest {
                     () -> client.health().check());
             assertEquals(502, e.getStatusCode());
             assertTrue(e.getErrorMessage().contains("Bad Gateway"));
+        }
+
+        @Test
+        @DisplayName("should parse code and request_id from error envelope")
+        void parsesCodeAndRequestId() {
+            server.createContext("/api/v1/mocks/missing", exchange -> {
+                String json =
+                        "{\"error\":\"mock not found\",\"code\":\"not_found\",\"request_id\":\"req-abc-123\"}";
+                byte[] body = json.getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(404, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyNotFoundException e = assertThrows(MockartyNotFoundException.class,
+                    () -> client.mocks().get("missing"));
+            assertEquals(404, e.getStatusCode());
+            assertEquals("not_found", e.getCode());
+            assertEquals("req-abc-123", e.getRequestId());
+            assertTrue(e.getMessage().contains("not_found"));
+            assertTrue(e.getMessage().contains("req-abc-123"));
+        }
+
+        @Test
+        @DisplayName("should dispatch by code field — validation")
+        void dispatchByCodeValidation() {
+            // Status is 200 (unusual) but code is 'validation' → should still raise validation.
+            // Use a realistic 400 case instead.
+            server.createContext("/api/v1/mocks", exchange -> {
+                String json = "{\"error\":\"bad input\",\"code\":\"validation\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(400, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyValidationException e = assertThrows(MockartyValidationException.class,
+                    () -> client.mocks().create(new Mock()));
+            assertEquals(400, e.getStatusCode());
+            assertEquals("validation", e.getCode());
+        }
+
+        @Test
+        @DisplayName("should dispatch by code field — conflict")
+        void dispatchByCodeConflict() {
+            server.createContext("/api/v1/mocks", exchange -> {
+                String json = "{\"error\":\"duplicate\",\"code\":\"conflict\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(409, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyConflictException e = assertThrows(MockartyConflictException.class,
+                    () -> client.mocks().create(new Mock()));
+            assertEquals(409, e.getStatusCode());
+            assertEquals("conflict", e.getCode());
+        }
+
+        @Test
+        @DisplayName("should dispatch by code field — rate_limit")
+        void dispatchByCodeRateLimit() {
+            server.createContext("/health", exchange -> {
+                String json = "{\"error\":\"too many requests\",\"code\":\"rate_limit\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(429, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyRateLimitException e = assertThrows(MockartyRateLimitException.class,
+                    () -> client.health().check());
+            assertEquals(429, e.getStatusCode());
+            assertEquals("rate_limit", e.getCode());
+        }
+
+        @Test
+        @DisplayName("should dispatch by code field — unavailable")
+        void dispatchByCodeUnavailable() {
+            server.createContext("/health", exchange -> {
+                String json = "{\"error\":\"db down\",\"code\":\"unavailable\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(503, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyUnavailableException e = assertThrows(MockartyUnavailableException.class,
+                    () -> client.health().check());
+            assertEquals(503, e.getStatusCode());
+            assertEquals("unavailable", e.getCode());
+        }
+
+        @Test
+        @DisplayName("should dispatch by code field — external")
+        void dispatchByCodeExternal() {
+            server.createContext("/health", exchange -> {
+                String json = "{\"error\":\"upstream failed\",\"code\":\"external\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(502, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyExternalException e = assertThrows(MockartyExternalException.class,
+                    () -> client.health().check());
+            assertEquals(502, e.getStatusCode());
+            assertEquals("external", e.getCode());
+        }
+
+        @Test
+        @DisplayName("code field wins over HTTP status for dispatch")
+        void codeWinsOverStatus() {
+            // Server returns 500 but with code=unavailable — the SDK should dispatch
+            // by code (primary path), not by status.
+            server.createContext("/health", exchange -> {
+                String json = "{\"error\":\"db down\",\"code\":\"unavailable\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(500, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyUnavailableException e = assertThrows(MockartyUnavailableException.class,
+                    () -> client.health().check());
+            // StatusCode on the exception is pinned to the canonical 503 for Unavailable.
+            assertEquals(503, e.getStatusCode());
+            assertEquals("unavailable", e.getCode());
+        }
+
+        @Test
+        @DisplayName("should fall back to status when code is missing (legacy server)")
+        void legacyServerNoCode() {
+            server.createContext("/api/v1/mocks/missing", exchange -> {
+                String json = "{\"error\":\"not found\"}";
+                byte[] body = json.getBytes();
+                exchange.sendResponseHeaders(404, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            MockartyNotFoundException e = assertThrows(MockartyNotFoundException.class,
+                    () -> client.mocks().get("missing"));
+            assertEquals(404, e.getStatusCode());
+            assertNull(e.getCode());
         }
     }
 

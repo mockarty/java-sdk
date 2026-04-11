@@ -232,7 +232,7 @@ class MockartyAdvancedApiTest {
         @DisplayName("should get fuzzing result")
         void getResult() throws Exception {
             server.createContext("/api/v1/fuzzing/results/run-1", exchange -> {
-                String json = "{\"id\":\"res-1\",\"runId\":\"run-1\",\"status\":\"completed\",\"totalRequests\":1000,\"findings\":[]}";
+                String json = "{\"id\":\"res-1\",\"configId\":\"cfg-1\",\"status\":\"completed\",\"totalRequests\":1000,\"totalFindings\":5}";
                 byte[] body = json.getBytes();
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, body.length);
@@ -508,6 +508,98 @@ class MockartyAdvancedApiTest {
             assertEquals(1, entries.size());
             assertEquals("GET", entries.get(0).getMethod());
             assertEquals(200, entries.get(0).getStatusCode());
+        }
+
+        @Test
+        @DisplayName("should replay session and forward options")
+        void replaySession() throws Exception {
+            server.createContext("/api/v1/recorder/sess-1/replay", exchange -> {
+                assertEquals("POST", exchange.getRequestMethod());
+                String reqBody = new String(exchange.getRequestBody().readAllBytes());
+                // Server-side smoke check that the options actually crossed
+                // the wire as JSON.
+                assertTrue(reqBody.contains("staging.example.com"),
+                        "request body missing targetUrl, got: " + reqBody);
+                assertTrue(reqBody.contains("\"concurrency\""),
+                        "request body missing concurrency");
+                String json = "{\"sessionId\":\"sess-1\",\"totalEntries\":3,\"matched\":2,"
+                        + "\"mismatched\":0,\"failed\":1,\"skipped\":0,\"results\":[]}";
+                byte[] body = json.getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            Map<String, Object> summary = client.recorder().replaySession("sess-1", Map.of(
+                    "targetUrl", "http://staging.example.com",
+                    "concurrency", 5,
+                    "timeoutMs", 5000
+            ));
+            assertNotNull(summary);
+            // Jackson decodes JSON numbers as Integer, but defensively also
+            // accept Long here for forward-compatibility.
+            Object matched = summary.get("matched");
+            assertTrue(matched instanceof Number);
+            assertEquals(2, ((Number) matched).intValue());
+            assertEquals(3, ((Number) summary.get("totalEntries")).intValue());
+        }
+
+        @Test
+        @DisplayName("should replay session with null options")
+        void replaySessionNullOptions() throws Exception {
+            server.createContext("/api/v1/recorder/sess-2/replay", exchange -> {
+                String reqBody = new String(exchange.getRequestBody().readAllBytes());
+                // Even with null options the SDK must send a JSON object,
+                // never a literal "null" payload.
+                assertTrue(reqBody.startsWith("{") && reqBody.endsWith("}"),
+                        "expected empty JSON object, got: " + reqBody);
+                String json = "{\"sessionId\":\"sess-2\",\"totalEntries\":0}";
+                byte[] body = json.getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            Map<String, Object> summary = client.recorder().replaySession("sess-2", null);
+            assertNotNull(summary);
+            assertEquals(0, ((Number) summary.get("totalEntries")).intValue());
+        }
+
+        @Test
+        @DisplayName("should correlate session and return report")
+        void correlateSession() throws Exception {
+            server.createContext("/api/v1/recorder/sess-1/correlate", exchange -> {
+                assertEquals("POST", exchange.getRequestMethod());
+                String reqBody = new String(exchange.getRequestBody().readAllBytes());
+                assertTrue(reqBody.contains("\"minValueLength\""),
+                        "expected minValueLength in body, got: " + reqBody);
+                String json = "{\"sessionId\":\"sess-1\",\"totalEntries\":4,"
+                        + "\"correlations\":[{\"value\":\"tok-abc\",\"valueType\":\"token\","
+                        + "\"confidence\":0.95,\"source\":{\"entryId\":\"e1\","
+                        + "\"section\":\"response.body.json\"},\"targets\":[{\"entryId\":\"e2\","
+                        + "\"section\":\"request.header\"}]}]}";
+                byte[] body = json.getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            Map<String, Object> report = client.recorder().correlateSession("sess-1", Map.of(
+                    "minValueLength", 8,
+                    "excludeNumeric", true
+            ));
+            assertNotNull(report);
+            assertEquals(4, ((Number) report.get("totalEntries")).intValue());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> corrs = (List<Map<String, Object>>) report.get("correlations");
+            assertEquals(1, corrs.size());
+            assertEquals("token", corrs.get(0).get("valueType"));
         }
     }
 

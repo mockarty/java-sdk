@@ -15,17 +15,35 @@ public class FuzzingSchedule {
     @JsonProperty("id")
     private String id;
 
+    @JsonProperty("name")
+    private String name;
+
+    @JsonProperty("namespace")
+    private String namespace;
+
     @JsonProperty("configId")
     private String configId;
 
-    @JsonProperty("cron")
-    private String cron;
+    @JsonProperty("cronExpression")
+    private String cronExpression;
 
     @JsonProperty("enabled")
     private Boolean enabled;
 
+    @JsonProperty("notifyOnFailure")
+    private Boolean notifyOnFailure;
+
+    @JsonProperty("nextRunAt")
+    private String nextRunAt;
+
+    @JsonProperty("lastRunAt")
+    private String lastRunAt;
+
     @JsonProperty("createdAt")
     private String createdAt;
+
+    @JsonProperty("updatedAt")
+    private String updatedAt;
 
     public FuzzingSchedule() {
     }
@@ -37,18 +55,33 @@ public class FuzzingSchedule {
         return this;
     }
 
+    public FuzzingSchedule name(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public FuzzingSchedule namespace(String namespace) {
+        this.namespace = namespace;
+        return this;
+    }
+
     public FuzzingSchedule configId(String configId) {
         this.configId = configId;
         return this;
     }
 
-    public FuzzingSchedule cron(String cron) {
-        this.cron = cron;
+    public FuzzingSchedule cronExpression(String cronExpression) {
+        this.cronExpression = cronExpression;
         return this;
     }
 
     public FuzzingSchedule enabled(Boolean enabled) {
         this.enabled = enabled;
+        return this;
+    }
+
+    public FuzzingSchedule notifyOnFailure(Boolean notifyOnFailure) {
+        this.notifyOnFailure = notifyOnFailure;
         return this;
     }
 
@@ -58,28 +91,53 @@ public class FuzzingSchedule {
         return id;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public String getNamespace() {
+        return namespace;
+    }
+
     public String getConfigId() {
         return configId;
     }
 
-    public String getCron() {
-        return cron;
+    public String getCronExpression() {
+        return cronExpression;
     }
 
     public Boolean getEnabled() {
         return enabled;
     }
 
+    public Boolean getNotifyOnFailure() {
+        return notifyOnFailure;
+    }
+
+    public String getNextRunAt() {
+        return nextRunAt;
+    }
+
+    public String getLastRunAt() {
+        return lastRunAt;
+    }
+
     public String getCreatedAt() {
         return createdAt;
+    }
+
+    public String getUpdatedAt() {
+        return updatedAt;
     }
 
     @Override
     public String toString() {
         return "FuzzingSchedule{" +
                 "id='" + id + '\'' +
+                ", name='" + name + '\'' +
                 ", configId='" + configId + '\'' +
-                ", cron='" + cron + '\'' +
+                ", cronExpression='" + cronExpression + '\'' +
                 ", enabled=" + enabled +
                 '}';
     }

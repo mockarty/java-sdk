@@ -24,8 +24,8 @@ public class FuzzingConfig {
     @JsonProperty("namespace")
     private String namespace;
 
-    @JsonProperty("targetUrl")
-    private String targetUrl;
+    @JsonProperty("targetBaseUrl")
+    private String targetBaseUrl;
 
     @JsonProperty("method")
     private String method;
@@ -74,8 +74,8 @@ public class FuzzingConfig {
         return this;
     }
 
-    public FuzzingConfig targetUrl(String targetUrl) {
-        this.targetUrl = targetUrl;
+    public FuzzingConfig targetBaseUrl(String targetBaseUrl) {
+        this.targetBaseUrl = targetBaseUrl;
         return this;
     }
 
@@ -138,8 +138,8 @@ public class FuzzingConfig {
         return namespace;
     }
 
-    public String getTargetUrl() {
-        return targetUrl;
+    public String getTargetBaseUrl() {
+        return targetBaseUrl;
     }
 
     public String getMethod() {
@@ -183,7 +183,7 @@ public class FuzzingConfig {
         return "FuzzingConfig{" +
                 "id='" + id + '\'' +
                 ", name='" + name + '\'' +
-                ", targetUrl='" + targetUrl + '\'' +
+                ", targetBaseUrl='" + targetBaseUrl + '\'' +
                 '}';
     }
 }

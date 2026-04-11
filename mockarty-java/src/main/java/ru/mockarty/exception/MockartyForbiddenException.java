@@ -15,4 +15,8 @@ public class MockartyForbiddenException extends MockartyApiException {
     public MockartyForbiddenException(String errorMessage, String responseBody) {
         super(403, errorMessage, responseBody);
     }
+
+    public MockartyForbiddenException(String errorMessage, String responseBody, String code, String requestId) {
+        super(403, errorMessage, responseBody, code, requestId);
+    }
 }
