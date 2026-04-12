@@ -68,6 +68,16 @@ public class RecorderApi {
     }
 
     /**
+     * Restarts a recording session (stops and starts it again).
+     *
+     * @param id the session ID
+     * @return the restarted session
+     */
+    public RecorderSession restartRecording(String id) throws MockartyException {
+        return client.post("/api/v1/recorder/" + encode(id) + "/restart", null, RecorderSession.class);
+    }
+
+    /**
      * Deletes a recording session and all its entries.
      *
      * @param id the session ID
@@ -100,7 +110,17 @@ public class RecorderApi {
     }
 
     /**
-     * Exports a recording session.
+     * Exports a recording session (e.g. as HAR).
+     *
+     * @param id the session ID
+     * @return the exported data as bytes
+     */
+    public byte[] exportSession(String id) throws MockartyException {
+        return client.postBytes("/api/v1/recorder/" + encode(id) + "/export", null);
+    }
+
+    /**
+     * Creates mocks from recorded entries and exports with options.
      *
      * @param id      the session ID
      * @param options optional export configuration

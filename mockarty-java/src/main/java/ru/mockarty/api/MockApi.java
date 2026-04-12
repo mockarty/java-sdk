@@ -222,6 +222,33 @@ public class MockApi {
     }
 
     /**
+     * Batch creates multiple mocks in one request.
+     *
+     * @param mocks list of mocks to create
+     */
+    public void batchCreate(List<Mock> mocks) throws MockartyException {
+        client.post("/api/v1/mocks/batch", Map.of("mocks", mocks));
+    }
+
+    /**
+     * Batch deletes multiple mocks by their IDs (soft delete).
+     *
+     * @param ids list of mock IDs to delete
+     */
+    public void batchDelete(List<String> ids) throws MockartyException {
+        client.delete("/api/v1/mocks/batch", Map.of("ids", ids));
+    }
+
+    /**
+     * Batch restores multiple soft-deleted mocks.
+     *
+     * @param ids list of mock IDs to restore
+     */
+    public void batchRestore(List<String> ids) throws MockartyException {
+        client.post("/api/v1/mocks/batch/restore", Map.of("ids", ids));
+    }
+
+    /**
      * Moves mocks to a folder.
      *
      * @param mockIds  list of mock IDs to move
