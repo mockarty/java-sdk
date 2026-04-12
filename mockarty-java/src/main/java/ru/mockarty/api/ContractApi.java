@@ -7,11 +7,15 @@ import com.fasterxml.jackson.databind.JavaType;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.CanIDeployResult;
+import ru.mockarty.model.CheckCompatibilityRequest;
 import ru.mockarty.model.Contract;
 import ru.mockarty.model.ContractValidationResult;
+import ru.mockarty.model.DriftDetectionRequest;
 import ru.mockarty.model.Mock;
 import ru.mockarty.model.Pact;
 import ru.mockarty.model.PactVerificationResult;
+import ru.mockarty.model.PactVerifyRequest;
+import ru.mockarty.model.ValidatePayloadRequest;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -55,13 +59,24 @@ public class ContractApi {
     }
 
     /**
-     * Checks compatibility between consumer and provider contracts.
+     * Checks backward compatibility between two spec versions.
      *
      * @param request the compatibility check request
      * @return the compatibility result
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> checkCompatibility(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/check-compatibility", request, Map.class);
+    }
+
+    /**
+     * Checks backward compatibility between two spec versions (typed).
+     *
+     * @param request the typed compatibility check request
+     * @return the compatibility result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> checkCompatibility(CheckCompatibilityRequest request) throws MockartyException {
         return client.post("/api/v1/contract/check-compatibility", request, Map.class);
     }
 
@@ -73,6 +88,17 @@ public class ContractApi {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> validatePayload(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/validate-payload", request, Map.class);
+    }
+
+    /**
+     * Validates a payload against a contract specification (typed).
+     *
+     * @param request the typed payload validation request
+     * @return the validation result
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> validatePayload(ValidatePayloadRequest request) throws MockartyException {
         return client.post("/api/v1/contract/validate-payload", request, Map.class);
     }
 
@@ -175,6 +201,16 @@ public class ContractApi {
     }
 
     /**
+     * Verifies a pact against a provider (typed).
+     *
+     * @param request the typed pact verification request with message callback support
+     * @return the verification result
+     */
+    public PactVerificationResult verifyPact(PactVerifyRequest request) throws MockartyException {
+        return client.post("/api/v1/contract/pacts/verify", request, PactVerificationResult.class);
+    }
+
+    /**
      * Checks if it is safe to deploy based on pact verification status.
      *
      * @param request the can-I-deploy request
@@ -217,7 +253,7 @@ public class ContractApi {
     }
 
     /**
-     * Detects drift between contracts and implementations.
+     * Detects drift between mocks and the live service.
      *
      * @param request the drift detection request
      * @return drift detection results
@@ -227,9 +263,26 @@ public class ContractApi {
         return client.post("/api/v1/contract/detect-drift", request, Map.class);
     }
 
+    /**
+     * Detects drift between mocks and the live service (typed).
+     *
+     * @param request the typed drift detection request
+     * @return drift detection results
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectDrift(DriftDetectionRequest request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift", request, Map.class);
+    }
+
     /** Detect GraphQL schema drift via introspection. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> detectGraphQLDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/graphql", request, Map.class);
+    }
+
+    /** Detect GraphQL schema drift via introspection (typed). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectGraphQLDrift(DriftDetectionRequest request) throws MockartyException {
         return client.post("/api/v1/contract/detect-drift/graphql", request, Map.class);
     }
 
@@ -239,15 +292,33 @@ public class ContractApi {
         return client.post("/api/v1/contract/detect-drift/grpc", request, Map.class);
     }
 
+    /** Detect gRPC service drift via reflection (typed). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectGRPCDrift(DriftDetectionRequest request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/grpc", request, Map.class);
+    }
+
     /** Detect SOAP/WSDL service drift. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> detectWSDLDrift(Map<String, Object> request) throws MockartyException {
         return client.post("/api/v1/contract/detect-drift/wsdl", request, Map.class);
     }
 
+    /** Detect SOAP/WSDL service drift (typed). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectWSDLDrift(DriftDetectionRequest request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/wsdl", request, Map.class);
+    }
+
     /** Detect MCP server drift. */
     @SuppressWarnings("unchecked")
     public Map<String, Object> detectMCPDrift(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/detect-drift/mcp", request, Map.class);
+    }
+
+    /** Detect MCP server drift (typed). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> detectMCPDrift(DriftDetectionRequest request) throws MockartyException {
         return client.post("/api/v1/contract/detect-drift/mcp", request, Map.class);
     }
 
@@ -534,6 +605,62 @@ public class ContractApi {
     @SuppressWarnings("unchecked")
     public Map<String, Object> health() throws MockartyException {
         return client.get("/api/v1/contract/health", Map.class);
+    }
+
+    // ── BDCT & Advanced Endpoints ─────────────────────────────────
+
+    /** Run bidirectional contract testing (Pact vs provider spec). */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> bdctVerify(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/bdct/verify", request, Map.class);
+    }
+
+    /** Parse field trees from inline spec content. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> parseJsonFields(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/parse-json-fields", request, Map.class);
+    }
+
+    /** Compare a consumer contract against another. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> diffConsumerContract(String contractId, Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/consumer-contracts/" + encode(contractId) + "/diff", request, Map.class);
+    }
+
+    /** Diff two versions of a consumer contract. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> diffConsumerContractVersions(String contractId, int v1, int v2) throws MockartyException {
+        return client.get("/api/v1/contract/consumer-contracts/" + encode(contractId) + "/versions/" + v1 + "/diff/" + v2, Map.class);
+    }
+
+    /** List namespaces that have registry entries. */
+    @SuppressWarnings("unchecked")
+    public List<String> listRegistryNamespaces() throws MockartyException {
+        return client.get("/api/v1/contract/registry/namespaces", List.class);
+    }
+
+    /** AI-assisted analysis of contract findings. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> analyzeFindings(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/findings/analyze", request, Map.class);
+    }
+
+    /** Auto-triage contract findings by severity. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> autoTriageFindings(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/findings/auto-triage", request, Map.class);
+    }
+
+    /** Export contract findings. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> exportFindings(Map<String, Object> request) throws MockartyException {
+        return client.post("/api/v1/contract/findings/export", request, Map.class);
+    }
+
+    /** Trigger immediate execution of a contract schedule. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> runConfig(String configId) throws MockartyException {
+        return client.post("/api/v1/contract/configs/" + encode(configId) + "/run", null, Map.class);
     }
 
     private static String encode(String value) {

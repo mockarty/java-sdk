@@ -119,4 +119,34 @@ public class GeneratorApi {
     public GeneratorPreview previewHAR(GeneratorRequest request) throws MockartyException {
         return client.post("/api/v1/generators/har/preview", request, GeneratorPreview.class);
     }
+
+    /**
+     * Generates mocks from an MCP (Model Context Protocol) server specification.
+     *
+     * @param request the generator request containing the MCP spec
+     * @return the generation result
+     */
+    public GeneratorResponse fromMCP(GeneratorRequest request) throws MockartyException {
+        return client.post("/api/v1/generators/mcp", request, GeneratorResponse.class);
+    }
+
+    /**
+     * Previews mock generation from an MCP specification without creating mocks.
+     *
+     * @param request the generator request containing the MCP spec
+     * @return the preview result
+     */
+    public GeneratorPreview previewMCP(GeneratorRequest request) throws MockartyException {
+        return client.post("/api/v1/generators/mcp/preview", request, GeneratorPreview.class);
+    }
+
+    /**
+     * Generates mocks for WebSocket/TCP/UDP from a specification.
+     *
+     * @param request the generator request
+     * @return the generation result
+     */
+    public GeneratorResponse fromSocket(GeneratorRequest request) throws MockartyException {
+        return client.post("/api/v1/generators/socket", request, GeneratorResponse.class);
+    }
 }
