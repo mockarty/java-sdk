@@ -36,7 +36,7 @@ public class NamespaceSettingsApi {
     public List<NamespaceUser> listUsers(String namespace) throws MockartyException {
         JavaType listType = client.getObjectMapper().getTypeFactory()
                 .constructCollectionType(List.class, NamespaceUser.class);
-        return client.get("/api/v1/namespaces/" + encode(namespace) + "/settings/users", listType);
+        return client.get("/api/v1/namespaces/" + encode(namespace) + "/users", listType);
     }
 
     /**
@@ -46,7 +46,7 @@ public class NamespaceSettingsApi {
      * @param request   the add user request (userId, role)
      */
     public void addUser(String namespace, Map<String, Object> request) throws MockartyException {
-        client.post("/api/v1/namespaces/" + encode(namespace) + "/settings/users", request);
+        client.post("/api/v1/namespaces/" + encode(namespace) + "/users", request);
     }
 
     /**
@@ -56,7 +56,7 @@ public class NamespaceSettingsApi {
      * @param userId    the user ID to remove
      */
     public void removeUser(String namespace, String userId) throws MockartyException {
-        client.delete("/api/v1/namespaces/" + encode(namespace) + "/settings/users/" + encode(userId));
+        client.delete("/api/v1/namespaces/" + encode(namespace) + "/users/" + encode(userId));
     }
 
     /**
@@ -67,7 +67,7 @@ public class NamespaceSettingsApi {
      * @param role      the new role
      */
     public void updateUserRole(String namespace, String userId, String role) throws MockartyException {
-        client.put("/api/v1/namespaces/" + encode(namespace) + "/settings/users/" + encode(userId),
+        client.put("/api/v1/namespaces/" + encode(namespace) + "/users/" + encode(userId) + "/role",
                 Map.of("role", role));
     }
 
@@ -80,7 +80,7 @@ public class NamespaceSettingsApi {
      * @return the cleanup policy
      */
     public CleanupPolicy getCleanupPolicy(String namespace) throws MockartyException {
-        return client.get("/api/v1/namespaces/" + encode(namespace) + "/settings/cleanup", CleanupPolicy.class);
+        return client.get("/api/v1/namespaces/" + encode(namespace) + "/cleanup-policy", CleanupPolicy.class);
     }
 
     /**
@@ -90,7 +90,7 @@ public class NamespaceSettingsApi {
      * @param policy    the updated cleanup policy
      */
     public void updateCleanupPolicy(String namespace, CleanupPolicy policy) throws MockartyException {
-        client.put("/api/v1/namespaces/" + encode(namespace) + "/settings/cleanup", policy);
+        client.put("/api/v1/namespaces/" + encode(namespace) + "/cleanup-policy", policy);
     }
 
     // ---- Webhooks ----
@@ -105,7 +105,7 @@ public class NamespaceSettingsApi {
     public List<Map<String, Object>> listWebhooks(String namespace) throws MockartyException {
         JavaType listType = client.getObjectMapper().getTypeFactory()
                 .constructCollectionType(List.class, Map.class);
-        return client.get("/api/v1/namespaces/" + encode(namespace) + "/settings/webhooks", listType);
+        return client.get("/api/v1/namespaces/" + encode(namespace) + "/webhooks", listType);
     }
 
     /**
@@ -117,7 +117,7 @@ public class NamespaceSettingsApi {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createWebhook(String namespace, Map<String, Object> webhook) throws MockartyException {
-        return client.post("/api/v1/namespaces/" + encode(namespace) + "/settings/webhooks",
+        return client.post("/api/v1/namespaces/" + encode(namespace) + "/webhooks",
                 webhook, Map.class);
     }
 
@@ -128,7 +128,7 @@ public class NamespaceSettingsApi {
      * @param id        the webhook ID to delete
      */
     public void deleteWebhook(String namespace, String id) throws MockartyException {
-        client.delete("/api/v1/namespaces/" + encode(namespace) + "/settings/webhooks/" + encode(id));
+        client.delete("/api/v1/namespaces/" + encode(namespace) + "/webhooks/" + encode(id));
     }
 
     private static String encode(String value) {

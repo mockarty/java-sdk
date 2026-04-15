@@ -82,7 +82,28 @@ public class TestRunApi {
      * @return the imported test run
      */
     public TestRun importReport(Map<String, Object> report) throws MockartyException {
-        return client.post("/api/v1/api-tester/test-runs/import", report, TestRun.class);
+        return client.post("/api/v1/api-tester/reports/import", report, TestRun.class);
+    }
+
+    /**
+     * Lists active (pending/running) test runs in the current namespace.
+     * Useful for CI/CD gating on parallel runs.
+     *
+     * @return list of active test runs
+     */
+    @SuppressWarnings("unchecked")
+    public List<TestRun> listActive() throws MockartyException {
+        Map<String, Object> envelope = client.get("/api/v1/test-runs/active", Map.class);
+        if (envelope == null) {
+            return List.of();
+        }
+        Object raw = envelope.get("runs");
+        if (!(raw instanceof List<?>)) {
+            return List.of();
+        }
+        JavaType trType = client.getObjectMapper().getTypeFactory()
+                .constructCollectionType(List.class, TestRun.class);
+        return client.getObjectMapper().convertValue(raw, trType);
     }
 
     private static String encode(String value) {
