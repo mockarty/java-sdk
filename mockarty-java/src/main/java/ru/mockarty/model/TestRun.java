@@ -21,6 +21,14 @@ public class TestRun {
     @JsonProperty("collectionId")
     private String collectionId;
 
+    /** Execution surface: "functional" (default), "load", "fuzz", "chaos", "contract". Added by migration 033. */
+    @JsonProperty("mode")
+    private String mode;
+
+    /** UUID of the owning subsystem row (fuzz_configs.id, chaos_experiments.id, contract_registry.id). */
+    @JsonProperty("referenceId")
+    private String referenceId;
+
     @JsonProperty("status")
     private String status;
 
@@ -66,6 +74,16 @@ public class TestRun {
 
     public TestRun collectionId(String collectionId) {
         this.collectionId = collectionId;
+        return this;
+    }
+
+    public TestRun mode(String mode) {
+        this.mode = mode;
+        return this;
+    }
+
+    public TestRun referenceId(String referenceId) {
+        this.referenceId = referenceId;
         return this;
     }
 
@@ -132,6 +150,14 @@ public class TestRun {
 
     public String getCollectionId() {
         return collectionId;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public String getReferenceId() {
+        return referenceId;
     }
 
     public String getStatus() {

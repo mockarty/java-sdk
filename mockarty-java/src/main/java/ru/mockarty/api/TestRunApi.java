@@ -25,15 +25,58 @@ public class TestRunApi {
     }
 
     /**
-     * Lists all test runs.
+     * Lists all test runs (functional mode by default).
      *
      * @return list of test runs
      */
     public List<TestRun> list() throws MockartyException {
+        return listByMode(null, null, 0, 0);
+    }
+
+    /**
+     * Lists test runs filtered by execution mode (migration 033). Pass
+     * {@code mode="fuzz"} / {@code "chaos"} / {@code "contract"} / {@code "load"}
+     * to see runs from those subsystems; {@code null} returns the default
+     * functional view. {@code referenceId} narrows to one owning row.
+     *
+     * @param mode        execution mode filter (nullable)
+     * @param referenceId subsystem-owned row id filter (nullable)
+     * @param limit       page size (&lt;=0 → server default)
+     * @param offset      page offset (&lt;=0 → none)
+     * @return list of test runs
+     */
+    public List<TestRun> listByMode(String mode, String referenceId, int limit, int offset)
+            throws MockartyException {
+        StringBuilder path = new StringBuilder("/api/v1/api-tester/test-runs?namespace=");
+        path.append(encode(client.getConfig().getNamespace()));
+        if (mode != null && !mode.isEmpty()) {
+            path.append("&mode=").append(encode(mode));
+        }
+        if (referenceId != null && !referenceId.isEmpty()) {
+            path.append("&referenceId=").append(encode(referenceId));
+        }
+        if (limit > 0) {
+            path.append("&limit=").append(limit);
+        }
+        if (offset > 0) {
+            path.append("&offset=").append(offset);
+        }
+        // Server returns either a bare list (legacy) or an envelope {runs:[...]};
+        // try the envelope shape first, then fall back to list.
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> envelope = client.get(path.toString(), Map.class);
+            if (envelope != null && envelope.get("runs") instanceof List<?>) {
+                JavaType trType = client.getObjectMapper().getTypeFactory()
+                        .constructCollectionType(List.class, TestRun.class);
+                return client.getObjectMapper().convertValue(envelope.get("runs"), trType);
+            }
+        } catch (MockartyException ignore) {
+            // fall through to list decode
+        }
         JavaType listType = client.getObjectMapper().getTypeFactory()
                 .constructCollectionType(List.class, TestRun.class);
-        String namespace = client.getConfig().getNamespace();
-        return client.get("/api/v1/api-tester/test-runs?namespace=" + encode(namespace), listType);
+        return client.get(path.toString(), listType);
     }
 
     /**

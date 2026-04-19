@@ -27,7 +27,9 @@ import ru.mockarty.api.StatsApi;
 import ru.mockarty.api.StoreApi;
 import ru.mockarty.api.TagApi;
 import ru.mockarty.api.TemplateApi;
+import ru.mockarty.api.TestPlanApi;
 import ru.mockarty.api.TestRunApi;
+import ru.mockarty.api.TrashApi;
 import ru.mockarty.api.UndefinedApi;
 import ru.mockarty.exception.MockartyApiException;
 import ru.mockarty.exception.MockartyConflictException;
@@ -218,6 +220,14 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the Test Plan API — master orchestrator for heterogeneous
+     * (functional / load / fuzz / chaos / contract) runs.
+     */
+    public TestPlanApi testPlans() {
+        return new TestPlanApi(this);
+    }
+
+    /**
      * Returns the Tag API for tag management.
      */
     public TagApi tags() {
@@ -278,6 +288,13 @@ public class MockartyClient implements AutoCloseable {
      */
     public ChaosApi chaos() {
         return new ChaosApi(this);
+    }
+
+    /**
+     * Returns the Trash / Recycle Bin API (list, restore, purge).
+     */
+    public TrashApi trash() {
+        return new TrashApi(this);
     }
 
     /**
