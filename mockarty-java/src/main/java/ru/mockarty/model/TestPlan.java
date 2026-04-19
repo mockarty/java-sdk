@@ -33,9 +33,17 @@ public class TestPlan {
     @JsonProperty("description")
     private String description;
 
-    /** Legacy "mode" column — superseded by per-item type in {@link TestPlanItem}. */
+    /** Legacy "mode" column — kept for backward-compat (cron + parallel/dag sentinels). */
     @JsonProperty("schedule")
     private String schedule;
+
+    /** Typed plan-level execution mode introduced in migration 077.
+     *  One of {@code "fifo"}, {@code "parallel"}, {@code "dag"}. Empty defers
+     *  to server auto-detect (Gates → DAG, otherwise FIFO). Prefer this over
+     *  the schedule sentinel forms; cron expressions still belong in
+     *  {@link #schedule}. */
+    @JsonProperty("executionMode")
+    private String executionMode;
 
     @JsonProperty("items")
     private List<TestPlanItem> items;
@@ -85,6 +93,11 @@ public class TestPlan {
         return this;
     }
 
+    public TestPlan executionMode(String executionMode) {
+        this.executionMode = executionMode;
+        return this;
+    }
+
     public TestPlan items(List<TestPlanItem> items) {
         this.items = items;
         return this;
@@ -113,6 +126,15 @@ public class TestPlan {
     public String getSchedule() {
         return schedule;
     }
+
+    public String getExecutionMode() {
+        return executionMode;
+    }
+
+    /** Canonical execution-mode constants (mirrors server testplan.ExecutionMode*). */
+    public static final String EXECUTION_MODE_FIFO = "fifo";
+    public static final String EXECUTION_MODE_PARALLEL = "parallel";
+    public static final String EXECUTION_MODE_DAG = "dag";
 
     public List<TestPlanItem> getItems() {
         return items;

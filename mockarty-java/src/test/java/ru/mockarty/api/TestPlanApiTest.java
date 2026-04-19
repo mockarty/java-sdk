@@ -16,6 +16,7 @@ import ru.mockarty.exception.WebhookDeliveryException;
 import ru.mockarty.model.AdHocItem;
 import ru.mockarty.model.AdHocRunResponse;
 import ru.mockarty.model.AllureReport;
+import ru.mockarty.model.UnifiedReport;
 import ru.mockarty.model.CreateAdHocRunRequest;
 import ru.mockarty.model.PatchOptions;
 import ru.mockarty.model.PatchPlanRequest;
@@ -611,5 +612,133 @@ class TestPlanApiTest {
     void getRunReportZipValidatesDestination() {
         assertThrows(IllegalArgumentException.class,
                 () -> client.testPlans().getRunReportZip(null, "plan-1", "r1", null));
+    }
+
+    @Test
+    @DisplayName("getRunReportJUnit returns the XML bytes verbatim")
+    void getRunReportJUnit() {
+        server.createContext(
+                "/api/v1/namespaces/test-ns/test-plans/plan-1/runs/r1/report.junit.xml",
+                exchange -> {
+                    byte[] bytes = ("<?xml version=\"1.0\"?>" +
+                            "<testsuites name=\"plan-1\" tests=\"1\">" +
+                            "<testsuite name=\"plan-1\" tests=\"1\">" +
+                            "<testcase name=\"t1\"/></testsuite></testsuites>")
+                            .getBytes();
+                    exchange.getResponseHeaders().set("Content-Type",
+                            "application/xml; charset=utf-8");
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                });
+        byte[] xml = client.testPlans().getRunReportJUnit(null, "plan-1", "r1");
+        assertNotNull(xml);
+        String doc = new String(xml);
+        assertTrue(doc.contains("<testsuites"));
+        assertTrue(doc.contains("plan-1"));
+    }
+
+    @Test
+    @DisplayName("getRunReportJUnit validates empty runId client-side")
+    void getRunReportJUnitValidates() {
+        assertThrows(IllegalArgumentException.class,
+                () -> client.testPlans().getRunReportJUnit(null, "plan-1", ""));
+    }
+
+    @Test
+    @DisplayName("getRunReportMarkdown returns the Markdown bytes verbatim")
+    void getRunReportMarkdown() {
+        server.createContext(
+                "/api/v1/namespaces/test-ns/test-plans/plan-1/runs/r1/report.md",
+                exchange -> {
+                    byte[] bytes = ("# Test Plan Run\n\n" +
+                            "- Items: 1 (passed: 1)\n").getBytes();
+                    exchange.getResponseHeaders().set("Content-Type",
+                            "text/markdown; charset=utf-8");
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                });
+        byte[] md = client.testPlans().getRunReportMarkdown(null, "plan-1", "r1");
+        assertNotNull(md);
+        String doc = new String(md);
+        assertTrue(doc.startsWith("# Test Plan Run"));
+    }
+
+    @Test
+    @DisplayName("getRunReportUnified decodes the Mockarty envelope")
+    void getRunReportUnified() {
+        server.createContext(
+                "/api/v1/namespaces/test-ns/test-plans/plan-1/runs/r1/report.unified.json",
+                exchange -> {
+                    String body = "{\"planName\":\"plan-1\"," +
+                            "\"runId\":\"r1\"," +
+                            "\"startedAt\":\"2026-04-20T00:00:00Z\"," +
+                            "\"counts\":{\"total\":2,\"passed\":1,\"failed\":1}," +
+                            "\"results\":[{\"uuid\":\"u1\",\"name\":\"t1\"," +
+                            "\"status\":\"passed\"}]," +
+                            "\"durationMs\":321,\"generatedAt\":1700000000}";
+                    byte[] bytes = body.getBytes();
+                    exchange.getResponseHeaders().set("Content-Type",
+                            "application/json; charset=utf-8");
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                });
+        UnifiedReport rep = client.testPlans()
+                .getRunReportUnified(null, "plan-1", "r1");
+        assertNotNull(rep);
+        assertEquals("plan-1", rep.getPlanName());
+        assertEquals("r1", rep.getRunId());
+        assertNotNull(rep.getCounts());
+        assertEquals(2, rep.getCounts().getTotal());
+        assertEquals(1, rep.getCounts().getPassed());
+        assertEquals(1, rep.getCounts().getFailed());
+        assertEquals(Long.valueOf(321L), rep.getDurationMs());
+        assertNotNull(rep.getResults());
+        assertEquals(1, rep.getResults().size());
+        assertEquals("u1", rep.getResults().get(0).getUuid());
+        assertEquals("passed", rep.getResults().get(0).getStatus());
+        // Raw bytes are preserved for forward-compat reparses.
+        assertNotNull(rep.getRaw());
+        assertTrue(rep.getRaw().length > 0);
+    }
+
+    @Test
+    @DisplayName("getRunReportUnified validates empty runId client-side")
+    void getRunReportUnifiedValidates() {
+        assertThrows(IllegalArgumentException.class,
+                () -> client.testPlans().getRunReportUnified(null, "plan-1", ""));
+    }
+
+    @Test
+    @DisplayName("getRunReportHTML returns the HTML bytes verbatim")
+    void getRunReportHTML() {
+        server.createContext(
+                "/api/v1/namespaces/test-ns/test-plans/plan-1/runs/r1/report.html",
+                exchange -> {
+                    byte[] bytes = ("<!DOCTYPE html><html><body>" +
+                            "<h1>Run r1</h1></body></html>").getBytes();
+                    exchange.getResponseHeaders().set("Content-Type",
+                            "text/html; charset=utf-8");
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                });
+        byte[] html = client.testPlans().getRunReportHTML(null, "plan-1", "r1");
+        assertNotNull(html);
+        String doc = new String(html);
+        assertTrue(doc.startsWith("<!DOCTYPE html>"));
+    }
+
+    @Test
+    @DisplayName("getRunReportHTML validates empty runId client-side")
+    void getRunReportHTMLValidates() {
+        assertThrows(IllegalArgumentException.class,
+                () -> client.testPlans().getRunReportHTML(null, "plan-1", ""));
     }
 }

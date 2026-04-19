@@ -17,6 +17,7 @@ import ru.mockarty.exception.WebhookDeliveryException;
 import ru.mockarty.model.AdHocItem;
 import ru.mockarty.model.AdHocRunResponse;
 import ru.mockarty.model.AllureReport;
+import ru.mockarty.model.UnifiedReport;
 import ru.mockarty.model.CreateAdHocRunRequest;
 import ru.mockarty.model.PatchOptions;
 import ru.mockarty.model.PatchPlanRequest;
@@ -666,6 +667,98 @@ public class TestPlanApi {
             throw new MockartyConnectionException(
                     "download report zip interrupted", e);
         }
+    }
+
+    /**
+     * Fetch the JUnit XML report for a namespace-scoped run via
+     * {@code GET /api/v1/namespaces/:ns/test-plans/:planRef/runs/:runID/report.junit.xml}.
+     *
+     * <p>The returned bytes are a standards-compliant JUnit document —
+     * feed them straight into Jenkins {@code junit} plugin, GitLab
+     * {@code reports.junit}, or the GitHub Actions JUnit reporter.</p>
+     */
+    public byte[] getRunReportJUnit(String namespace, String planRef, String runId)
+            throws MockartyException {
+        String key = normalizeId(planRef);
+        if (runId == null || runId.trim().isEmpty()) {
+            throw new IllegalArgumentException("runId must not be empty");
+        }
+        String path = namespaceScopedBase(namespace)
+                + "/test-plans/" + encode(key)
+                + "/runs/" + encode(runId.trim())
+                + "/report.junit.xml";
+        return client.getBytes(path);
+    }
+
+    /**
+     * Fetch the Markdown summary report for a namespace-scoped run via
+     * {@code GET /api/v1/namespaces/:ns/test-plans/:planRef/runs/:runID/report.md}.
+     *
+     * <p>Intended for Slack attachments, email bodies, wiki pastes.</p>
+     */
+    public byte[] getRunReportMarkdown(String namespace, String planRef, String runId)
+            throws MockartyException {
+        String key = normalizeId(planRef);
+        if (runId == null || runId.trim().isEmpty()) {
+            throw new IllegalArgumentException("runId must not be empty");
+        }
+        String path = namespaceScopedBase(namespace)
+                + "/test-plans/" + encode(key)
+                + "/runs/" + encode(runId.trim())
+                + "/report.md";
+        return client.getBytes(path);
+    }
+
+    /**
+     * Fetch the native Mockarty-shape JSON report for a namespace-scoped
+     * run via
+     * {@code GET /api/v1/namespaces/:ns/test-plans/:planRef/runs/:runID/report.unified.json}.
+     *
+     * <p>The raw bytes are preserved in {@link UnifiedReport#getRaw()} so
+     * callers can reparse when the server evolves the wire schema.</p>
+     */
+    public UnifiedReport getRunReportUnified(String namespace, String planRef, String runId)
+            throws MockartyException {
+        String key = normalizeId(planRef);
+        if (runId == null || runId.trim().isEmpty()) {
+            throw new IllegalArgumentException("runId must not be empty");
+        }
+        String path = namespaceScopedBase(namespace)
+                + "/test-plans/" + encode(key)
+                + "/runs/" + encode(runId.trim())
+                + "/report.unified.json";
+        byte[] raw = client.getBytes(path);
+        UnifiedReport report;
+        try {
+            report = client.getObjectMapper().readValue(raw, UnifiedReport.class);
+        } catch (IOException e) {
+            // Server returned an unexpected shape — return an empty typed
+            // view but keep the raw bytes so callers can reparse.
+            report = new UnifiedReport();
+        }
+        return report.raw(raw);
+    }
+
+    /**
+     * Fetch the standalone, print-friendly HTML report for a
+     * namespace-scoped run via
+     * {@code GET /api/v1/namespaces/:ns/test-plans/:planRef/runs/:runID/report.html}.
+     *
+     * <p>Returns a self-contained HTML document (inlined CSS, no external
+     * assets) suitable for air-gapped environments. Users can open it in
+     * any browser and print to PDF via Save-as-PDF.</p>
+     */
+    public byte[] getRunReportHTML(String namespace, String planRef, String runId)
+            throws MockartyException {
+        String key = normalizeId(planRef);
+        if (runId == null || runId.trim().isEmpty()) {
+            throw new IllegalArgumentException("runId must not be empty");
+        }
+        String path = namespaceScopedBase(namespace)
+                + "/test-plans/" + encode(key)
+                + "/runs/" + encode(runId.trim())
+                + "/report.html";
+        return client.getBytes(path);
     }
 
     // ── Internal helpers for TP-6b ───────────────────────────────────

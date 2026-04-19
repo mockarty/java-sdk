@@ -16,7 +16,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *
  * <p>{@code scheduleCron} accepts either a 5- or 6-field cron expression
  * OR one of the sentinel modes {@code parallel} / {@code dag} — the server
- * validates both forms.</p>
+ * validates both forms. Prefer {@code executionMode} for the typed mode
+ * field; {@code scheduleCron} stays supported for cron schedules and
+ * legacy clients (post-release contract).</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PatchPlanRequest {
@@ -29,6 +31,9 @@ public class PatchPlanRequest {
 
     @JsonProperty("schedule_cron")
     private String scheduleCron;
+
+    @JsonProperty("execution_mode")
+    private String executionMode;
 
     @JsonProperty("enabled")
     private Boolean enabled;
@@ -51,6 +56,11 @@ public class PatchPlanRequest {
         return this;
     }
 
+    public PatchPlanRequest executionMode(String executionMode) {
+        this.executionMode = executionMode;
+        return this;
+    }
+
     public PatchPlanRequest enabled(Boolean enabled) {
         this.enabled = enabled;
         return this;
@@ -68,6 +78,10 @@ public class PatchPlanRequest {
         return scheduleCron;
     }
 
+    public String getExecutionMode() {
+        return executionMode;
+    }
+
     public Boolean getEnabled() {
         return enabled;
     }
@@ -77,6 +91,7 @@ public class PatchPlanRequest {
      * {@code patch} would send an empty body, which the server rejects.
      */
     public boolean isEmpty() {
-        return name == null && description == null && scheduleCron == null && enabled == null;
+        return name == null && description == null && scheduleCron == null
+                && executionMode == null && enabled == null;
     }
 }
