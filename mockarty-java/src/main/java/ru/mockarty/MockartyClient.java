@@ -11,6 +11,7 @@ import ru.mockarty.api.AgentTaskApi;
 import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CollectionApi;
 import ru.mockarty.api.ContractApi;
+import ru.mockarty.api.EntitySearchApi;
 import ru.mockarty.api.EnvironmentApi;
 import ru.mockarty.api.FolderApi;
 import ru.mockarty.api.FuzzingApi;
@@ -288,6 +289,15 @@ public class MockartyClient implements AutoCloseable {
      */
     public ChaosApi chaos() {
         return new ChaosApi(this);
+    }
+
+    /**
+     * Returns the unified entity-search API — resolve names → IDs across
+     * mocks, test plans, perf configs, fuzz configs, chaos experiments and
+     * contract pacts in one call.
+     */
+    public EntitySearchApi entitySearch() {
+        return new EntitySearchApi(this);
     }
 
     /**

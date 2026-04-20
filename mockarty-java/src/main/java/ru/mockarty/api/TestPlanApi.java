@@ -17,6 +17,7 @@ import ru.mockarty.exception.WebhookDeliveryException;
 import ru.mockarty.model.AdHocItem;
 import ru.mockarty.model.AdHocRunResponse;
 import ru.mockarty.model.AllureReport;
+import ru.mockarty.model.CompareResult;
 import ru.mockarty.model.UnifiedReport;
 import ru.mockarty.model.CreateAdHocRunRequest;
 import ru.mockarty.model.PatchOptions;
@@ -199,6 +200,32 @@ public class TestPlanApi {
         JavaType listType = client.getObjectMapper().getTypeFactory()
                 .constructCollectionType(List.class, TestPlanRun.class);
         return client.getObjectMapper().convertValue(items, listType);
+    }
+
+    /**
+     * Diff two Test Plan runs (Phase-4 task #82).
+     *
+     * <p>Both runs MUST live in the caller's namespace (the server returns
+     * 404 on cross-tenant probes — same no-leak semantics as
+     * {@link #getRun(String)}). Comparing runs of different plans IS
+     * allowed; {@link CompareResult.CompareSummary#isDifferentPlans()}
+     * flags the case so callers can render a banner. Pass the older
+     * baseline run as {@code runA} and the newer/target run as
+     * {@code runB} to keep regression/improvement signs intuitive.</p>
+     *
+     * @param runA baseline run UUID
+     * @param runB target run UUID
+     * @return diff envelope with per-item rows + aggregate counters
+     */
+    public CompareResult compareRuns(String runA, String runB) throws MockartyException {
+        if (runA == null || runA.isEmpty() || runB == null || runB.isEmpty()) {
+            throw new MockartyConnectionException("runA and runB are required");
+        }
+        if (runA.equals(runB)) {
+            throw new MockartyConnectionException("runA and runB must differ");
+        }
+        String path = BASE + "/runs/compare?run_a=" + encode(runA) + "&run_b=" + encode(runB);
+        return client.get(path, CompareResult.class);
     }
 
     /**
