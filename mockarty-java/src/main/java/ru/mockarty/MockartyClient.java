@@ -22,7 +22,9 @@ import ru.mockarty.api.MockApi;
 import ru.mockarty.api.NamespaceApi;
 import ru.mockarty.api.NamespaceSettingsApi;
 import ru.mockarty.api.PerfApi;
+import ru.mockarty.api.PromptsApi;
 import ru.mockarty.api.ProxyApi;
+import ru.mockarty.api.SecretsApi;
 import ru.mockarty.api.RecorderApi;
 import ru.mockarty.api.StatsApi;
 import ru.mockarty.api.StoreApi;
@@ -305,6 +307,22 @@ public class MockartyClient implements AutoCloseable {
      */
     public TrashApi trash() {
         return new TrashApi(this);
+    }
+
+    /**
+     * Returns the Secrets Storage API — namespace-scoped encrypted
+     * key/value stores with optional Vault backend (Phase A0).
+     */
+    public SecretsApi secrets() {
+        return new SecretsApi(this);
+    }
+
+    /**
+     * Returns the Prompts Storage API — managed AI prompts with FIFO-20
+     * version history and rollback.
+     */
+    public PromptsApi prompts() {
+        return new PromptsApi(this);
     }
 
     /**
