@@ -203,7 +203,7 @@ public class TestPlanApi {
     }
 
     /**
-     * Diff two Test Plan runs (Phase-4 task #82).
+     * Diff two Test Plan runs.
      *
      * <p>Both runs MUST live in the caller's namespace (the server returns
      * 404 on cross-tenant probes — same no-leak semantics as
@@ -831,6 +831,180 @@ public class TestPlanApi {
         }
         String trimmed = body.trim();
         return trimmed.length() > 500 ? trimmed.substring(0, 500) + "…" : trimmed;
+    }
+
+    // ── T10: manual-flow surface ─────────────────────────────────────
+
+    /**
+     * Options for {@link #runManual(String, RunManualOptions)}. Plain
+     * data-bag — null-safe getters, defaults applied at request-build time.
+     */
+    public static final class RunManualOptions {
+        private String executionModeOverride;
+        private boolean recordDetailed;
+        private boolean notifyOnCompletion;
+        private List<String> notifyEmails;
+        private List<Integer> items;
+        private String mode;
+
+        public RunManualOptions executionModeOverride(String v) { this.executionModeOverride = v; return this; }
+        public RunManualOptions recordDetailed(boolean v) { this.recordDetailed = v; return this; }
+        public RunManualOptions notifyOnCompletion(boolean v) { this.notifyOnCompletion = v; return this; }
+        public RunManualOptions notifyEmails(List<String> v) { this.notifyEmails = v; return this; }
+        public RunManualOptions items(List<Integer> v) { this.items = v; return this; }
+        public RunManualOptions mode(String v) { this.mode = v; return this; }
+    }
+
+    /**
+     * Trigger a Plan run with the T6/T7/T8 manual-flow knobs.
+     * <ul>
+     *   <li>{@code executionModeOverride}: {@code "manual"} forces every
+     *       test_case item to gate for human verdict; {@code "auto"} forces
+     *       unattended; {@code null}/{@code ""} keeps the per-item default.</li>
+     *   <li>{@code recordDetailed}: persist per-item HAR-shaped traces (T6).</li>
+     *   <li>{@code notifyOnCompletion}/{@code notifyEmails}: completion email (T7).</li>
+     * </ul>
+     */
+    public TestPlanRun runManual(String idOrNumeric, RunManualOptions opts)
+            throws MockartyException {
+        String key = normalizeId(idOrNumeric);
+        RunManualOptions o = opts == null ? new RunManualOptions() : opts;
+        if (o.executionModeOverride != null && !o.executionModeOverride.isEmpty()
+                && !"manual".equals(o.executionModeOverride)
+                && !"auto".equals(o.executionModeOverride)) {
+            throw new IllegalArgumentException(
+                    "executionModeOverride must be \"manual\", \"auto\", or null");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (o.executionModeOverride != null && !o.executionModeOverride.isEmpty()) {
+            body.put("executionModeOverride", o.executionModeOverride);
+        }
+        if (o.recordDetailed) {
+            body.put("recordDetailed", true);
+        }
+        if (o.notifyOnCompletion) {
+            body.put("notifyOnCompletion", true);
+        }
+        if (o.notifyEmails != null && !o.notifyEmails.isEmpty()) {
+            body.put("notifyEmails", o.notifyEmails);
+        }
+        if (o.items != null && !o.items.isEmpty()) {
+            body.put("items", o.items);
+        }
+        if (o.mode != null && !o.mode.isEmpty()) {
+            body.put("mode", o.mode);
+        }
+        JavaType mapType = client.getObjectMapper().getTypeFactory()
+                .constructMapType(Map.class, String.class, Object.class);
+        Map<String, Object> payload = client.post(
+                BASE + "/" + encode(key) + "/run",
+                body.isEmpty() ? null : body,
+                mapType);
+
+        Map<String, Object> shaped = new LinkedHashMap<>();
+        shaped.put("id", payload == null ? null : payload.get("runId"));
+        shaped.put("planId", payload == null ? null : payload.get("planId"));
+        shaped.put("status", payload == null ? null : payload.get("status"));
+        return client.getObjectMapper().convertValue(shaped, TestPlanRun.class);
+    }
+
+    /** Verdict pushed to a manual_pending case-run step. */
+    public enum StepResolution {
+        PASS("pass"), FAIL("fail"), SKIP("skip");
+        private final String wire;
+        StepResolution(String w) { this.wire = w; }
+        public String wire() { return wire; }
+    }
+
+    /** Options for {@link #resolveStep}. */
+    public static final class ResolveStepOptions {
+        private StepResolution resolution;
+        private String note;
+        private String noteFmt;
+        private List<String> attachmentIds;
+        private Map<String, Object> extracted;
+        private String namespace;
+
+        public ResolveStepOptions resolution(StepResolution v) { this.resolution = v; return this; }
+        public ResolveStepOptions note(String v) { this.note = v; return this; }
+        public ResolveStepOptions noteFmt(String v) { this.noteFmt = v; return this; }
+        public ResolveStepOptions attachmentIds(List<String> v) { this.attachmentIds = v; return this; }
+        public ResolveStepOptions extracted(Map<String, Object> v) { this.extracted = v; return this; }
+        public ResolveStepOptions namespace(String v) { this.namespace = v; return this; }
+    }
+
+    /**
+     * Push a verdict for a manual_pending TCM case-run step.
+     * Hits {@code POST /api/v1/namespaces/:ns/tcm/case-runs/:runId/steps/:stepUid/resolve}.
+     *
+     * <p>{@code caseRunId} is the TCM case-run UUID (NOT the plan-run id) —
+     * get it from the awaiting-manual list or the parent plan-run SSE stream.</p>
+     */
+    public void resolveStep(String caseRunId, String stepUid, ResolveStepOptions opts)
+            throws MockartyException {
+        if (caseRunId == null || caseRunId.isEmpty()) {
+            throw new IllegalArgumentException("caseRunId must not be empty");
+        }
+        if (stepUid == null || stepUid.isEmpty()) {
+            throw new IllegalArgumentException("stepUid must not be empty");
+        }
+        ResolveStepOptions o = opts == null ? new ResolveStepOptions() : opts;
+        if (o.resolution == null) {
+            throw new IllegalArgumentException("resolution is required");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("resolution", o.resolution.wire());
+        if (o.note != null) {
+            body.put("note", o.note);
+        }
+        if (o.noteFmt != null && !o.noteFmt.isEmpty()) {
+            body.put("noteFmt", o.noteFmt);
+        }
+        if (o.attachmentIds != null && !o.attachmentIds.isEmpty()) {
+            body.put("attachments", o.attachmentIds);
+        }
+        if (o.extracted != null && !o.extracted.isEmpty()) {
+            body.put("extracted", o.extracted);
+        }
+        String path = namespaceScopedBase(o.namespace)
+                + "/tcm/case-runs/" + encode(caseRunId)
+                + "/steps/" + encode(stepUid)
+                + "/resolve";
+        client.post(path, body);
+    }
+
+    private void caseRunAction(String namespace, String caseRunId, String action)
+            throws MockartyException {
+        if (caseRunId == null || caseRunId.isEmpty()) {
+            throw new IllegalArgumentException("caseRunId must not be empty");
+        }
+        String path = namespaceScopedBase(namespace)
+                + "/tcm/case-runs/" + encode(caseRunId)
+                + "/" + action;
+        client.post(path, null);
+    }
+
+    public void pauseCaseRun(String namespace, String caseRunId) throws MockartyException {
+        caseRunAction(namespace, caseRunId, "pause");
+    }
+
+    public void resumeCaseRun(String namespace, String caseRunId) throws MockartyException {
+        caseRunAction(namespace, caseRunId, "resume");
+    }
+
+    public void cancelCaseRun(String namespace, String caseRunId) throws MockartyException {
+        caseRunAction(namespace, caseRunId, "cancel");
+    }
+
+    public void rerunCaseRun(String namespace, String caseRunId) throws MockartyException {
+        caseRunAction(namespace, caseRunId, "rerun");
+    }
+
+    /** Response shape for {@code GET /api/v1/me/awaiting-manual}. */
+    public Map<String, Object> awaitingManual() throws MockartyException {
+        JavaType mapType = client.getObjectMapper().getTypeFactory()
+                .constructMapType(Map.class, String.class, Object.class);
+        return client.get("/api/v1/me/awaiting-manual", mapType);
     }
 
 }

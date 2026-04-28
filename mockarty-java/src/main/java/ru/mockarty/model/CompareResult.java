@@ -19,8 +19,6 @@ import java.util.List;
  * can show a banner. Pass the older/baseline run as {@code run_a} and the
  * newer/target run as {@code run_b} to keep regression / improvement signs
  * intuitive.</p>
- *
- * <p>Phase-4 task #82.</p>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CompareResult {
