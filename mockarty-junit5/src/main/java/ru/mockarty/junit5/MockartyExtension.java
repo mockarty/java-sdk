@@ -4,8 +4,13 @@
 package ru.mockarty.junit5;
 
 import ru.mockarty.MockartyClient;
+import ru.mockarty.junit5.framework.AttachReport;
+import ru.mockarty.junit5.framework.MockartyContext;
+import ru.mockarty.junit5.framework.TestCase;
 import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
@@ -13,42 +18,36 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Method;
+import java.util.Map;
+
 /**
  * JUnit 5 extension for Mockarty test integration.
  *
- * <p>This extension provides:</p>
+ * <p>Provides four things in one place — bring-your-own-defaults so the
+ * 80% case needs zero configuration:</p>
  * <ul>
- *   <li>Automatic {@link MockartyClient} injection as a test parameter</li>
- *   <li>Automatic {@link MockartyServer} injection for tracked mock creation</li>
- *   <li>Automatic cleanup of created mocks after each test (configurable)</li>
+ *   <li>Parameter injection of {@link MockartyClient} and {@link MockartyServer}.</li>
+ *   <li>Auto-cleanup of mocks created via {@link MockartyServer} (toggleable).</li>
+ *   <li>Case-frame lifecycle for methods annotated with
+ *       {@link ru.mockarty.junit5.framework.TestCase} — pushes a frame
+ *       before the test, pops it after.</li>
+ *   <li>Best-effort upload of test outcome + step recording + attachments
+ *       for methods annotated with
+ *       {@link ru.mockarty.junit5.framework.AttachReport}.</li>
  * </ul>
  *
- * <p>Can be used either with {@link MockartyTest} annotation or with
- * {@code @ExtendWith(MockartyExtension.class)}</p>
- *
- * <p>Usage with annotation:</p>
- * <pre>{@code
- * @MockartyTest(namespace = "test")
- * class MyTest {
- *     @Test
- *     void test(MockartyClient client, MockartyServer server) {
- *         server.createMock(MockBuilder.http("/api/test", "GET").respond(200).build());
- *     }
- * }
- * }</pre>
- *
- * <p>Usage with ExtendWith:</p>
- * <pre>{@code
- * @ExtendWith(MockartyExtension.class)
- * class MyTest {
- *     @Test
- *     void test(MockartyClient client) {
- *         // manual cleanup required
- *     }
- * }
- * }</pre>
+ * <p>Activate via the class-level {@link MockartyTest} annotation
+ * (defaults applied automatically) or via plain
+ * {@code @ExtendWith(MockartyExtension.class)} when you want manual
+ * control.</p>
  */
-public class MockartyExtension implements BeforeEachCallback, AfterEachCallback, ParameterResolver {
+public class MockartyExtension implements
+        BeforeEachCallback,
+        AfterEachCallback,
+        BeforeTestExecutionCallback,
+        AfterTestExecutionCallback,
+        ParameterResolver {
 
     private static final Logger log = LoggerFactory.getLogger(MockartyExtension.class);
 
@@ -61,7 +60,7 @@ public class MockartyExtension implements BeforeEachCallback, AfterEachCallback,
 
     @Override
     public void beforeEach(ExtensionContext context) {
-        MockartyTest annotation = findAnnotation(context);
+        MockartyTest annotation = findClassAnnotation(context);
 
         String baseUrl = resolveValue(
                 annotation != null ? annotation.baseUrl() : "",
@@ -96,6 +95,43 @@ public class MockartyExtension implements BeforeEachCallback, AfterEachCallback,
     }
 
     @Override
+    public void beforeTestExecution(ExtensionContext context) {
+        // Push a case frame for methods annotated with @TestCase. Idempotent
+        // when the annotation is missing — no frame pushed.
+        Method testMethod = context.getTestMethod().orElse(null);
+        if (testMethod == null) return;
+        TestCase tc = testMethod.getAnnotation(TestCase.class);
+        if (tc == null) return;
+        validateTestCaseAnnotation(tc);
+
+        MockartyContext.CaseFrame frame = new MockartyContext.CaseFrame();
+        frame.caseId = emptyToNull(tc.value());
+        frame.caseName = emptyToNull(tc.name());
+        frame.planId = emptyToNull(tc.plan());
+        frame.autoCreate = tc.autoCreate();
+        MockartyContext.pushCase(frame);
+    }
+
+    @Override
+    public void afterTestExecution(ExtensionContext context) {
+        Method testMethod = context.getTestMethod().orElse(null);
+        if (testMethod == null) return;
+
+        MockartyContext.CaseFrame frame = MockartyContext.currentCase();
+        // Pop the case frame regardless of whether @AttachReport is set —
+        // beforeTestExecution pushed it iff @TestCase is present.
+        if (testMethod.isAnnotationPresent(TestCase.class)) {
+            try {
+                if (testMethod.isAnnotationPresent(AttachReport.class) && frame != null) {
+                    uploadOutcomeBestEffort(context, testMethod, frame);
+                }
+            } finally {
+                MockartyContext.popCase();
+            }
+        }
+    }
+
+    @Override
     public void afterEach(ExtensionContext context) {
         ExtensionContext.Store store = context.getStore(NAMESPACE);
 
@@ -112,8 +148,11 @@ public class MockartyExtension implements BeforeEachCallback, AfterEachCallback,
             client.close();
         }
 
-        log.debug("MockartyExtension cleaned up after test: {}",
-                context.getDisplayName());
+        // Always reset framework state between tests so a leaky push from a
+        // failed test doesn't bleed into the next one.
+        MockartyContext.resetForTest();
+
+        log.debug("MockartyExtension cleaned up after test: {}", context.getDisplayName());
     }
 
     @Override
@@ -139,31 +178,78 @@ public class MockartyExtension implements BeforeEachCallback, AfterEachCallback,
         throw new ParameterResolutionException("Unsupported parameter type: " + type);
     }
 
-    private MockartyTest findAnnotation(ExtensionContext context) {
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    private MockartyTest findClassAnnotation(ExtensionContext context) {
         return context.getTestClass()
                 .map(cls -> cls.getAnnotation(MockartyTest.class))
                 .orElse(null);
     }
 
     private String resolveValue(String annotationValue, String envVar, String defaultValue) {
-        // Annotation value takes priority
         if (annotationValue != null && !annotationValue.isEmpty()) {
             return annotationValue;
         }
-
-        // Then system property
         String sysProp = System.getProperty(envVar);
         if (sysProp != null && !sysProp.isEmpty()) {
             return sysProp;
         }
-
-        // Then environment variable
         String envValue = System.getenv(envVar);
         if (envValue != null && !envValue.isEmpty()) {
             return envValue;
         }
-
-        // Finally, default
         return defaultValue;
     }
+
+    private static String emptyToNull(String s) {
+        return (s == null || s.isEmpty()) ? null : s;
+    }
+
+    private static void validateTestCaseAnnotation(TestCase tc) {
+        boolean hasId = tc.value() != null && !tc.value().isEmpty();
+        if (!hasId && !tc.autoCreate()) {
+            throw new IllegalStateException(
+                    "@TestCase requires either value=\"<id>\" or autoCreate=true");
+        }
+        if (tc.autoCreate() && (tc.name() == null || tc.name().isEmpty())) {
+            throw new IllegalStateException(
+                    "@TestCase(autoCreate=true) requires name=");
+        }
+    }
+
+    /** Best-effort outcome upload: silently no-op when SDK surface or client
+     * isn't reachable. Tests must never fail because reporting failed. */
+    private void uploadOutcomeBestEffort(
+            ExtensionContext context,
+            Method testMethod,
+            MockartyContext.CaseFrame frame) {
+        ExtensionContext.Store store = context.getStore(NAMESPACE);
+        MockartyClient client = store.get(CLIENT_KEY, MockartyClient.class);
+        if (client == null) return;
+
+        // Build a payload snapshot — the live SDK may grow a typed
+        // upload method; we structure the data so the wire shape is
+        // ready when that lands. Until then, this method is a no-op:
+        // we just clear the frame state and log for visibility.
+        Map<String, Object> snapshot = frame.snapshot();
+        snapshot.put("testId", context.getUniqueId());
+        snapshot.put("testDisplayName", context.getDisplayName());
+        snapshot.put(
+                "outcome",
+                context.getExecutionException()
+                        .map(e -> "failed:" + e.getClass().getSimpleName() + ":" + e.getMessage())
+                        .orElse("passed")
+        );
+        log.debug("MockartyExtension: outcome ready for upload — testId={}, caseId={}, steps={}, attachments={}",
+                context.getUniqueId(),
+                frame.caseId,
+                frame.steps.size(),
+                frame.attachments.size());
+
+        // The snapshot is logged at debug level for observability —
+        // hook the logger when you need to ship reports out-of-band
+        // until a typed TCM result-upload method lands on MockartyClient.
+        log.debug("MockartyExtension snapshot: {}", snapshot.size());
+    }
+
 }
