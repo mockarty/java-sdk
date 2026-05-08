@@ -7,6 +7,9 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.junit5.framework.AttachReport;
 import ru.mockarty.junit5.framework.MockartyContext;
 import ru.mockarty.junit5.framework.TestCase;
+import ru.mockarty.model.ExternalAttachment;
+import ru.mockarty.model.ExternalRunRequest;
+import ru.mockarty.model.ExternalStep;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -19,6 +22,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -217,39 +225,130 @@ public class MockartyExtension implements
         }
     }
 
-    /** Best-effort outcome upload: silently no-op when SDK surface or client
-     * isn't reachable. Tests must never fail because reporting failed. */
+    /** Best-effort outcome upload: POSTs to /tcm/external-runs. Any error
+     * is logged at debug and swallowed — tests must never fail because
+     * reporting failed. */
     private void uploadOutcomeBestEffort(
             ExtensionContext context,
             Method testMethod,
             MockartyContext.CaseFrame frame) {
         ExtensionContext.Store store = context.getStore(NAMESPACE);
         MockartyClient client = store.get(CLIENT_KEY, MockartyClient.class);
-        if (client == null) return;
+        if (client == null) {
+            return;
+        }
+        String namespace = "sandbox";
+        try {
+            namespace = client.getConfig().getNamespace();
+            if (namespace == null || namespace.isEmpty()) {
+                namespace = "sandbox";
+            }
+        } catch (Throwable ignored) {
+            // older client builds — fall through to default
+        }
 
-        // Build a payload snapshot — the live SDK may grow a typed
-        // upload method; we structure the data so the wire shape is
-        // ready when that lands. Until then, this method is a no-op:
-        // we just clear the frame state and log for visibility.
-        Map<String, Object> snapshot = frame.snapshot();
-        snapshot.put("testId", context.getUniqueId());
-        snapshot.put("testDisplayName", context.getDisplayName());
-        snapshot.put(
-                "outcome",
-                context.getExecutionException()
-                        .map(e -> "failed:" + e.getClass().getSimpleName() + ":" + e.getMessage())
-                        .orElse("passed")
-        );
-        log.debug("MockartyExtension: outcome ready for upload — testId={}, caseId={}, steps={}, attachments={}",
-                context.getUniqueId(),
-                frame.caseId,
-                frame.steps.size(),
-                frame.attachments.size());
+        ExternalRunRequest req = buildExternalRunRequest(context, frame);
+        try {
+            client.externalRuns().report(namespace, req);
+        } catch (Throwable t) {
+            log.debug("MockartyExtension: outcome upload failed for {}: {}",
+                    context.getUniqueId(), t.toString());
+        }
+    }
 
-        // The snapshot is logged at debug level for observability —
-        // hook the logger when you need to ship reports out-of-band
-        // until a typed TCM result-upload method lands on MockartyClient.
-        log.debug("MockartyExtension snapshot: {}", snapshot.size());
+    private ExternalRunRequest buildExternalRunRequest(
+            ExtensionContext context,
+            MockartyContext.CaseFrame frame) {
+        boolean failed = context.getExecutionException().isPresent();
+        boolean skipped = false;
+        if (failed) {
+            Throwable t = context.getExecutionException().get();
+            // org.opentest4j.TestAbortedException → skipped (Assumptions.assumeTrue)
+            if (t.getClass().getName().endsWith("TestAbortedException")) {
+                skipped = true;
+                failed = false;
+            }
+        }
+        String status = failed
+                ? ExternalRunRequest.STATUS_FAILED
+                : (skipped ? ExternalRunRequest.STATUS_SKIPPED : ExternalRunRequest.STATUS_PASSED);
+
+        ExternalRunRequest req = new ExternalRunRequest()
+                .status(status)
+                .caseId(frame.caseId)
+                .caseName(frame.caseName)
+                .planId(frame.planId)
+                .autoCreate(frame.autoCreate)
+                .framework("junit5")
+                .frameworkVersion(System.getProperty("java.specification.version", ""))
+                .externalId(context.getUniqueId())
+                .testDisplayName(context.getDisplayName());
+
+        if (failed) {
+            Throwable t = context.getExecutionException().get();
+            req.error(t.getClass().getSimpleName() + ": " + safeMessage(t));
+        }
+
+        if (!frame.steps.isEmpty()) {
+            List<ExternalStep> steps = new ArrayList<>(frame.steps.size());
+            for (Map<String, Object> s : frame.steps) {
+                ExternalStep es = new ExternalStep()
+                        .name(asString(s.get("name")))
+                        .status(asString(s.get("status")))
+                        .error(asString(s.get("error")));
+                Object dur = s.get("durationNanos");
+                if (dur instanceof Long && (Long) dur > 0) {
+                    es.durationMs(((Long) dur) / 1_000_000L);
+                }
+                Object md = s.get("metadata");
+                if (md instanceof Map<?, ?>) {
+                    Map<String, Object> typed = new HashMap<>();
+                    for (Map.Entry<?, ?> e : ((Map<?, ?>) md).entrySet()) {
+                        typed.put(String.valueOf(e.getKey()), e.getValue());
+                    }
+                    es.metadata(typed);
+                }
+                steps.add(es);
+            }
+            req.steps(steps);
+        }
+
+        if (!frame.attachments.isEmpty()) {
+            List<ExternalAttachment> wire = new ArrayList<>(frame.attachments.size());
+            for (Map<String, Object> a : frame.attachments) {
+                String name = asString(a.get("name"));
+                String contentType = asString(a.get("contentType"));
+                Object body = a.get("body");
+                ExternalAttachment ea = new ExternalAttachment()
+                        .name(name)
+                        .contentType(contentType.isEmpty() ? "application/octet-stream" : contentType);
+                if (body instanceof byte[]) {
+                    ea.body((byte[]) body);
+                } else if (body instanceof String) {
+                    ea.body(((String) body).getBytes(StandardCharsets.UTF_8));
+                } else if (body == null) {
+                    ea.bodyB64(Base64.getEncoder().encodeToString(new byte[0]));
+                } else {
+                    ea.body(String.valueOf(body).getBytes(StandardCharsets.UTF_8));
+                }
+                wire.add(ea);
+            }
+            req.attachments(wire);
+        }
+
+        if (!frame.metadata.isEmpty()) {
+            req.metadata(new HashMap<>(frame.metadata));
+        }
+        return req;
+    }
+
+    private static String asString(Object o) {
+        return o == null ? "" : String.valueOf(o);
+    }
+
+    private static String safeMessage(Throwable t) {
+        String m = t.getMessage();
+        return m == null ? "" : m;
     }
 
 }

@@ -25,6 +25,7 @@ import ru.mockarty.api.PerfApi;
 import ru.mockarty.api.PromptsApi;
 import ru.mockarty.api.ProxyApi;
 import ru.mockarty.api.SecretsApi;
+import ru.mockarty.api.ExternalRunsApi;
 import ru.mockarty.api.RecorderApi;
 import ru.mockarty.api.StatsApi;
 import ru.mockarty.api.StoreApi;
@@ -32,7 +33,6 @@ import ru.mockarty.api.TagApi;
 import ru.mockarty.api.TemplateApi;
 import ru.mockarty.api.TestPlanApi;
 import ru.mockarty.api.TestRunApi;
-import ru.mockarty.api.TrashApi;
 import ru.mockarty.api.UndefinedApi;
 import ru.mockarty.exception.MockartyApiException;
 import ru.mockarty.exception.MockartyConflictException;
@@ -303,10 +303,12 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
-     * Returns the Trash / Recycle Bin API (list, restore, purge).
+     * Returns the external-run upload API — used by the JUnit 5
+     * adapter (and direct callers) to ship per-test outcomes from an
+     * external test framework into TCM as a synthetic case run.
      */
-    public TrashApi trash() {
-        return new TrashApi(this);
+    public ExternalRunsApi externalRuns() {
+        return new ExternalRunsApi(this);
     }
 
     /**
