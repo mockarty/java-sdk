@@ -1,0 +1,62 @@
+{
+  "uuid": "00000000-0000-4000-8000-000000000001",
+  "historyId": "deadbeefcafebabe",
+  "name": "should fail on invalid email",
+  "fullName": "ru.example.LoginTest.shouldFailOnInvalidEmail",
+  "description": "Pact + Allure parity sample",
+  "status": "failed",
+  "statusDetails": {
+    "known": false,
+    "muted": false,
+    "flaky": false,
+    "message": "AssertionError: email rejected",
+    "trace": "at LoginTest.java:42"
+  },
+  "stage": "finished",
+  "start": 1700000000000,
+  "stop": 1700000000345,
+  "labels": [
+    {"name": "framework", "value": "junit5"},
+    {"name": "language", "value": "java"},
+    {"name": "severity", "value": "critical"},
+    {"name": "owner", "value": "auth-team"},
+    {"name": "feature", "value": "Login"},
+    {"name": "story", "value": "Negative inputs"},
+    {"name": "tag", "value": "smoke"},
+    {"name": "suite", "value": "ru.example.LoginTest"},
+    {"name": "testClass", "value": "ru.example.LoginTest"},
+    {"name": "testMethod", "value": "shouldFailOnInvalidEmail"}
+  ],
+  "links": [
+    {"name": "AUTH-42", "url": "https://jira.example.com/AUTH-42", "type": "issue"},
+    {"name": "TC-100", "url": "https://tms.example.com/TC-100", "type": "tms"}
+  ],
+  "parameters": [
+    {"name": "email", "value": "not-an-email"}
+  ],
+  "attachments": [
+    {"name": "request", "source": "req-001-attachment.txt", "type": "text/plain"}
+  ],
+  "steps": [
+    {
+      "name": "POST /login",
+      "status": "passed",
+      "stage": "finished",
+      "start": 1700000000010,
+      "stop": 1700000000050
+    },
+    {
+      "name": "assert 400 response",
+      "status": "failed",
+      "statusDetails": {
+        "known": false,
+        "muted": false,
+        "flaky": false,
+        "message": "expected 400 got 200"
+      },
+      "stage": "finished",
+      "start": 1700000000060,
+      "stop": 1700000000345
+    }
+  ]
+}

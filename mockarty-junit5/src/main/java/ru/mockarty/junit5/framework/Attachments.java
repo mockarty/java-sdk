@@ -34,15 +34,18 @@ public final class Attachments {
             contentType = DEFAULT_CONTENT_TYPE;
         }
         MockartyContext.CaseFrame frame = MockartyContext.currentCase();
-        if (frame == null) {
-            // Fail-soft outside a case binding.
-            return;
+        if (frame != null) {
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("name", name);
+            entry.put("body", body);
+            entry.put("contentType", contentType);
+            frame.attachments.add(entry);
         }
-        Map<String, Object> entry = new HashMap<>();
-        entry.put("name", name);
-        entry.put("body", body);
-        entry.put("contentType", contentType);
-        frame.attachments.add(entry);
+        // Always mirror into the Allure lifecycle as well — this writes the
+        // file on disk and records the source/type onto the active step/test
+        // result. No-op when no test is bound.
+        ru.mockarty.junit5.allure.AllureLifecycle.get()
+                .attach(name, body, contentType);
     }
 
     /** Attach a UTF-8 string body, auto-tagged as text/plain when not specified. */
@@ -53,6 +56,16 @@ public final class Attachments {
     /** Attach a JSON payload (string), tagged as application/json. */
     public static void attachJson(String name, String json) {
         attach(name, json == null ? new byte[0] : json.getBytes(StandardCharsets.UTF_8), JSON_CONTENT_TYPE);
+    }
+
+    /** Attach a PNG image. */
+    public static void attachPng(String name, byte[] png) {
+        attach(name, png, "image/png");
+    }
+
+    /** Attach an opaque binary blob with caller-supplied MIME type. */
+    public static void attachBinary(String name, byte[] body, String mime) {
+        attach(name, body, mime == null || mime.isEmpty() ? DEFAULT_CONTENT_TYPE : mime);
     }
 
     private static void validate(String name) {

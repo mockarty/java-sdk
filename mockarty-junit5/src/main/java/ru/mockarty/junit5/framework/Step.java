@@ -45,6 +45,9 @@ public final class Step implements AutoCloseable {
         // Mirror into Allure if the runtime is on the classpath. Silent
         // no-op otherwise — matches the docstring promise on this class.
         this.allureToken = AllureMirror.beginAllureStep(name);
+        // Always mirror into the Mockarty AllureLifecycle (it writes the
+        // <uuid>-result.json — present regardless of allure-java-commons).
+        ru.mockarty.junit5.allure.AllureLifecycle.get().startStep(name);
     }
 
     /** Open a step in try-with-resources style. */
@@ -114,11 +117,13 @@ public final class Step implements AutoCloseable {
             frame.durationNanos = System.nanoTime() - frame.startedNanos;
         }
         MockartyContext.popStep();
-        // Close the mirrored Allure step (if one was opened).
+        boolean passed = frame == null || !"failed".equals(frame.status);
+        // Close the mirrored Allure step (if one was opened via runtime bridge).
         if (allureToken != null) {
-            boolean passed = frame == null || !"failed".equals(frame.status);
             AllureMirror.endAllureStep(allureToken, passed);
         }
+        // Close the mockarty AllureLifecycle step.
+        ru.mockarty.junit5.allure.AllureLifecycle.get().stopStep(passed);
     }
 
     private static void validate(String name) {

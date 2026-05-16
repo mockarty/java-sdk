@@ -153,6 +153,73 @@ public final class AllureMirror {
         }
     }
 
+    /**
+     * Push harvested Allure metadata onto the active
+     * {@link ru.mockarty.junit5.allure.AllureLifecycle} test result so
+     * the on-disk {@code <uuid>-result.json} carries the same labels and
+     * links the user wrote on their test class/method.
+     *
+     * <p>Fail-soft: no-op when there is no active test in the lifecycle.</p>
+     */
+    public static void applyToLifecycle(Harvested h) {
+        if (h == null || h.isEmpty()) {
+            return;
+        }
+        ru.mockarty.junit5.allure.AllureLifecycle lc =
+                ru.mockarty.junit5.allure.AllureLifecycle.get();
+        if (!lc.context().hasTest()) {
+            return;
+        }
+        if (h.title != null) {
+            // Title replaces the JUnit-derived name on the active TestResult.
+            lc.context().test.name = h.title;
+        }
+        if (h.description != null) {
+            lc.setDescription(h.description);
+        }
+        if (h.severity != null) {
+            lc.addLabel(ru.mockarty.junit5.allure.Labels.SEVERITY,
+                    ru.mockarty.junit5.allure.Labels.Severity.canonical(h.severity));
+        }
+        if (h.owner != null) {
+            lc.addLabel(ru.mockarty.junit5.allure.Labels.OWNER, h.owner);
+        }
+        for (String f : h.features) {
+            lc.addLabel(ru.mockarty.junit5.allure.Labels.FEATURE, f);
+        }
+        for (String s : h.stories) {
+            lc.addLabel(ru.mockarty.junit5.allure.Labels.STORY, s);
+        }
+        for (String e : h.epics) {
+            lc.addLabel(ru.mockarty.junit5.allure.Labels.EPIC, e);
+        }
+        for (String t : h.tags) {
+            lc.addLabel(ru.mockarty.junit5.allure.Labels.TAG, t);
+        }
+        for (String id : h.issues) {
+            String url = ru.mockarty.junit5.allure.Labels.LinkType
+                    .resolveUrl(ru.mockarty.junit5.allure.Labels.LinkType.ISSUE, id);
+            lc.addLink(id, url, ru.mockarty.junit5.allure.Labels.LinkType.ISSUE);
+        }
+        for (String id : h.tmsLinks) {
+            String url = ru.mockarty.junit5.allure.Labels.LinkType
+                    .resolveUrl(ru.mockarty.junit5.allure.Labels.LinkType.TMS, id);
+            lc.addLink(id, url, ru.mockarty.junit5.allure.Labels.LinkType.TMS);
+        }
+        for (String urlOrId : h.links) {
+            // Generic links: type defaults to "custom".
+            String url = ru.mockarty.junit5.allure.Labels.LinkType
+                    .resolveUrl(ru.mockarty.junit5.allure.Labels.LinkType.CUSTOM, urlOrId);
+            lc.addLink(urlOrId, url, ru.mockarty.junit5.allure.Labels.LinkType.CUSTOM);
+        }
+        for (Map.Entry<String, String> e : h.labels.entrySet()) {
+            lc.addLabel(e.getKey(), e.getValue());
+        }
+        for (Map.Entry<String, String> e : h.parameters.entrySet()) {
+            lc.addParameter(e.getKey(), e.getValue());
+        }
+    }
+
     // ── Allure runtime bridge ────────────────────────────────────────
 
     /** Probe (and cache) whether {@code io.qameta.allure.Allure} is on

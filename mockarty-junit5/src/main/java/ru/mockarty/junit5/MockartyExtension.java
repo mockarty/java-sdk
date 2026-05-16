@@ -7,18 +7,24 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.junit5.framework.AllureMirror;
 import ru.mockarty.junit5.framework.AttachReport;
 import ru.mockarty.junit5.framework.MockartyContext;
+import ru.mockarty.junit5.framework.MockartySuite;
 import ru.mockarty.junit5.framework.TestCase;
 import ru.mockarty.model.ExternalAttachment;
 import ru.mockarty.model.ExternalRunRequest;
 import ru.mockarty.model.ExternalStep;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
+import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
+import ru.mockarty.junit5.allure.AllureLifecycle;
+import ru.mockarty.junit5.allure.AllureModel;
+import ru.mockarty.junit5.allure.Labels;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +58,8 @@ import java.util.Map;
  * control.</p>
  */
 public class MockartyExtension implements
+        BeforeAllCallback,
+        AfterAllCallback,
         BeforeEachCallback,
         AfterEachCallback,
         BeforeTestExecutionCallback,
@@ -76,6 +84,29 @@ public class MockartyExtension implements
      * from the class-level {@code @MockartyTest(mirrorAllure=...)}; default
      * is {@code true}). */
     private static final String MIRROR_ALLURE_KEY = "mockarty-mirror-allure";
+    /** Per-test-class container UUID held in the parent ExtensionContext store. */
+    private static final String CONTAINER_UUID_KEY = "mockarty-allure-container-uuid";
+
+    @Override
+    public void beforeAll(ExtensionContext context) {
+        // Open an Allure Container that groups every test in the class —
+        // matches allure-junit5 byte-for-byte. Stored on the class-level
+        // ExtensionContext store so AfterAll closes the same container.
+        String className = context.getTestClass()
+                .map(Class::getName)
+                .orElse(context.getDisplayName());
+        String containerUuid = AllureLifecycle.get().startContainer(className);
+        context.getStore(NAMESPACE).put(CONTAINER_UUID_KEY, containerUuid);
+    }
+
+    @Override
+    public void afterAll(ExtensionContext context) {
+        String containerUuid = context.getStore(NAMESPACE)
+                .get(CONTAINER_UUID_KEY, String.class);
+        if (containerUuid != null) {
+            AllureLifecycle.get().stopContainer(containerUuid);
+        }
+    }
 
     @Override
     public void beforeEach(ExtensionContext context) {
@@ -126,6 +157,63 @@ public class MockartyExtension implements
         Method testMethod = context.getTestMethod().orElse(null);
         if (testMethod == null) return;
 
+        // Always start a fresh AllureLifecycle TestResult around every
+        // JUnit test method — that's what produces <uuid>-result.json
+        // for each invocation. Parameterized tests get distinct UUIDs
+        // but a stable historyId so Allure aggregates retries correctly.
+        Class<?> testCls = context.getTestClass().orElse(null);
+        String displayName = context.getDisplayName();
+        String fullName = testCls != null
+                ? testCls.getName() + "." + testMethod.getName()
+                : testMethod.getName();
+
+        AllureLifecycle lc = AllureLifecycle.get();
+        AllureModel.TestResult tr = lc.startTest(displayName, fullName);
+        // Stable historyId: fullName + displayName-derived parameter hash so
+        // @ParameterizedTest iterations collapse onto the same row across
+        // retries but stay distinct from sibling iterations.
+        String paramSig = displayName.equals(testMethod.getName())
+                ? "" : displayName;
+        tr.historyId = AllureLifecycle.stableHistoryId(fullName, paramSig);
+        // Canonical Allure metadata labels matching allure-junit5.
+        lc.addLabel(Labels.LANGUAGE, "java");
+        lc.addLabel(Labels.FRAMEWORK, "junit5");
+        lc.addLabel(Labels.THREAD, Thread.currentThread().getName());
+        try {
+            lc.addLabel(Labels.HOST, java.net.InetAddress.getLocalHost().getHostName());
+        } catch (Throwable ignored) {
+            // best-effort
+        }
+        if (testCls != null) {
+            lc.addLabel(Labels.PACKAGE, testCls.getPackage() == null
+                    ? "" : testCls.getPackage().getName());
+            lc.addLabel(Labels.TEST_CLASS, testCls.getName());
+            // @MockartySuite (method-level wins; otherwise class-level;
+            // otherwise default to the test class FQN).
+            MockartySuite ms = testMethod.getAnnotation(MockartySuite.class);
+            if (ms == null) {
+                ms = testCls.getAnnotation(MockartySuite.class);
+            }
+            if (ms != null && !ms.value().isEmpty()) {
+                lc.addLabel(Labels.SUITE, ms.value());
+            } else {
+                lc.addLabel(Labels.SUITE, testCls.getName());
+            }
+            if (ms != null && !ms.parentSuite().isEmpty()) {
+                lc.addLabel(Labels.PARENT_SUITE, ms.parentSuite());
+            }
+            if (ms != null && !ms.subSuite().isEmpty()) {
+                lc.addLabel(Labels.SUB_SUITE, ms.subSuite());
+            }
+        }
+        lc.addLabel(Labels.TEST_METHOD, testMethod.getName());
+        // Register as child of the surrounding container.
+        String containerUuid = context.getStore(NAMESPACE)
+                .get(CONTAINER_UUID_KEY, String.class);
+        if (containerUuid != null) {
+            lc.addContainerChild(containerUuid, tr.uuid);
+        }
+
         TestCase tc = testMethod.getAnnotation(TestCase.class);
         MockartyContext.CaseFrame frame = null;
         boolean synthetic = false;
@@ -165,6 +253,10 @@ public class MockartyExtension implements
                 }
                 AllureMirror.apply(frame, h);
             }
+            // Always feed harvested data into AllureLifecycle, regardless
+            // of whether a CaseFrame exists — the on-disk Allure result
+            // gets the labels/links/severity even when @TestCase is absent.
+            AllureMirror.applyToLifecycle(AllureMirror.harvest(testMethod));
         }
 
         if (synthetic) {
@@ -180,6 +272,24 @@ public class MockartyExtension implements
         MockartyContext.CaseFrame frame = MockartyContext.currentCase();
         ExtensionContext.Store store = context.getStore(NAMESPACE);
         boolean synthetic = Boolean.TRUE.equals(store.get(SYNTHETIC_FRAME_KEY, Boolean.class));
+
+        // Reflect JUnit outcome into the AllureLifecycle.
+        AllureLifecycle lc = AllureLifecycle.get();
+        if (lc.context().hasTest()) {
+            if (context.getExecutionException().isPresent()) {
+                Throwable t = context.getExecutionException().get();
+                if (t.getClass().getName().endsWith("TestAbortedException")) {
+                    lc.markSkipped(t.getMessage());
+                } else {
+                    lc.markFailed(t);
+                }
+            } else {
+                lc.markPassed();
+            }
+            // Always persist the result file — even tests without
+            // @TestCase/@AttachReport get an allure-results entry.
+            lc.stopTest();
+        }
 
         // Pop the case frame regardless of whether @AttachReport is set —
         // beforeTestExecution pushed it iff @TestCase is present OR mirror
