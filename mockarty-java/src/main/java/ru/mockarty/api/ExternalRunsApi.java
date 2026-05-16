@@ -3,10 +3,26 @@
 
 package ru.mockarty.api;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
+import ru.mockarty.model.ExternalAttachment;
 import ru.mockarty.model.ExternalRunRequest;
 import ru.mockarty.model.ExternalRunResponse;
+import ru.mockarty.model.ExternalStep;
+
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Client for {@code POST /api/v1/namespaces/:namespace/tcm/external-runs}.
@@ -66,5 +82,223 @@ public class ExternalRunsApi {
         }
         String path = "/api/v1/namespaces/" + namespace + "/tcm/external-runs";
         return client.post(path, request, ExternalRunResponse.class);
+    }
+
+    /**
+     * Bulk-upload every {@code <uuid>-result.json} file in an Allure
+     * results directory to {@link #report(String, ExternalRunRequest)}.
+     *
+     * <p>Use this from CI after the JVM-side run finishes:</p>
+     * <pre>{@code
+     * client.externalRuns().uploadAllureDir("qa", Paths.get("allure-results"));
+     * }</pre>
+     *
+     * <p>Mapping rules ({@code allure → TCM external-runs}):</p>
+     * <ul>
+     *   <li>{@code uuid} → externalId.</li>
+     *   <li>{@code name} → testDisplayName.</li>
+     *   <li>{@code fullName} → caseName (with autoCreate=true so missing
+     *       cases get materialised).</li>
+     *   <li>{@code status} → status (mapped lowercase wire form).</li>
+     *   <li>{@code statusDetails.message + trace} → error.</li>
+     *   <li>{@code stop - start} → durationMs.</li>
+     *   <li>{@code labels[name=AS_ID].value} → caseId when present
+     *       (matches allure-pytest / allure-junit5 conventions).</li>
+     *   <li>{@code steps[]} → flat ExternalStep list (nested steps are
+     *       hoisted with name prefixed by the parent's name).</li>
+     *   <li>Attachment metadata is shipped as {@link ExternalAttachment}
+     *       — bytes loaded from the {@code source} file in the same
+     *       directory; missing files are skipped fail-soft.</li>
+     * </ul>
+     *
+     * <p>Returns the list of {@link ExternalRunResponse} for each
+     * successfully uploaded file. Files that fail to upload (network,
+     * parse error) are logged on stderr and skipped — never abort the
+     * batch on the first error.</p>
+     */
+    public List<ExternalRunResponse> uploadAllureDir(String namespace, Path resultsDir)
+            throws IOException {
+        if (namespace == null || namespace.isEmpty()) {
+            throw new IllegalArgumentException("namespace is required");
+        }
+        if (resultsDir == null || !Files.isDirectory(resultsDir)) {
+            return Collections.emptyList();
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        List<ExternalRunResponse> out = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(
+                resultsDir, "*-result.json")) {
+            for (Path file : stream) {
+                try {
+                    JsonNode root = mapper.readTree(file.toFile());
+                    ExternalRunRequest req = allureToExternalRun(root, resultsDir, mapper);
+                    out.add(report(namespace, req));
+                } catch (Throwable t) {
+                    // Fail-soft per-file. The catalogue continues so a
+                    // single bad result.json doesn't kill the CI upload.
+                    System.err.println("[mockarty-junit5] skipped Allure file "
+                            + file + ": " + t.getMessage());
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Convert an Allure {@code TestResult} JSON tree into an
+     * {@link ExternalRunRequest}. Package-visible for unit testing.
+     */
+    static ExternalRunRequest allureToExternalRun(JsonNode root, Path resultsDir, ObjectMapper mapper)
+            throws IOException {
+        ExternalRunRequest req = new ExternalRunRequest();
+        String uuid = root.path("uuid").asText("");
+        String name = root.path("name").asText("");
+        String fullName = root.path("fullName").asText(name);
+        String status = root.path("status").asText("unknown");
+        // Map Allure status → ExternalRunRequest status. Allure has
+        // {passed, failed, broken, skipped, unknown}; ER has same set.
+        req.status(mapStatus(status));
+        req.framework("allure");
+        req.frameworkVersion("2");
+        req.externalId(uuid);
+        req.testDisplayName(name);
+        req.caseName(fullName);
+        req.autoCreate(true);
+
+        // Severity-as-id: a label {name: "AS_ID", value: "<caseId>"} pins
+        // the TCM case id. Mirrors allure-pytest's @id mapping.
+        JsonNode labels = root.path("labels");
+        if (labels.isArray()) {
+            Map<String, String> firstByName = new HashMap<>();
+            Iterator<JsonNode> it = labels.elements();
+            while (it.hasNext()) {
+                JsonNode l = it.next();
+                String lname = l.path("name").asText("");
+                String lvalue = l.path("value").asText("");
+                if ("AS_ID".equals(lname) && !lvalue.isEmpty()) {
+                    req.caseId(lvalue);
+                    req.autoCreate(false);
+                }
+                if (!firstByName.containsKey(lname)) {
+                    firstByName.put(lname, lvalue);
+                }
+            }
+        }
+
+        long start = root.path("start").asLong(0);
+        long stop = root.path("stop").asLong(0);
+        if (stop > start && start > 0) {
+            req.durationMs(stop - start);
+        }
+        if (start > 0) {
+            req.startedAt(java.time.Instant.ofEpochMilli(start).toString());
+        }
+        if (stop > 0) {
+            req.finishedAt(java.time.Instant.ofEpochMilli(stop).toString());
+        }
+        JsonNode sd = root.path("statusDetails");
+        if (sd.isObject()) {
+            String msg = sd.path("message").asText("");
+            String trace = sd.path("trace").asText("");
+            String err = (msg + (trace.isEmpty() ? "" : "\n" + trace)).trim();
+            if (!err.isEmpty()) {
+                req.error(err);
+            }
+        }
+        JsonNode steps = root.path("steps");
+        if (steps.isArray() && steps.size() > 0) {
+            List<ExternalStep> out = new ArrayList<>();
+            flattenSteps(steps, "", out);
+            req.steps(out);
+        }
+        JsonNode atts = root.path("attachments");
+        if (atts.isArray() && atts.size() > 0) {
+            List<ExternalAttachment> wire = new ArrayList<>();
+            Iterator<JsonNode> it = atts.elements();
+            while (it.hasNext()) {
+                JsonNode a = it.next();
+                String source = a.path("source").asText("");
+                String aname = a.path("name").asText("");
+                String type = a.path("type").asText("application/octet-stream");
+                ExternalAttachment ea = new ExternalAttachment()
+                        .name(aname.isEmpty() ? source : aname)
+                        .contentType(type);
+                if (!source.isEmpty()) {
+                    Path body = resultsDir.resolve(source);
+                    if (Files.isRegularFile(body)) {
+                        ea.body(Files.readAllBytes(body));
+                    }
+                }
+                wire.add(ea);
+            }
+            req.attachments(wire);
+        }
+        // Carry labels + parameters into metadata for richer reporting.
+        Map<String, Object> metadata = new HashMap<>();
+        if (labels.isArray()) {
+            List<Map<String, String>> ml = mapper.convertValue(labels,
+                    new TypeReference<List<Map<String, String>>>() {});
+            metadata.put("labels", ml);
+        }
+        JsonNode links = root.path("links");
+        if (links.isArray() && links.size() > 0) {
+            metadata.put("links", mapper.convertValue(links,
+                    new TypeReference<List<Map<String, Object>>>() {}));
+        }
+        JsonNode params = root.path("parameters");
+        if (params.isArray() && params.size() > 0) {
+            metadata.put("parameters", mapper.convertValue(params,
+                    new TypeReference<List<Map<String, Object>>>() {}));
+        }
+        if (!metadata.isEmpty()) {
+            req.metadata(metadata);
+        }
+        return req;
+    }
+
+    private static String mapStatus(String allure) {
+        if (allure == null) return ExternalRunRequest.STATUS_PASSED;
+        switch (allure) {
+            case "passed":    return ExternalRunRequest.STATUS_PASSED;
+            case "failed":    return ExternalRunRequest.STATUS_FAILED;
+            case "broken":    return ExternalRunRequest.STATUS_BROKEN;
+            case "skipped":   return ExternalRunRequest.STATUS_SKIPPED;
+            case "cancelled": return ExternalRunRequest.STATUS_CANCELLED;
+            default:          return ExternalRunRequest.STATUS_BROKEN;
+        }
+    }
+
+    /**
+     * Flatten nested Allure step trees into ExternalStep records keyed by
+     * a slash-joined path so the TCM report shows the structure. Order of
+     * iteration matches the tree, which preserves the user's intent.
+     */
+    private static void flattenSteps(JsonNode steps, String prefix, List<ExternalStep> out) {
+        Iterator<JsonNode> it = steps.elements();
+        while (it.hasNext()) {
+            JsonNode s = it.next();
+            String name = s.path("name").asText("");
+            String full = prefix.isEmpty() ? name : prefix + " / " + name;
+            ExternalStep es = new ExternalStep()
+                    .name(full)
+                    .status(s.path("status").asText("passed"));
+            long st = s.path("start").asLong(0);
+            long sp = s.path("stop").asLong(0);
+            if (sp > st && st > 0) {
+                es.durationMs(sp - st);
+            }
+            JsonNode sd = s.path("statusDetails");
+            if (sd.isObject()) {
+                String msg = sd.path("message").asText("");
+                if (!msg.isEmpty()) {
+                    es.error(msg);
+                }
+            }
+            out.add(es);
+            JsonNode nested = s.path("steps");
+            if (nested.isArray() && nested.size() > 0) {
+                flattenSteps(nested, full, out);
+            }
+        }
     }
 }
