@@ -6,4 +6,4 @@ pluginManagement {
 }
 
 rootProject.name = "mockarty-sdk"
-include("mockarty-java", "mockarty-junit5", "mockarty-kotlin")
+include("mockarty-java", "mockarty-junit5", "mockarty-kotlin", "mockarty-pact")
