@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import ru.mockarty.pact.plugins.Plugin;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -53,22 +54,43 @@ public final class MockServer implements AutoCloseable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<Integer, Integer> hits = new ConcurrentHashMap<>();
     private final List<String> unexpectedRequests = new CopyOnWriteArrayList<>();
+    private final List<MismatchReport> mismatches = new CopyOnWriteArrayList<>();
     private final boolean writeOnClose;
+    private final boolean strict;
 
-    private MockServer(Pact pact, HttpServer server, URI baseUri, boolean writeOnClose) {
+    private MockServer(Pact pact, HttpServer server, URI baseUri, boolean writeOnClose, boolean strict) {
         this.pact = pact;
         this.server = server;
         this.baseUri = baseUri;
         this.writeOnClose = writeOnClose;
+        this.strict = strict;
     }
 
-    /** Start a mock server bound to an ephemeral port on 127.0.0.1. */
+    /** Start a mock server bound to an ephemeral port on 127.0.0.1
+     *  with strict body-matching enabled (any declared matcher is enforced
+     *  on the inbound request before the mock accepts it). */
     public static MockServer start(Pact pact) {
-        return start(pact, true);
+        return start(pact, true, true);
     }
 
     /** Start a mock server; control whether the pact file is written on close. */
     public static MockServer start(Pact pact, boolean writeOnClose) {
+        return start(pact, writeOnClose, true);
+    }
+
+    /**
+     * Full-control entry point.
+     *
+     * @param pact         the contract to serve.
+     * @param writeOnClose write {@code <consumer>-<provider>.json} on close.
+     * @param strict       if {@code true}, validate every inbound request
+     *                     against the declared matchers and plugin payload
+     *                     rules; mismatched requests get a 422 and are
+     *                     recorded so {@link #verify()} fails them. If
+     *                     {@code false}, the server stays in legacy
+     *                     existence-only matching mode.
+     */
+    public static MockServer start(Pact pact, boolean writeOnClose, boolean strict) {
         Objects.requireNonNull(pact, "pact must not be null");
         try {
             HttpServer http = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -82,7 +104,7 @@ public final class MockServer implements AutoCloseable {
             URI uri = URI.create(
                     "http://127.0.0.1:" + http.getAddress().getPort());
 
-            MockServer ms = new MockServer(pact, http, uri, writeOnClose);
+            MockServer ms = new MockServer(pact, http, uri, writeOnClose, strict);
             http.createContext("/", new RouterHandler(pact, ms));
             http.start();
             return ms;
@@ -112,7 +134,7 @@ public final class MockServer implements AutoCloseable {
                 missing.add(pact.interactions().get(i).description());
             }
         }
-        if (!missing.isEmpty() || !unexpectedRequests.isEmpty()) {
+        if (!missing.isEmpty() || !unexpectedRequests.isEmpty() || !mismatches.isEmpty()) {
             StringBuilder sb = new StringBuilder("Pact verification failed:");
             if (!missing.isEmpty()) {
                 sb.append("\n  Uncalled interactions: ").append(missing);
@@ -123,8 +145,19 @@ public final class MockServer implements AutoCloseable {
                     sb.append("\n    - ").append(s);
                 }
             }
+            if (!mismatches.isEmpty()) {
+                sb.append("\n  Mismatches:");
+                for (MismatchReport m : mismatches) {
+                    sb.append("\n    - ").append(m.toLine());
+                }
+            }
             throw new AssertionError(sb.toString());
         }
+    }
+
+    /** Returns an immutable snapshot of recorded mismatches. */
+    public List<MismatchReport> mismatches() {
+        return Collections.unmodifiableList(new ArrayList<>(mismatches));
     }
 
     @Override
@@ -167,6 +200,7 @@ public final class MockServer implements AutoCloseable {
         public void handle(HttpExchange ex) throws IOException {
             String method = ex.getRequestMethod();
             String path = ex.getRequestURI().getRawPath();
+            byte[] requestBody = ex.getRequestBody().readAllBytes();
 
             int matchedIdx = -1;
             for (int i = 0; i < pact.interactions().size(); i++) {
@@ -186,10 +220,128 @@ public final class MockServer implements AutoCloseable {
                 return;
             }
 
-            owner.hits.merge(matchedIdx, 1, Integer::sum);
             Interaction matched = pact.interactions().get(matchedIdx);
-            writeResponse(ex, matched.response());
+
+            // Strict body / plugin validation — runs only when the caller
+            // opted into strict mode (default). Returns a non-empty list
+            // when one or more matchers disagreed with the inbound bytes.
+            if (owner.strict) {
+                List<MismatchReport> ms = validateBody(matched.request(), requestBody, ex, pact.resolvedPlugins());
+                if (!ms.isEmpty()) {
+                    owner.mismatches.addAll(ms);
+                    StringBuilder body = new StringBuilder("Mockarty Pact: body mismatch\n");
+                    for (MismatchReport m : ms) body.append("  - ").append(m.toLine()).append('\n');
+                    // 422 Unprocessable Entity — pact-jvm reference uses
+                    // the same code so cross-tool consumers see a familiar
+                    // failure mode.
+                    writeError(ex, 422, body.toString());
+                    // Still count the hit so verify()'s "uncalled" branch
+                    // doesn't double-fail the same interaction. The
+                    // mismatch list carries the real failure.
+                    owner.hits.merge(matchedIdx, 1, Integer::sum);
+                    return;
+                }
+            }
+
+            owner.hits.merge(matchedIdx, 1, Integer::sum);
+            writeResponse(ex, matched.response(), pact);
         }
+
+        /**
+         * Strict body validation: when the declared request body is JSON
+         * with matchers, delegates to {@link MatcherEngine}; for binary
+         * bodies the plugins registered on the pact get first dibs based
+         * on content-type. Returns an empty list on a clean match.
+         */
+        private static List<MismatchReport> validateBody(PactRequest expected, byte[] actual, HttpExchange ex,
+                                                          List<Plugin> plugins) {
+            PactBody body = expected.body();
+            String contentType = firstHeaderLower(ex, "Content-Type");
+
+            // Plugin-owned bodies short-circuit JSON/Text comparison and
+            // hand the raw bytes to the plugin's matchRequest.
+            for (Plugin p : plugins) {
+                if (p == null) continue;
+                if (matchesContentType(p, contentType)) {
+                    byte[] declaredExample = bodyAsBytes(body);
+                    return p.matchRequest(contentType, declaredExample, actual);
+                }
+            }
+
+            if (body instanceof PactBody.Empty) return Collections.emptyList();
+            if (body instanceof PactBody.Text t) {
+                String s = new String(actual, StandardCharsets.UTF_8);
+                if (!t.body().equals(s)) {
+                    return Collections.singletonList(new MismatchReport(
+                            "$.body", t.body(), s, "text.equality"));
+                }
+                return Collections.emptyList();
+            }
+            if (body instanceof PactBody.Binary bin) {
+                byte[] e = bin.body();
+                if (e.length != actual.length) {
+                    return Collections.singletonList(new MismatchReport(
+                            "$.body[binary]",
+                            "length=" + e.length, "length=" + actual.length,
+                            "binary.length"));
+                }
+                for (int i = 0; i < e.length; i++) {
+                    if (e[i] != actual[i]) {
+                        return Collections.singletonList(new MismatchReport(
+                                "$.body[binary][" + i + "]",
+                                String.format("0x%02x", e[i]),
+                                String.format("0x%02x", actual[i]),
+                                "binary.byte"));
+                    }
+                }
+                return Collections.emptyList();
+            }
+            if (body instanceof PactBody.Json j) {
+                if (actual.length == 0) {
+                    return Collections.singletonList(new MismatchReport(
+                            "$.body", "non-empty JSON", "empty", "json.empty"));
+                }
+                try {
+                    Object actualTree = MAPPER.readValue(actual, Object.class);
+                    return MatcherEngine.compare(j.root(), actualTree, "$.body");
+                } catch (IOException parseErr) {
+                    return Collections.singletonList(new MismatchReport(
+                            "$.body", "valid JSON",
+                            "parse error: " + parseErr.getMessage(),
+                            "json.parse"));
+                }
+            }
+            return Collections.emptyList();
+        }
+
+        private static String firstHeaderLower(HttpExchange ex, String name) {
+            for (Map.Entry<String, List<String>> e : ex.getRequestHeaders().entrySet()) {
+                if (e.getKey().equalsIgnoreCase(name) && !e.getValue().isEmpty()) {
+                    return e.getValue().get(0).toLowerCase(Locale.ROOT);
+                }
+            }
+            return "";
+        }
+
+        private static boolean matchesContentType(Plugin p, String contentType) {
+            if (contentType == null || contentType.isBlank()) return false;
+            String head = contentType.split(";", 2)[0].trim();
+            for (String s : p.supportedContentTypes()) {
+                if (s.equalsIgnoreCase(head)) return true;
+            }
+            return false;
+        }
+
+        private static byte[] bodyAsBytes(PactBody body) {
+            if (body instanceof PactBody.Binary b) return b.body();
+            if (body instanceof PactBody.Text t) return t.body().getBytes(StandardCharsets.UTF_8);
+            if (body instanceof PactBody.Json j) {
+                try { return MAPPER.writeValueAsBytes(j.root()); }
+                catch (JsonProcessingException ignored) { return new byte[0]; }
+            }
+            return new byte[0];
+        }
+
 
         private static boolean matches(PactRequest pr, String method, String path, HttpExchange ex) {
             if (!pr.method().equalsIgnoreCase(method)) return false;
@@ -252,11 +404,11 @@ public final class MockServer implements AutoCloseable {
             }
         }
 
-        private static void writeResponse(HttpExchange ex, PactResponse r) throws IOException {
+        private static void writeResponse(HttpExchange ex, PactResponse r, Pact pact) throws IOException {
             for (Map.Entry<String, Object> e : r.headers().entrySet()) {
                 ex.getResponseHeaders().add(e.getKey(), unwrapHeader(e.getValue()));
             }
-            byte[] body = renderBody(r.body(), ex);
+            byte[] body = renderBody(r.body(), ex, pact);
             int len = body.length == 0 ? -1 : body.length;
             ex.sendResponseHeaders(r.status(), len);
             if (body.length > 0) {
@@ -268,8 +420,24 @@ public final class MockServer implements AutoCloseable {
             }
         }
 
-        private static byte[] renderBody(PactBody b, HttpExchange ex) {
+        private static byte[] renderBody(PactBody b, HttpExchange ex, Pact pact) {
             if (b instanceof PactBody.Empty) return new byte[0];
+            // Response-side content type drives plugin output. If a plugin
+            // claims it, hand the example bytes off so it can re-frame /
+            // re-encode (e.g. wrap a Protobuf message back into a gRPC frame).
+            String responseCt = "";
+            for (Map.Entry<String, List<String>> h : ex.getResponseHeaders().entrySet()) {
+                if (h.getKey().equalsIgnoreCase("Content-Type") && !h.getValue().isEmpty()) {
+                    responseCt = h.getValue().get(0).toLowerCase(Locale.ROOT);
+                    break;
+                }
+            }
+            for (Plugin p : pact.resolvedPlugins()) {
+                if (p == null) continue;
+                if (matchesContentType(p, responseCt)) {
+                    return p.generateResponse(responseCt, bodyAsBytes(b));
+                }
+            }
             if (b instanceof PactBody.Text t) {
                 return t.body().getBytes(StandardCharsets.UTF_8);
             }

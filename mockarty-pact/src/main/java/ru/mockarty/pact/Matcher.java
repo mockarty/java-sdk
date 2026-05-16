@@ -37,7 +37,9 @@ public sealed interface Matcher
         Matcher.ArrayContains,
         Matcher.Equality,
         Matcher.EachKey,
-        Matcher.EachValue {
+        Matcher.EachValue,
+        Matcher.JsonPath,
+        Matcher.XmlPath {
 
     /** The example value embedded into the request/response body. */
     Object example();
@@ -137,5 +139,28 @@ public sealed interface Matcher
     /** V4 eachValue — apply matcher logic to every map value. */
     record EachValue(Object example, List<Matcher> rules) implements Matcher {
         public boolean v4Only() { return true; }
+    }
+
+    /**
+     * V4 jsonPath — applies a nested {@link Matcher} to the value resolved
+     * by the given JSONPath-style expression. Path syntax is a deliberately
+     * small subset (dot-keys, {@code [index]}, root {@code $}) — full
+     * JSONPath dialects vary across implementations and the SDK ships its
+     * own evaluator (no third-party JSONPath dep).
+     */
+    record JsonPath(String path, Matcher inner) implements Matcher {
+        @Override public Object example() { return inner.example(); }
+        @Override public boolean v4Only() { return true; }
+    }
+
+    /**
+     * V4 xmlPath — applies a nested {@link Matcher} to the value resolved
+     * by an XPath-1.0 expression on the request/response body. Internal
+     * evaluation uses {@code javax.xml.xpath} (JDK builtin, no extra dep)
+     * and is therefore safe for the SDK's air-gapped story.
+     */
+    record XmlPath(String path, Matcher inner) implements Matcher {
+        @Override public Object example() { return inner.example(); }
+        @Override public boolean v4Only() { return true; }
     }
 }

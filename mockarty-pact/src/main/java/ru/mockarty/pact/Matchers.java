@@ -155,6 +155,39 @@ public final class Matchers {
         return new Matcher.EachValue(example, Arrays.asList(rules));
     }
 
+    /**
+     * V4 jsonPath — apply {@code inner} to the JSON value located at
+     * {@code path} (root {@code $}, dot-keys, {@code [index]} segments).
+     */
+    public static Matcher jsonPath(String path, Matcher inner) {
+        Objects.requireNonNull(path, "jsonPath: path must not be null");
+        Objects.requireNonNull(inner, "jsonPath: inner matcher must not be null");
+        if (path.isBlank()) {
+            throw new IllegalArgumentException("jsonPath: path must not be blank");
+        }
+        return new Matcher.JsonPath(path, inner);
+    }
+
+    /**
+     * V4 xmlPath — apply {@code inner} to the XML value located at
+     * {@code xpath} (XPath 1.0). Compilation is validated eagerly so a
+     * malformed expression surfaces at DSL time, not at request time.
+     */
+    public static Matcher xmlPath(String xpath, Matcher inner) {
+        Objects.requireNonNull(xpath, "xmlPath: xpath must not be null");
+        Objects.requireNonNull(inner, "xmlPath: inner matcher must not be null");
+        if (xpath.isBlank()) {
+            throw new IllegalArgumentException("xmlPath: xpath must not be blank");
+        }
+        try {
+            javax.xml.xpath.XPathFactory.newInstance().newXPath().compile(xpath);
+        } catch (javax.xml.xpath.XPathExpressionException e) {
+            throw new IllegalArgumentException(
+                    "xmlPath: invalid XPath expression: " + xpath + " — " + e.getMessage(), e);
+        }
+        return new Matcher.XmlPath(xpath, inner);
+    }
+
     // ── Internals ────────────────────────────────────────────────────
 
     private static void compileGuard(String regex) {

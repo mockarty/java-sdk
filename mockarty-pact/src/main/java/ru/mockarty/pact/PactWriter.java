@@ -58,7 +58,11 @@ final class PactWriter {
             for (String name : pact.plugins()) {
                 Map<String, Object> p = new LinkedHashMap<>();
                 p.put("name", name);
-                p.put("version", "0.0.0"); // Phase 1 stub — no real plugin runtime
+                p.put("version", pact.pluginVersions().getOrDefault(name, "unknown"));
+                Map<String, Object> cfg = pact.pluginConfigs().get(name);
+                if (cfg != null && !cfg.isEmpty()) {
+                    p.put("configuration", cfg);
+                }
                 pluginEntries.add(p);
             }
             Map<String, Object> meta = new LinkedHashMap<>();
@@ -456,6 +460,14 @@ final class PactWriter {
                 List<Map<String, Object>> nested = new ArrayList<>();
                 for (Matcher inner : ev.rules()) nested.add(serialise(inner, v));
                 r.put("rules", nested);
+            } else if (m instanceof Matcher.JsonPath jp) {
+                r.put("match", "jsonPath");
+                r.put("path", jp.path());
+                r.put("rule", serialise(jp.inner(), v));
+            } else if (m instanceof Matcher.XmlPath xp) {
+                r.put("match", "xmlPath");
+                r.put("path", xp.path());
+                r.put("rule", serialise(xp.inner(), v));
             } else {
                 throw new IllegalStateException(
                         "Unhandled matcher variant: " + m.getClass().getName());

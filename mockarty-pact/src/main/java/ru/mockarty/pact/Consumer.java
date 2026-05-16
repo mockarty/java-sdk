@@ -3,10 +3,15 @@
 
 package ru.mockarty.pact;
 
+import ru.mockarty.pact.plugins.Plugin;
+import ru.mockarty.pact.plugins.PluginRegistry;
+
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -38,6 +43,8 @@ public final class Consumer {
     private Path outputDir;
     private final List<Interaction> interactions = new ArrayList<>();
     private final Set<String> plugins = new LinkedHashSet<>();
+    private final Map<String, Map<String, Object>> pluginConfigs = new LinkedHashMap<>();
+    private PluginRegistry registry = PluginRegistry.global();
 
     private Consumer(String consumerName) {
         this.consumerName = consumerName;
@@ -78,18 +85,49 @@ public final class Consumer {
     /**
      * Register a V4 plugin on this contract.
      *
-     * <p>Phase-1 limitation: the plugin name is recorded in the pact.json
-     * metadata only — the SDK does not yet provide a runtime for plugin
-     * behaviour (HTTP/2 framing, async messaging, MQ adapters). The
-     * {@link PactWriter} fails loud if a user calls {@code withPlugin}
-     * under {@link SpecVersion#V3}.</p>
+     * <p>The plugin name is recorded in {@code metadata.plugins[]} of the
+     * generated pact.json (using the plugin's reported {@link Plugin#version()}
+     * when known), and the plugin is wired into the mock-server matching
+     * pipeline through {@link ru.mockarty.pact.plugins.PluginRegistry} —
+     * inbound requests on a matching content-type are validated against
+     * {@link Plugin#matchRequest(String, byte[], byte[])} before the mock
+     * accepts them.</p>
+     *
+     * <p>Pact V3 has no plugin layer, so {@link PactWriter} fails loud if
+     * a user mixes {@code withPlugin} with {@link SpecVersion#V3}.</p>
      */
     public Consumer withPlugin(String name) {
+        return withPlugin(name, null);
+    }
+
+    /**
+     * Register a V4 plugin with a free-form configuration map. The config
+     * is opaque to the SDK — plugins read whatever keys they need at
+     * matching time (the bundled Protobuf / gRPC plugins ignore it; a
+     * third-party plugin might consume e.g. {@code descriptorPath}).
+     */
+    public Consumer withPlugin(String name, Map<String, Object> config) {
         Objects.requireNonNull(name, "plugin name must not be null");
         if (name.isBlank()) {
             throw new IllegalArgumentException("plugin name must not be blank");
         }
         this.plugins.add(name);
+        if (config != null && !config.isEmpty()) {
+            this.pluginConfigs.put(name, new LinkedHashMap<>(config));
+        }
+        return this;
+    }
+
+    /**
+     * Override the {@link PluginRegistry} used by this consumer build.
+     * Test-only — production callers always want
+     * {@link PluginRegistry#global()}. Bypassing the global registry lets a
+     * unit test verify "what happens with no plugins available" without
+     * mutating shared state.
+     */
+    public Consumer withPluginRegistry(PluginRegistry registry) {
+        Objects.requireNonNull(registry, "plugin registry must not be null");
+        this.registry = registry;
         return this;
     }
 
@@ -116,12 +154,32 @@ public final class Consumer {
                     "Plugins (" + plugins + ") are V4-only — cannot serialise under SpecVersion.V3. "
                             + "Switch to specVersion(SpecVersion.V4) or drop the plugin declaration.");
         }
+        // Resolve plugins through the registry so the writer can stamp a
+        // real version into metadata and the mock server can consult the
+        // matching strategy at request time. Unknown plugin names are
+        // *not* fatal — a third-party plugin might be loaded lazily on
+        // the provider side — but the SDK records them with "unknown"
+        // version so the contract is unambiguous about uncertainty.
+        Map<String, String> resolvedVersions = new LinkedHashMap<>();
+        List<Plugin> resolvedPlugins = new ArrayList<>();
+        for (String name : plugins) {
+            Plugin p = registry.get(name).orElse(null);
+            if (p != null) {
+                resolvedVersions.put(name, p.version());
+                resolvedPlugins.add(p);
+            } else {
+                resolvedVersions.put(name, "unknown");
+            }
+        }
         return new Pact(
                 consumerName,
                 providerName,
                 specVersion,
                 new ArrayList<>(interactions),
                 new ArrayList<>(plugins),
+                resolvedVersions,
+                resolvedPlugins,
+                new LinkedHashMap<>(pluginConfigs),
                 outputDir);
     }
 

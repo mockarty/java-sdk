@@ -1,0 +1,5 @@
+# Built-in Mockarty Pact V4 plugins — discovered via java.util.ServiceLoader
+# by ru.mockarty.pact.plugins.PluginRegistry. Third-party plugins should
+# drop a file with the same name into their own META-INF/services tree.
+ru.mockarty.pact.plugins.ProtobufPlugin
+ru.mockarty.pact.plugins.GRPCPlugin
