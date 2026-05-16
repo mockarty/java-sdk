@@ -244,6 +244,34 @@ class AllureMirrorDefaultOnTest {
         assertNull(frame.steps.get(0).get("error"));
     }
 
+    // ── FQCN false-positive guard ────────────────────────────────────
+
+    /**
+     * Sample test method decorated with user-defined annotations whose
+     * simple names collide with Allure's ({@code Step}, {@code Feature})
+     * but whose package ({@code com.example.userlib}) is NOT Allure's.
+     * The harvester MUST reject them — see fixtures
+     * {@code com.example.userlib.Step} / {@code com.example.userlib.Feature}.
+     */
+    static class FalsePositiveSample {
+        @com.example.userlib.Step("user-defined step annotation, MUST be ignored")
+        @com.example.userlib.Feature("user-defined feature annotation, MUST be ignored")
+        void userAnnotatedMethod() {
+        }
+    }
+
+    @Test
+    @DisplayName("Custom annotations outside io.qameta.allure.* are not harvested even if simple name matches")
+    void customAnnotationsSameSimpleNameAreNotHarvested() throws Exception {
+        Method m = FalsePositiveSample.class.getDeclaredMethod("userAnnotatedMethod");
+        AllureMirror.Harvested h = AllureMirror.harvest(m);
+        assertTrue(h.isEmpty(),
+                "annotations outside the canonical Allure packages must be ignored — found: "
+                        + "features=" + h.features
+                        + " classStepHint=" + h.classStepHint
+                        + " labels=" + h.labels);
+    }
+
     // ── Default-ON invariant (MockartyTest.mirrorAllure) ─────────────
 
     @Test

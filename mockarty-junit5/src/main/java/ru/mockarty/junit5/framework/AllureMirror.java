@@ -305,14 +305,17 @@ public final class AllureMirror {
     private static void scan(AnnotatedElement element, Harvested out) {
         for (Annotation a : element.getAnnotations()) {
             String fqcn = a.annotationType().getName();
-            if (!fqcn.startsWith("io.qameta.allure.")
-                    && !matchesSuffix(fqcn)) {
+            // Scope to canonical Allure packages — match the prefix AND
+            // a known leaf suffix. Suffix-only matching (e.g. anything
+            // ending in `.Step`) would misidentify unrelated user
+            // annotations such as `com.mycompany.Step` as Allure metadata
+            // and pollute the case frame.
+            if (!isAllurePackage(fqcn) || !matchesSuffix(fqcn)) {
                 continue;
             }
             // Allure annotations frequently carry a `value()` method
             // whose return type is the only piece we need (String, enum,
-            // or String[]). Match by FQCN suffix; tolerate missing
-            // methods (fail-soft).
+            // or String[]). Tolerate missing methods (fail-soft).
             String suffix = lastSegment(fqcn);
             try {
                 Object value = invokeValue(a);
@@ -416,6 +419,17 @@ public final class AllureMirror {
             }
         }
         return false;
+    }
+
+    /** Canonical Allure package check. Covers {@code io.qameta.allure.*}
+     * — Allure 2.x — and the long-deprecated {@code ru.yandex.qatools.allure.}
+     * Allure 1.x namespace that a handful of legacy suites still use. We
+     * deliberately exclude unknown prefixes so a user's own annotation
+     * named e.g. {@code com.mycompany.Step} cannot be mistaken for Allure
+     * metadata. */
+    private static boolean isAllurePackage(String fqcn) {
+        return fqcn.startsWith("io.qameta.allure.")
+                || fqcn.startsWith("ru.yandex.qatools.allure.");
     }
 
     private static String lastSegment(String fqcn) {
