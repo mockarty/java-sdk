@@ -143,6 +143,30 @@ class UserApiTest {
 }
 ```
 
+### Allure compatibility (mirror mode)
+
+`@MockartyTest` enables Allure mirror mode by default. Existing tests
+that use `io.qameta.allure.*` annotations (`@Severity`, `@Feature`,
+`@Story`, `@Owner`, `@Description`, `@Issue`, `@TmsLink`, `@Link`,
+`@Epic`, `@Tag`, `@Label`, `@Title`, `@Parameter`) flow into the
+Mockarty case frame without refactoring. Detection is reflection-based,
+results are cached per test method, and Mockarty does not require
+`io.qameta.allure:allure-java-commons` on the user's classpath. Disable
+the scan with `@MockartyTest(mirrorAllure = false)` if you do not use
+Allure annotations.
+
+```java
+@MockartyTest
+@Severity(SeverityLevel.CRITICAL)
+@Feature("Auth")
+class LoginTest {
+    @Test
+    @Story("Reject bad credentials")
+    @Owner("auth-team")
+    void shouldReject() { ... }
+}
+```
+
 ## Supported Protocols
 
 ### HTTP

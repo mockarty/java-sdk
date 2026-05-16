@@ -4,6 +4,7 @@
 package ru.mockarty.junit5;
 
 import ru.mockarty.MockartyClient;
+import ru.mockarty.junit5.framework.AllureMirror;
 import ru.mockarty.junit5.framework.AttachReport;
 import ru.mockarty.junit5.framework.MockartyContext;
 import ru.mockarty.junit5.framework.TestCase;
@@ -65,6 +66,16 @@ public class MockartyExtension implements
     private static final String CLIENT_KEY = "mockarty-client";
     private static final String SERVER_KEY = "mockarty-server";
     private static final String CLEANUP_KEY = "mockarty-cleanup";
+    /** True when {@link #beforeTestExecution} pushed a synthetic case frame
+     * (because the test had no {@link TestCase} but did have Allure
+     * annotations under mirror-mode). Tells {@link #afterTestExecution}
+     * it must pop the frame even though the {@code @TestCase}-based path
+     * is inactive. */
+    private static final String SYNTHETIC_FRAME_KEY = "mockarty-allure-synthetic-frame";
+    /** True when mirror-mode is enabled for the current test (resolved
+     * from the class-level {@code @MockartyTest(mirrorAllure=...)}; default
+     * is {@code true}). */
+    private static final String MIRROR_ALLURE_KEY = "mockarty-mirror-allure";
 
     @Override
     public void beforeEach(ExtensionContext context) {
@@ -84,6 +95,13 @@ public class MockartyExtension implements
 
         String namespace = annotation != null ? annotation.namespace() : "sandbox";
         boolean cleanupAfterEach = annotation == null || annotation.cleanupAfterEach();
+        // Allure mirror-mode is default-ON (owner decision 2026-05-16,
+        // SDK_FRAMEWORK_PLAN §3.3). When the user explicitly uses
+        // {@code @MockartyTest(mirrorAllure = false)} we skip the
+        // reflection harvest. When there's no {@code @MockartyTest} at
+        // all (extension activated via {@code @ExtendWith}) we still
+        // default to ON to match the SDK-wide invariant.
+        boolean mirrorAllure = annotation == null || annotation.mirrorAllure();
 
         MockartyClient client = MockartyClient.builder()
                 .baseUrl(baseUrl)
@@ -97,27 +115,61 @@ public class MockartyExtension implements
         store.put(CLIENT_KEY, client);
         store.put(SERVER_KEY, server);
         store.put(CLEANUP_KEY, cleanupAfterEach);
+        store.put(MIRROR_ALLURE_KEY, mirrorAllure);
 
-        log.debug("MockartyExtension initialized: baseUrl={}, namespace={}, cleanup={}",
-                baseUrl, namespace, cleanupAfterEach);
+        log.debug("MockartyExtension initialized: baseUrl={}, namespace={}, cleanup={}, mirrorAllure={}",
+                baseUrl, namespace, cleanupAfterEach, mirrorAllure);
     }
 
     @Override
     public void beforeTestExecution(ExtensionContext context) {
-        // Push a case frame for methods annotated with @TestCase. Idempotent
-        // when the annotation is missing — no frame pushed.
         Method testMethod = context.getTestMethod().orElse(null);
         if (testMethod == null) return;
-        TestCase tc = testMethod.getAnnotation(TestCase.class);
-        if (tc == null) return;
-        validateTestCaseAnnotation(tc);
 
-        MockartyContext.CaseFrame frame = new MockartyContext.CaseFrame();
-        frame.caseId = emptyToNull(tc.value());
-        frame.caseName = emptyToNull(tc.name());
-        frame.planId = emptyToNull(tc.plan());
-        frame.autoCreate = tc.autoCreate();
-        MockartyContext.pushCase(frame);
+        TestCase tc = testMethod.getAnnotation(TestCase.class);
+        MockartyContext.CaseFrame frame = null;
+        boolean synthetic = false;
+
+        if (tc != null) {
+            validateTestCaseAnnotation(tc);
+            frame = new MockartyContext.CaseFrame();
+            frame.caseId = emptyToNull(tc.value());
+            frame.caseName = emptyToNull(tc.name());
+            frame.planId = emptyToNull(tc.plan());
+            frame.autoCreate = tc.autoCreate();
+            MockartyContext.pushCase(frame);
+        }
+
+        // Allure mirror-mode: harvest @Step/@Severity/@Feature/@Story/... and
+        // lift them onto the active case frame. For pure-Allure tests (no
+        // @TestCase but Allure annotations present) we create a synthetic
+        // frame so the metadata isn't dropped on the floor.
+        ExtensionContext.Store store = context.getStore(NAMESPACE);
+        Boolean mirror = store.get(MIRROR_ALLURE_KEY, Boolean.class);
+        if (Boolean.TRUE.equals(mirror)) {
+            AllureMirror.Harvested h = AllureMirror.harvest(testMethod);
+            if (!h.isEmpty()) {
+                if (frame == null) {
+                    frame = new MockartyContext.CaseFrame();
+                    // Use the Allure @Title (or harvested classStepHint, or
+                    // the JUnit display name) as the case name so the
+                    // synthetic frame has something user-readable.
+                    frame.caseName = h.title != null
+                            ? h.title
+                            : (h.classStepHint != null
+                                    ? h.classStepHint
+                                    : context.getDisplayName());
+                    frame.autoCreate = false;
+                    MockartyContext.pushCase(frame);
+                    synthetic = true;
+                }
+                AllureMirror.apply(frame, h);
+            }
+        }
+
+        if (synthetic) {
+            store.put(SYNTHETIC_FRAME_KEY, Boolean.TRUE);
+        }
     }
 
     @Override
@@ -126,9 +178,13 @@ public class MockartyExtension implements
         if (testMethod == null) return;
 
         MockartyContext.CaseFrame frame = MockartyContext.currentCase();
+        ExtensionContext.Store store = context.getStore(NAMESPACE);
+        boolean synthetic = Boolean.TRUE.equals(store.get(SYNTHETIC_FRAME_KEY, Boolean.class));
+
         // Pop the case frame regardless of whether @AttachReport is set —
-        // beforeTestExecution pushed it iff @TestCase is present.
-        if (testMethod.isAnnotationPresent(TestCase.class)) {
+        // beforeTestExecution pushed it iff @TestCase is present OR mirror
+        // mode created a synthetic frame for Allure-only tests.
+        if (testMethod.isAnnotationPresent(TestCase.class) || synthetic) {
             try {
                 if (testMethod.isAnnotationPresent(AttachReport.class) && frame != null) {
                     uploadOutcomeBestEffort(context, testMethod, frame);
