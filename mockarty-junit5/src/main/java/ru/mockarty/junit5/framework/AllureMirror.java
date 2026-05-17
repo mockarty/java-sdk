@@ -370,7 +370,7 @@ public final class AllureMirror {
     }
 
     private static void scan(AnnotatedElement element, Harvested out) {
-        for (Annotation a : element.getAnnotations()) {
+        for (Annotation a : flattenRepeatable(element.getAnnotations())) {
             String fqcn = a.annotationType().getName();
             // Scope to canonical Allure packages — match the prefix AND
             // a known leaf suffix. Suffix-only matching (e.g. anything
@@ -433,7 +433,23 @@ public final class AllureMirror {
                         addAll(out.tmsLinks, value);
                         break;
                     case "Link":
-                        addAll(out.links, value);
+                        // @Link has two shapes:
+                        //   1) @Link("https://...") — value=URL, name absent
+                        //   2) @Link(name="docs", url="https://...", type="...")
+                        //      — name+url separate attributes, value() empty
+                        // Harvest whichever shape the user picked so the URL
+                        // makes it into the on-disk Allure result.
+                        if (value != null && !text.isEmpty()) {
+                            addAll(out.links, value);
+                        } else {
+                            String url = tryAttr(a, "url");
+                            String linkName = tryAttr(a, "name");
+                            if (url != null && !url.isEmpty()) {
+                                out.links.add(url);
+                            } else if (linkName != null && !linkName.isEmpty()) {
+                                out.links.add(linkName);
+                            }
+                        }
                         break;
                     case "Label":
                         // @Label(name="...", value="...")
@@ -507,6 +523,73 @@ public final class AllureMirror {
     private static Object invokeValue(Annotation a) {
         try {
             return a.annotationType().getMethod("value").invoke(a);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Best-effort read of {@code attr} as a String. Returns {@code null}
+     * when the method doesn't exist or the value is null/empty. Used by
+     * {@code @Link(name=, url=)} harvesting where {@code value()} alone
+     * doesn't carry the URL.
+     */
+    private static String tryAttr(Annotation a, String attr) {
+        try {
+            Object v = a.annotationType().getMethod(attr).invoke(a);
+            return v == null ? null : String.valueOf(v);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Expand repeatable-annotation containers (e.g. {@code @Links} that
+     * wraps multiple {@code @Link}) so the scanner sees the leaf
+     * annotations. Allure's {@code Links}/{@code Issues}/{@code TmsLinks}
+     * follow JLS §9.6.3 (one method {@code value()} returning an array of
+     * the leaf type) — we detect that shape generically rather than
+     * hard-coding container types, so any future Allure repeatable carries
+     * for free.
+     */
+    private static List<Annotation> flattenRepeatable(Annotation[] raw) {
+        List<Annotation> out = new ArrayList<>(raw.length);
+        for (Annotation a : raw) {
+            String fqcn = a.annotationType().getName();
+            // Only inspect Allure-package annotations; leaves the rest
+            // (JUnit's own, Mockito, etc.) alone.
+            if (!isAllurePackage(fqcn)) {
+                out.add(a);
+                continue;
+            }
+            Annotation[] expanded = tryExpandContainer(a);
+            if (expanded != null && expanded.length > 0) {
+                Collections.addAll(out, expanded);
+            } else {
+                out.add(a);
+            }
+        }
+        return out;
+    }
+
+    /** If {@code a} is a JLS-9.6.3 container annotation (single
+     * {@code value()} method returning {@code Annotation[]}), return its
+     * leaves. Otherwise {@code null}.
+     */
+    private static Annotation[] tryExpandContainer(Annotation a) {
+        try {
+            java.lang.reflect.Method valueMethod = a.annotationType().getMethod("value");
+            Class<?> ret = valueMethod.getReturnType();
+            if (!ret.isArray()) {
+                return null;
+            }
+            Class<?> component = ret.getComponentType();
+            if (!Annotation.class.isAssignableFrom(component)) {
+                return null;
+            }
+            Object value = valueMethod.invoke(a);
+            if (value instanceof Annotation[]) {
+                return (Annotation[]) value;
+            }
+            return null;
         } catch (Throwable t) {
             return null;
         }

@@ -7,6 +7,7 @@ import io.qameta.allure.Description;
 import io.qameta.allure.Epic;
 import io.qameta.allure.Feature;
 import io.qameta.allure.Issue;
+import io.qameta.allure.Link;
 import io.qameta.allure.Owner;
 import io.qameta.allure.Severity;
 import io.qameta.allure.SeverityLevel;
@@ -242,6 +243,37 @@ class AllureMirrorDefaultOnTest {
         }
         assertEquals(1, frame.steps.size());
         assertNull(frame.steps.get(0).get("error"));
+    }
+
+    // ── @Link harvest covers both shapes ────────────────────────────
+
+    /**
+     * Sample showing the two {@code @io.qameta.allure.Link} shapes the
+     * harvester must support: the shorthand {@code @Link("URL")} (value()
+     * carries the URL) and the explicit {@code @Link(name=, url=)} form
+     * (value() is empty, the URL lives on a sibling attribute).
+     */
+    static class LinkSample {
+        @Link("https://shorthand.example/docs")
+        @Link(name = "design-doc", url = "https://named.example/spec")
+        void hasBothLinkShapes() {
+        }
+    }
+
+    @Test
+    @DisplayName("@Link harvest captures URL from both shorthand and name+url forms")
+    void linkHarvestBothShapes() throws Exception {
+        Method m = LinkSample.class.getDeclaredMethod("hasBothLinkShapes");
+        AllureMirror.Harvested h = AllureMirror.harvest(m);
+
+        // Shorthand: value() is the URL → goes into links verbatim.
+        assertTrue(h.links.contains("https://shorthand.example/docs"),
+                "shorthand @Link(\"URL\") must surface in harvested.links — found: " + h.links);
+        // Explicit form: value() is empty, but url() carries the URL.
+        // This was a real bug: the harvester previously dropped the
+        // explicit form on the floor because invokeValue() returned "".
+        assertTrue(h.links.contains("https://named.example/spec"),
+                "@Link(name=,url=) must surface in harvested.links — found: " + h.links);
     }
 
     // ── FQCN false-positive guard ────────────────────────────────────
