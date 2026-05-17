@@ -332,7 +332,7 @@ class MockTest {
         }
 
         @Test
-        @DisplayName("should deserialize SaveMockResponse")
+        @DisplayName("should deserialize SaveMockResponse (legacy `overwritten` alias)")
         void deserializeSaveMockResponse() throws JsonProcessingException {
             String json = "{\"overwritten\":true,\"mock\":{\"id\":\"updated-mock\"}}";
 
@@ -340,6 +340,28 @@ class MockTest {
 
             assertTrue(response.isOverwritten());
             assertEquals("updated-mock", response.getMock().getId());
+        }
+
+        @Test
+        @DisplayName("should deserialize SaveMockResponse (actual `isNew` wire shape)")
+        void deserializeSaveMockResponseIsNew() throws JsonProcessingException {
+            // This is the actual response shape the admin server emits today;
+            // the SDK previously only knew about the `overwritten` field
+            // (which the server never sets), so isOverwritten() was silently
+            // always false. Reading via @JsonAlias closes that gap.
+            String json = "{\"id\":\"reuse-1\",\"isNew\":true,"
+                    + "\"mock\":{\"id\":\"reuse-1\"},\"success\":true,"
+                    + "\"message\":\"Mock created successfully\"}";
+
+            SaveMockResponse response = mapper.readValue(json, SaveMockResponse.class);
+
+            assertTrue(response.isOverwritten(),
+                    "isNew=true on the wire must surface as isOverwritten=true");
+            assertTrue(response.isNew(), "raw isNew accessor must match");
+            assertEquals("reuse-1", response.getId());
+            assertEquals("reuse-1", response.getMock().getId());
+            assertEquals(Boolean.TRUE, response.getSuccess());
+            assertEquals("Mock created successfully", response.getMessage());
         }
 
         @Test
