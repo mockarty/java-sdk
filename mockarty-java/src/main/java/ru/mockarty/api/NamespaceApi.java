@@ -3,10 +3,12 @@
 
 package ru.mockarty.api;
 
-import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -33,11 +35,24 @@ public class NamespaceApi {
     /**
      * Lists all available namespaces.
      *
-     * @return list of namespace names
+     * <p>The admin server returns the list inside an envelope:
+     * <pre>{"namespaces": ["sandbox", ...]}</pre>
+     * We decode the envelope and surface the bare list so callers don't
+     * have to know about the wire shape.</p>
+     *
+     * @return list of namespace names (never {@code null})
      */
     public List<String> list() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, String.class);
-        return client.get("/api/v1/namespaces", listType);
+        NamespaceListResponse env = client.get("/api/v1/namespaces", NamespaceListResponse.class);
+        return env == null || env.namespaces == null
+                ? Collections.emptyList()
+                : env.namespaces;
+    }
+
+    /** Envelope DTO matching {@code {"namespaces": ["...", ...]}}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    static final class NamespaceListResponse {
+        @JsonProperty("namespaces")
+        List<String> namespaces;
     }
 }

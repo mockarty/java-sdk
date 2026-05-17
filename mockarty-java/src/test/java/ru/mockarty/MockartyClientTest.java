@@ -594,10 +594,14 @@ class MockartyClientTest {
     class NamespaceApiTests {
 
         @Test
-        @DisplayName("should list namespaces")
+        @DisplayName("should list namespaces (envelope shape)")
         void list() throws Exception {
+            // Wire shape the admin server actually emits:
+            //   {"namespaces": ["sandbox","production","staging"]}
+            // (this was a real prod-bug: the SDK previously decoded the
+            // response as a bare String[] and blew up on the envelope.)
             server.createContext("/api/v1/namespaces", exchange -> {
-                String json = "[\"sandbox\",\"production\",\"staging\"]";
+                String json = "{\"namespaces\":[\"sandbox\",\"production\",\"staging\"]}";
                 byte[] body = json.getBytes();
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, body.length);
@@ -610,6 +614,24 @@ class MockartyClientTest {
             assertEquals(3, namespaces.size());
             assertTrue(namespaces.contains("sandbox"));
             assertTrue(namespaces.contains("production"));
+        }
+
+        @Test
+        @DisplayName("should return empty list when server omits the namespaces field")
+        void listMissingField() throws Exception {
+            server.createContext("/api/v1/namespaces", exchange -> {
+                String json = "{}";
+                byte[] body = json.getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            var namespaces = client.namespaces().list();
+            assertNotNull(namespaces, "must surface empty list, never null");
+            assertTrue(namespaces.isEmpty());
         }
     }
 }
