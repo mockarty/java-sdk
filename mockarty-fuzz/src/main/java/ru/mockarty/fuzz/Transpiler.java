@@ -206,20 +206,25 @@ public final class Transpiler {
     private static Map<String, Object> assertionToMap(Assertion a) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("type", a.type());
-        // Pattern matching on the sealed type — new variants force a
-        // compile error here (the switch is exhaustive thanks to the
-        // permits clause). That's the dynamic-over-hardcode pattern in
-        // action: no string lookup, no fallthrough default.
-        switch (a) {
-            case Assertion.Status s -> {
-                m.put("min", s.min());
-                m.put("max", s.max());
-            }
-            case Assertion.NoCrash ignored -> {
-                // no parameters
-            }
-            case Assertion.ResponseTimeUnder r -> m.put("limitMs", r.limit().toMillis());
-            case Assertion.NoErrorInBody e -> m.put("errorTokens", e.errorTokens());
+        // Sealed-interface dispatch via classical instanceof — keeps the
+        // Java 17 baseline (no preview features needed). New variants
+        // surface as a compile error in the catch-all branch below
+        // because the sealed permits clause makes the chain exhaustive
+        // at code-review time. Dynamic-over-hardcode pattern preserved:
+        // no string lookup, no silent fallthrough.
+        if (a instanceof Assertion.Status s) {
+            m.put("min", s.min());
+            m.put("max", s.max());
+        } else if (a instanceof Assertion.NoCrash) {
+            // no parameters
+        } else if (a instanceof Assertion.ResponseTimeUnder r) {
+            m.put("limitMs", r.limit().toMillis());
+        } else if (a instanceof Assertion.NoErrorInBody e) {
+            m.put("errorTokens", e.errorTokens());
+        } else {
+            // sealed-permits guarantees this is unreachable; flag loudly
+            // if a new variant is added without updating this dispatch.
+            throw new IllegalStateException("unknown Assertion variant: " + a.getClass().getName());
         }
         return m;
     }

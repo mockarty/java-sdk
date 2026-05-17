@@ -20,14 +20,14 @@ class ProtobufPluginTest {
     @Test
     @DisplayName("Identity round-trip: equal bytes → no mismatch")
     void identityMatch() {
-        byte[] payload = new byte[] {0x08, 0x96, 0x01, 0x12, 0x05, 'h', 'e', 'l', 'l', 'o'};
+        byte[] payload = new byte[] {0x08, (byte) 0x96, 0x01, 0x12, 0x05, 'h', 'e', 'l', 'l', 'o'};
         assertTrue(plugin.matchRequest("application/x-protobuf", payload, payload.clone()).isEmpty());
     }
 
     @Test
     @DisplayName("Length mismatch surfaces with protobuf.length tag")
     void lengthMismatch() {
-        byte[] expected = new byte[] {0x08, 0x96};
+        byte[] expected = new byte[] {0x08, (byte) 0x96};
         byte[] actual = new byte[] {0x08};
         List<MismatchReport> ms = plugin.matchRequest("application/x-protobuf", expected, actual);
         assertEquals(1, ms.size());
@@ -38,7 +38,7 @@ class ProtobufPluginTest {
     @DisplayName("Byte-level mismatch reports first differing byte only")
     void byteMismatch() {
         byte[] expected = new byte[] {0x08, 0x01, 0x02, 0x03};
-        byte[] actual = new byte[] {0x08, 0x01, 0x99, 0x03};
+        byte[] actual = new byte[] {0x08, 0x01, (byte) 0x99, 0x03};
         List<MismatchReport> ms = plugin.matchRequest("application/x-protobuf", expected, actual);
         assertEquals(1, ms.size(), "first divergence should short-circuit");
         assertEquals("protobuf.byte", ms.get(0).matcherType());

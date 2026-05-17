@@ -22,7 +22,7 @@ class GRPCPluginTest {
     @Test
     @DisplayName("Round-trip: identical framed payload matches cleanly")
     void identityRoundTrip() throws IOException {
-        byte[] msg = new byte[] {0x08, 0x96, 0x01};
+        byte[] msg = new byte[] {0x08, (byte) 0x96, 0x01};
         byte[] framed = frame(msg);
         assertTrue(plugin.matchRequest("application/grpc", framed, framed.clone()).isEmpty());
     }
@@ -31,7 +31,7 @@ class GRPCPluginTest {
     @DisplayName("Expected too short → framing.expected mismatch")
     void framingHeaderMissingExpected() {
         List<MismatchReport> ms = plugin.matchRequest("application/grpc",
-                new byte[] {1, 2}, frame(new byte[] {0x08, 0x96}));
+                new byte[] {1, 2}, frame(new byte[] {0x08, (byte) 0x96}));
         assertEquals(1, ms.size());
         assertEquals("grpc.framing.expected", ms.get(0).matcherType());
     }
@@ -39,7 +39,7 @@ class GRPCPluginTest {
     @Test
     @DisplayName("Actual too short → framing.actual mismatch")
     void framingHeaderMissingActual() {
-        byte[] expected = frame(new byte[] {0x08, 0x96});
+        byte[] expected = frame(new byte[] {0x08, (byte) 0x96});
         List<MismatchReport> ms = plugin.matchRequest("application/grpc",
                 expected, new byte[] {0, 0});
         assertEquals(1, ms.size());
@@ -49,7 +49,7 @@ class GRPCPluginTest {
     @Test
     @DisplayName("Truncated body (declared length > actual) is flagged")
     void truncatedBody() {
-        byte[] expected = frame(new byte[] {0x08, 0x96, 0x01});
+        byte[] expected = frame(new byte[] {0x08, (byte) 0x96, 0x01});
         // Reuse framing header but drop trailing byte
         byte[] truncated = new byte[expected.length - 1];
         System.arraycopy(expected, 0, truncated, 0, truncated.length);
@@ -61,7 +61,7 @@ class GRPCPluginTest {
     @DisplayName("Different payload bytes inside well-framed messages surface as protobuf mismatch")
     void payloadDivergence() {
         byte[] expected = frame(new byte[] {0x08, 0x01});
-        byte[] actual = frame(new byte[] {0x08, 0x99});
+        byte[] actual = frame(new byte[] {0x08, (byte) 0x99});
         List<MismatchReport> ms = plugin.matchRequest("application/grpc", expected, actual);
         assertFalse(ms.isEmpty());
         assertTrue(ms.get(0).matcherType().startsWith("protobuf."));
