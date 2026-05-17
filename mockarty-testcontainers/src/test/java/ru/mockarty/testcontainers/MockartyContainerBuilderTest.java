@@ -3,9 +3,11 @@
 
 package ru.mockarty.testcontainers;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -14,14 +16,58 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Pure unit tests for the {@link MockartyContainer} builder surface.
- * Nothing here actually spins up Docker — all assertions are on local
- * state (env map, exposed ports) which testcontainers-java populates
+ * Nothing here logically asserts on Docker — every assertion is on local
+ * state (env map, exposed ports) that testcontainers-java populates
  * during configuration before {@code start()}.
+ *
+ * <p>However, the {@code GenericContainer} super-constructor that
+ * {@link MockartyContainer} extends probes the Docker daemon at
+ * instantiation time. To keep the suite runnable on CI shards without
+ * a Docker daemon we gate the whole class on a quick socket probe of
+ * the canonical unix socket or {@code DOCKER_HOST} value and abort with
+ * a JUnit {@code assumption-failed} (= skipped, not failed) when none
+ * answers. This preserves the original developer ergonomics on
+ * docker-enabled machines while keeping the JaCoCo line-coverage report
+ * tidy on docker-less CI.</p>
  */
 class MockartyContainerBuilderTest {
+
+    @BeforeAll
+    static void requireDocker() {
+        assumeTrue(dockerAvailable(),
+            "Docker daemon not reachable — skipping MockartyContainer "
+                + "builder tests (GenericContainer probes the daemon "
+                + "at construction time)");
+    }
+
+    private static boolean dockerAvailable() {
+        // Quick subprocess probe — `docker info` exits 0 iff the daemon
+        // is actually reachable. We don't trust the unix-socket file's
+        // mere existence: Docker Desktop leaves the socket node on disk
+        // after the daemon stops, so a Files.exists() check would
+        // false-positive and we'd be back to a 5-minute GenericContainer
+        // hang. The probe is bounded to 2 seconds.
+        try {
+            ProcessBuilder pb = new ProcessBuilder("docker", "info", "--format", "{{.ServerVersion}}");
+            pb.redirectErrorStream(true);
+            pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+            Process p = pb.start();
+            if (!p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+                p.destroyForcibly();
+                return false;
+            }
+            return p.exitValue() == 0;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            return false;
+        }
+    }
 
     @Test
     void defaultImage() {
