@@ -37,4 +37,12 @@ dependencies {
 // write @MockartyFuzz, no @ExtendWith needed.
 tasks.withType<Test> {
     systemProperty("junit.jupiter.extensions.autodetection.enabled", "true")
+    // MockartyFuzzExtensionTest spins up the inner *Fixture classes via the
+    // JUnit Launcher API to verify @MockartyFuzz auto-wiring. Gradle's
+    // default discovery would also pick those fixtures up directly and run
+    // their negative-path tests (which throw by design), surfacing them as
+    // suite failures. Exclude any *Fixture$* class from direct discovery —
+    // the outer test still drives them programmatically through Launcher.
+    exclude("**/*Fixture.class")
+    exclude("**/*Fixture\$*.class")
 }
