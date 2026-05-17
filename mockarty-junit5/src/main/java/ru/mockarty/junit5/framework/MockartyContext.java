@@ -85,12 +85,26 @@ public final class MockartyContext {
 
     // ── Frame types ──────────────────────────────────────────────────
 
-    /** One frame on the case stack — one {@link TestCase}-annotated test. */
+    /** One frame on the case stack — one {@link TestCase}-annotated test.
+     *
+     * <p>Phase 2.6 fields (description / expectedResult / customFields /
+     * claimOwnership) carry the Mockarty-extended @TestCase metadata to
+     * the upload bridge so the server's ExternalRunRequest can apply them
+     * to the underlying TCM row. Allure adapters never set any of these.</p>
+     */
     public static final class CaseFrame {
         public String caseId;
         public String caseName;
         public String planId;
         public boolean autoCreate;
+        /** Markdown description for the TCM case row (Mockarty extension). */
+        public String description;
+        /** Markdown "what should happen" clause (Mockarty extension). */
+        public String expectedResult;
+        /** Custom fields list — each entry a {type,name,value} map. */
+        public final List<Map<String, Object>> customFields = new ArrayList<>();
+        /** When true, the receiver overwrites case fields on every upload. */
+        public boolean claimOwnership;
         public final Map<String, Object> metadata = new HashMap<>();
         public final List<Map<String, Object>> attachments = new ArrayList<>();
         public final List<Map<String, Object>> steps = new ArrayList<>();
@@ -101,6 +115,10 @@ public final class MockartyContext {
             out.put("caseName", caseName);
             out.put("planId", planId);
             out.put("autoCreate", autoCreate);
+            if (description != null) out.put("description", description);
+            if (expectedResult != null) out.put("expectedResult", expectedResult);
+            if (!customFields.isEmpty()) out.put("customFields", new ArrayList<>(customFields));
+            if (claimOwnership) out.put("claimOwnership", true);
             out.put("metadata", new HashMap<>(metadata));
             out.put("attachments", Collections.unmodifiableList(attachments));
             out.put("steps", Collections.unmodifiableList(steps));

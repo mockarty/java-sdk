@@ -20,6 +20,27 @@ import java.lang.annotation.Target;
  *       the test runs. Mutually exclusive with a non-empty {@code value()}.</li>
  * </ul>
  *
+ * <p><b>Phase 2.6 Mockarty extensions</b> (owner directive 2026-05-18 —
+ * see {@code docs/research/SDK_MOCKARTY_EXTENSIONS_AUDIT.md}). Allure
+ * adapters never set any of these; they ride the
+ * {@code ExternalRunRequest} fields the server gained in the same
+ * phase:</p>
+ * <ul>
+ *   <li>{@code description()} — Markdown description for the case row.
+ *       Saves the test author from explaining the test in two places
+ *       (code comment AND TCM UI).</li>
+ *   <li>{@code expectedResult()} — Markdown expected-result clause.
+ *       Mockarty's primary differentiator vs Allure: the review
+ *       workflow keys off this column.</li>
+ *   <li>{@code customFields()} — string pairs encoded as
+ *       {@code "type:name:value"} per entry. Persisted to
+ *       {@code test_cases.custom_fields_json} (migration 203).</li>
+ *   <li>{@code claimOwnership()} — when true, the receiver overwrites
+ *       {@code description}/{@code expectedResult}/{@code customFields}
+ *       on every upload so the code stays source of truth. Default
+ *       false preserves manual UI edits.</li>
+ * </ul>
+ *
  * <p>Examples:</p>
  * <pre>{@code
  * // Bind to existing case
@@ -28,9 +49,16 @@ import java.lang.annotation.Target;
  * @AttachReport
  * void login() { ... }
  *
- * // Auto-create on first run, then pin in subsequent runs
+ * // Auto-create with full Mockarty metadata
  * @Test
- * @TestCase(name = "login flow", autoCreate = true, plan = "qa-smoke")
+ * @TestCase(
+ *     name = "login flow",
+ *     autoCreate = true,
+ *     plan = "qa-smoke",
+ *     description = "## Smoke-test the email+password happy path",
+ *     expectedResult = "Lands on /dashboard within 2s",
+ *     customFields = {"feature:Auth:Login", "severity:severity:critical"},
+ *     claimOwnership = true)
  * void loginAuto() { ... }
  * }</pre>
  */
@@ -49,4 +77,34 @@ public @interface TestCase {
 
     /** Create the case on the server if it doesn't exist yet. */
     boolean autoCreate() default false;
+
+    /**
+     * Markdown description for the TCM case row. Phase 2.6 Mockarty
+     * extension — Allure adapters never set this. Empty string = use
+     * the boilerplate fallback on auto-create.
+     */
+    String description() default "";
+
+    /**
+     * Markdown "what should happen" clause. Mockarty's review
+     * workflow keys off this column (migration 237). Empty = unset.
+     */
+    String expectedResult() default "";
+
+    /**
+     * Typed custom fields, each entry encoded as
+     * {@code "type:name:value"} (e.g. {@code "feature:Auth:Login"}).
+     * Annotation parameters can't be complex types, so we keep the
+     * wire shape compact; the JUnit extension parses each entry and
+     * forwards it as a {@code []CustomField} on the
+     * {@code ExternalRunRequest}.
+     */
+    String[] customFields() default {};
+
+    /**
+     * When true, the receiver overwrites the case row's description /
+     * expected_result / custom_fields with the annotation values on
+     * EVERY upload. Default false preserves manual UI edits.
+     */
+    boolean claimOwnership() default false;
 }

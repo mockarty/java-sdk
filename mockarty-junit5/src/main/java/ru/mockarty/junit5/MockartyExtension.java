@@ -225,6 +225,26 @@ public class MockartyExtension implements
             frame.caseName = emptyToNull(tc.name());
             frame.planId = emptyToNull(tc.plan());
             frame.autoCreate = tc.autoCreate();
+            // Phase 2.6 Mockarty extensions — see SDK_MOCKARTY_
+            // EXTENSIONS_AUDIT.md. These ride the matching server-
+            // side ExternalRunRequest fields landed in 1067beba.
+            frame.description = emptyToNull(tc.description());
+            frame.expectedResult = emptyToNull(tc.expectedResult());
+            frame.claimOwnership = tc.claimOwnership();
+            for (String raw : tc.customFields()) {
+                if (raw == null || raw.isEmpty()) continue;
+                // Each entry encoded as "type:name:value". Annotation
+                // params can't be complex types so the colon-delimited
+                // shape is the smallest serialisation that survives
+                // through the @interface.
+                java.util.Map<String, Object> cf = new java.util.HashMap<>();
+                String[] parts = raw.split(":", 3);
+                if (parts.length >= 1) cf.put("type", parts[0]);
+                if (parts.length >= 2) cf.put("name", parts[1]);
+                if (parts.length >= 3) cf.put("value", parts[2]);
+                if (parts.length == 2) cf.put("value", "");
+                frame.customFields.add(cf);
+            }
             MockartyContext.pushCase(frame);
         }
 
