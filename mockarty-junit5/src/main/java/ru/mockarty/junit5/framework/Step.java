@@ -84,7 +84,11 @@ public final class Step implements AutoCloseable {
             throw e;
         } catch (Exception e) {
             s.markFailed(e);
-            throw new RuntimeException(e);
+            // Preserve interrupt status so callers can react to cancellation.
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException("step '" + name + "' threw checked exception: " + e.getMessage(), e);
         } finally {
             s.close();
         }

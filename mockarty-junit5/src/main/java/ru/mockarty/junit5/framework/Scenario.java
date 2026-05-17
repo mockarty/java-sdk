@@ -10,6 +10,8 @@ import ru.mockarty.model.SaveMockResponse;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Lightweight scenario builder. Wraps an ad-hoc TCM case binding around
@@ -33,6 +35,8 @@ import java.util.List;
  * class — the extension wires up a default client.</p>
  */
 public final class Scenario implements AutoCloseable {
+
+    private static final Logger LOG = Logger.getLogger(Scenario.class.getName());
 
     private final String name;
     private MockartyClient client;
@@ -125,11 +129,16 @@ public final class Scenario implements AutoCloseable {
         if (closed) return;
         closed = true;
         // Tear down ad-hoc mocks first — best-effort, never throws.
+        // Failures are logged at FINE so users can opt into noise via
+        // java.util.logging.config when chasing cleanup regressions, but
+        // happy-path runs stay quiet.
         if (client != null) {
             for (String id : createdMockIds) {
                 try {
                     client.mocks().delete(id);
-                } catch (Exception ignored) { /* swallow */ }
+                } catch (Exception e) {
+                    LOG.log(Level.FINE, e, () -> "Scenario '" + name + "' could not delete mock " + id);
+                }
             }
         }
         if (started) {

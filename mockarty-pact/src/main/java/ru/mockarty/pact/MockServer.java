@@ -24,7 +24,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -50,6 +52,7 @@ public final class MockServer implements AutoCloseable {
 
     private final Pact pact;
     private final HttpServer server;
+    private final ExecutorService executor;
     private final URI baseUri;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<Integer, Integer> hits = new ConcurrentHashMap<>();
@@ -58,9 +61,11 @@ public final class MockServer implements AutoCloseable {
     private final boolean writeOnClose;
     private final boolean strict;
 
-    private MockServer(Pact pact, HttpServer server, URI baseUri, boolean writeOnClose, boolean strict) {
+    private MockServer(Pact pact, HttpServer server, ExecutorService executor, URI baseUri,
+                       boolean writeOnClose, boolean strict) {
         this.pact = pact;
         this.server = server;
+        this.executor = executor;
         this.baseUri = baseUri;
         this.writeOnClose = writeOnClose;
         this.strict = strict;
@@ -96,15 +101,19 @@ public final class MockServer implements AutoCloseable {
             HttpServer http = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             // A dedicated executor keeps the mock isolated from the JVM
             // common pool — a slow test handler won't starve user code.
-            http.setExecutor(Executors.newCachedThreadPool(r -> {
+            // We hold a reference so close() can shut it down explicitly;
+            // otherwise long test suites that spawn many MockServers leak
+            // the cached pool until its 60s keep-alive expires.
+            ExecutorService exec = Executors.newCachedThreadPool(r -> {
                 Thread t = new Thread(r, "mockarty-pact-mock-" + System.nanoTime());
                 t.setDaemon(true);
                 return t;
-            }));
+            });
+            http.setExecutor(exec);
             URI uri = URI.create(
                     "http://127.0.0.1:" + http.getAddress().getPort());
 
-            MockServer ms = new MockServer(pact, http, uri, writeOnClose, strict);
+            MockServer ms = new MockServer(pact, http, exec, uri, writeOnClose, strict);
             http.createContext("/", new RouterHandler(pact, ms));
             http.start();
             return ms;
@@ -168,6 +177,19 @@ public final class MockServer implements AutoCloseable {
             // on it because tests spawn many servers per class — a slow
             // shutdown would multiply suite duration.
             server.stop(0);
+            // Shut down the cached thread pool so it doesn't keep idle
+            // workers alive for its 60s keep-alive. Threads are daemons,
+            // but a long suite that spins up many MockServers would still
+            // pile up executor instances. Best-effort — never throws.
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(2, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         } finally {
             if (writeOnClose && pact.outputDir() != null) {
                 try {

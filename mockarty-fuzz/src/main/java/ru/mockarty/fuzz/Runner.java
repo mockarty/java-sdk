@@ -23,7 +23,6 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -184,8 +183,11 @@ public final class Runner implements AutoCloseable {
                 if (exhausted) return false;
                 if (next != null) return true;
                 try {
-                    EventOrEnd e = queue.poll(1, TimeUnit.SECONDS);
-                    while (e == null) e = queue.poll(1, TimeUnit.SECONDS);
+                    // Single blocking take — the producer thread guarantees
+                    // an EventOrEnd.end() in its finally block, so we will
+                    // never wait forever. Cheaper and clearer than the prior
+                    // busy-poll loop.
+                    EventOrEnd e = queue.take();
                     if (e.error != null) {
                         exhausted = true;
                         throw new RuntimeException("stream error", e.error);
