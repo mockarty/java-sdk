@@ -118,16 +118,22 @@ public final class MatcherEngine {
             if (!sameJsonType(l.example(), actual)) {
                 out.add(report(path, "like(" + jsonType(l.example()) + ")",
                         jsonType(l.example()), jsonType(actual)));
-            } else {
-                // Recurse into nested structure so matchers buried inside
-                // a like() example still get evaluated.
+            } else if (l.example() instanceof Map || l.example() instanceof List) {
+                // Recurse into the example ONLY when it's a structure —
+                // nested matchers buried inside a like(Map/List) still get
+                // evaluated. For primitive examples (string/number/bool)
+                // like() is type-only by definition, so we must NOT fall
+                // through to compareInternal's strict literal equality
+                // path — that would defeat the whole point of like().
                 compareInternal(l.example(), actual, path, out);
             }
         } else if (m instanceof Matcher.MatchType mt) {
             if (!sameJsonType(mt.example(), actual)) {
                 out.add(report(path, "matchType(" + jsonType(mt.example()) + ")",
                         jsonType(mt.example()), jsonType(actual)));
-            } else {
+            } else if (mt.example() instanceof Map || mt.example() instanceof List) {
+                // Same structure-only recursion rule as Like above — strict
+                // primitive equality is a regression we intentionally avoid.
                 compareInternal(mt.example(), actual, path, out);
             }
         } else if (m instanceof Matcher.EachLike el) {
@@ -265,8 +271,20 @@ public final class MatcherEngine {
             out.add(report(path, label + "(max=" + max + ")",
                     "size<=" + max, list.size()));
         }
+        // Primitive template = type-only check (the Pact "minType/eachLike/..."
+        // contract: bound the array size + each element matches the example's
+        // JSON type). Falling through to compareInternal would impose strict
+        // value equality on every element, which is a regression — callers
+        // who want value equality use literal arrays or wrap with equality().
+        boolean structuralTemplate = template instanceof Map || template instanceof List
+                || template instanceof Matcher;
         for (int i = 0; i < list.size(); i++) {
-            compareInternal(template, list.get(i), path + "[" + i + "]", out);
+            if (structuralTemplate) {
+                compareInternal(template, list.get(i), path + "[" + i + "]", out);
+            } else if (!sameJsonType(template, list.get(i))) {
+                out.add(report(path + "[" + i + "]", label + "(" + jsonType(template) + ")",
+                        jsonType(template), jsonType(list.get(i))));
+            }
         }
     }
 
