@@ -329,7 +329,7 @@ public final class Verifier {
         String query = buildQueryString(req.get("query"));
         Map<String, String> headers = flattenHeaders(req.get("headers"));
         byte[] body = bodyToBytes(req.get("body"));
-        if (body != null && !headers.containsKey("Content-Type")) {
+        if (body != null && !hasHeaderCI(headers, "Content-Type")) {
             headers.put("Content-Type", "application/json");
         }
         String url = providerUrl + path + (query.isEmpty() ? "" : "?" + query);
@@ -524,6 +524,13 @@ public final class Verifier {
         if (n.isDouble() || n.isFloatingPointNumber()) return n.asDouble();
         if (n.isTextual()) return n.asText();
         return n.toString();
+    }
+
+    private static boolean hasHeaderCI(Map<String, String> headers, String key) {
+        for (String k : headers.keySet()) {
+            if (k.equalsIgnoreCase(key)) return true;
+        }
+        return false;
     }
 
     private static String headerLookup(Map<String, List<String>> headers, String key) {

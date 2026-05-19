@@ -102,7 +102,9 @@ public final class MessagePact {
     }
 
     public MessagePact withMetadata(Map<String, String> meta) {
-        requireCursor().metadata.putAll(meta);
+        if (meta != null) {
+            requireCursor().metadata.putAll(meta);
+        }
         return this;
     }
 
