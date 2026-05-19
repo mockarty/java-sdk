@@ -227,7 +227,19 @@ public final class BrokerClient {
         return resp;
     }
 
-    private void applyAuth(HttpRequest.Builder rb) {
+    /**
+     * Broker base URL (trailing slash stripped). Exposed so the
+     * verifier in a sibling package can construct extra paths off
+     * the same root without re-parsing env.
+     */
+    public String baseUrl() { return baseUrl; }
+
+    /**
+     * Stamp the broker's Authorization header onto an outbound
+     * request builder. Used by the verifier when publishing
+     * verification results back to the same broker.
+     */
+    public void applyAuth(HttpRequest.Builder rb) {
         // Bearer wins — matches Go + Python SDK + pact-foundation precedence.
         if (!token.isBlank()) {
             rb.header("Authorization", "Bearer " + token);
