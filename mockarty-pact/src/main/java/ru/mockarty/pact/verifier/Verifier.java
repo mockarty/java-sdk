@@ -512,7 +512,15 @@ public final class Verifier {
     }
 
     private static boolean nodesEqual(JsonNode a, JsonNode b) {
-        if (a.isNumber() && b.isNumber()) return a.asDouble() == b.asDouble();
+        if (a.isNumber() && b.isNumber()) {
+            // Compare as BigDecimal so int64 IDs > 2^53 (common for
+            // generated UUIDs encoded as numbers) don't lose precision
+            // through Double conversion. Strip trailing zeros so 1 and
+            // 1.0 still match.
+            java.math.BigDecimal av = a.decimalValue().stripTrailingZeros();
+            java.math.BigDecimal bv = b.decimalValue().stripTrailingZeros();
+            return av.compareTo(bv) == 0;
+        }
         return Objects.equals(jsonToVal(a), jsonToVal(b));
     }
 
@@ -649,7 +657,10 @@ public final class Verifier {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 
-    private static String nz(String s) { return s == null ? "" : s; }
+    // nz: null→"" + trim, matching BrokerClient.nz so a stray whitespace
+    // in providerVersion / providerName etc. doesn't propagate into
+    // published verification results.
+    private static String nz(String s) { return s == null ? "" : s.trim(); }
 
     /** Mutable view of an outgoing request — for {@link RequestFilter}. */
     public static final class VerifierRequest {

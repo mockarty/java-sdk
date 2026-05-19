@@ -62,6 +62,34 @@ class MessagePactTest {
     }
 
     @Test
+    void andGivenAppendsToCurrentMessage() throws Exception {
+        // V4 supports multi-state messages — andGiven() appends a
+        // state to the CURRENT message, distinct from given() which
+        // starts a NEW message.
+        MessagePact mp = new MessagePact("c", "p")
+            .given("state-A", Map.of("k", "v"))
+            .andGiven("state-B")
+            .expectsToReceive("msg")
+            .withContent(Map.of("id", 1));
+
+        JsonNode doc = M.readTree(mp.toJson());
+        assertEquals(1, doc.path("interactions").size(),
+            "andGiven should NOT spawn a new message");
+        JsonNode states = doc.path("interactions").get(0).path("providerStates");
+        assertEquals(2, states.size());
+        assertEquals("state-A", states.get(0).path("name").asText());
+        assertEquals("state-B", states.get(1).path("name").asText());
+    }
+
+    @Test
+    void andGivenRequiresCursor() {
+        MessagePact mp = new MessagePact("c", "p");
+        assertThrows(IllegalStateException.class,
+            () -> mp.andGiven("first"),
+            "andGiven before given() must fail loud");
+    }
+
+    @Test
     void requiresGivenCursor() {
         MessagePact mp = new MessagePact("c", "p");
         assertThrows(IllegalStateException.class,

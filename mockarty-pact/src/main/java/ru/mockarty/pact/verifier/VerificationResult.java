@@ -25,9 +25,16 @@ public record VerificationResult(
         if (interactions == null) interactions = List.of();
     }
 
-    /** {@code true} iff every interaction passed. */
+    /**
+     * {@code true} iff every interaction passed.
+     *
+     * <p>An empty interaction list is vacuously OK — matches the Go
+     * SDK's {@code VerificationResult.OK()} behaviour so a pact that
+     * legitimately has no interactions does not fail the CI gate.
+     * Use {@link #interactions()}{@code .isEmpty()} to distinguish
+     * "nothing to verify" from "all green".</p>
+     */
     public boolean ok() {
-        if (interactions.isEmpty()) return false;
         for (InteractionResult ir : interactions) {
             if (!ir.passed()) return false;
         }

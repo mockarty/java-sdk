@@ -3,6 +3,7 @@
 
 package ru.mockarty.pact.message;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -16,6 +17,8 @@ import java.util.Map;
 public final class MessagePactParser {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_OF_STRING_OBJECT =
+        new TypeReference<>() {};
 
     private MessagePactParser() {}
 
@@ -50,7 +53,6 @@ public final class MessagePactParser {
         return out;
     }
 
-    @SuppressWarnings("unchecked")
     private static MessagePact.Message decodeV4(JsonNode ix) {
         MessagePact.Message m = new MessagePact.Message();
         m.description = ix.path("description").asText("");
@@ -62,7 +64,7 @@ public final class MessagePactParser {
         }
         JsonNode meta = ix.path("metadata");
         if (meta.isObject()) {
-            Map<String, Object> mm = MAPPER.convertValue(meta, Map.class);
+            Map<String, Object> mm = MAPPER.convertValue(meta, MAP_OF_STRING_OBJECT);
             for (Map.Entry<String, Object> e : mm.entrySet()) {
                 if (e.getValue() instanceof String s) m.metadata.put(e.getKey(), s);
             }
@@ -70,7 +72,6 @@ public final class MessagePactParser {
         return m;
     }
 
-    @SuppressWarnings("unchecked")
     private static MessagePact.Message decodeV3(JsonNode mr) {
         MessagePact.Message m = new MessagePact.Message();
         m.description = mr.path("description").asText("");
@@ -79,7 +80,7 @@ public final class MessagePactParser {
         JsonNode meta = mr.path("metaData");
         if (!meta.isObject()) meta = mr.path("metadata");
         if (meta.isObject()) {
-            Map<String, Object> mm = MAPPER.convertValue(meta, Map.class);
+            Map<String, Object> mm = MAPPER.convertValue(meta, MAP_OF_STRING_OBJECT);
             for (Map.Entry<String, Object> e : mm.entrySet()) {
                 if (e.getValue() instanceof String s) m.metadata.put(e.getKey(), s);
             }
@@ -93,9 +94,7 @@ public final class MessagePactParser {
         if (arr.isArray()) {
             for (JsonNode s : arr) {
                 if (s.isObject()) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> ss = MAPPER.convertValue(s, Map.class);
-                    out.add(ss);
+                    out.add(MAPPER.convertValue(s, MAP_OF_STRING_OBJECT));
                 }
             }
             return out;

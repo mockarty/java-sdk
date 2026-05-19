@@ -123,6 +123,55 @@ class VerifierTest {
     }
 
     @Test
+    void bigIntComparisonNoDoubleLoss() throws Exception {
+        // 9007199254740993 = 2^53 + 1 — first integer beyond IEEE-754
+        // double precision. Pre-fix the verifier compared via
+        // asDouble(), so an actual value of 9007199254740992 (2^53)
+        // would falsely match the expected 2^53+1.
+        String pact = """
+            {
+              "consumer": {"name": "c"},
+              "provider": {"name": "p"},
+              "interactions": [{
+                "description": "id check",
+                "request":  {"method": "GET", "path": "/orders/42"},
+                "response": {"status": 200,
+                             "headers": {"Content-Type":"application/json"},
+                             "body": {"id": 9007199254740993}}
+              }]
+            }
+            """;
+        respBody.set("{\"id\": 9007199254740992}".getBytes(StandardCharsets.UTF_8));
+        Verifier v = Verifier.builder().providerUrl(providerUrl()).build();
+        VerificationResult res = v.verifyPactBytes(pact.getBytes());
+        assertFalse(res.ok(), "BigInteger precision lost: " + res.interactions().get(0).mismatches());
+    }
+
+    @Test
+    void numericComparisonAcceptsIntAndDecimalEquivalence() throws Exception {
+        // Same numeric value rendered as int (1) and as float (1.0)
+        // must compare equal — BigDecimal.compareTo + stripTrailingZeros.
+        String pact = """
+            {
+              "consumer": {"name": "c"},
+              "provider": {"name": "p"},
+              "interactions": [{
+                "description": "n",
+                "request":  {"method": "GET", "path": "/orders/42"},
+                "response": {"status": 200,
+                             "headers": {"Content-Type":"application/json"},
+                             "body": {"id": 1}}
+              }]
+            }
+            """;
+        respBody.set("{\"id\": 1.0}".getBytes(StandardCharsets.UTF_8));
+        Verifier v = Verifier.builder().providerUrl(providerUrl()).build();
+        VerificationResult res = v.verifyPactBytes(pact.getBytes());
+        assertTrue(res.ok(), "1 and 1.0 should compare equal: "
+            + res.interactions().get(0).mismatches());
+    }
+
+    @Test
     void stateHandlerInvoked() throws Exception {
         AtomicInteger seen = new AtomicInteger(0);
         Verifier v = Verifier.builder()

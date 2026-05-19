@@ -87,13 +87,32 @@ public final class MessagePact {
 
     public MessagePact given(String state, Map<String, Object> params) {
         Message m = new Message();
-        Map<String, Object> st = new LinkedHashMap<>();
-        st.put("name", state);
-        if (params != null && !params.isEmpty()) st.put("params", params);
-        m.states.add(st);
+        m.states.add(makeState(state, params));
         messages.add(m);
         cursor = m;
         return this;
+    }
+
+    /**
+     * Append an additional providerState to the CURRENT message
+     * (V4 supports multi-state messages). Must be chained after
+     * {@code given(...)}; raises {@link IllegalStateException} when
+     * called before any state.
+     */
+    public MessagePact andGiven(String state) {
+        return andGiven(state, Map.of());
+    }
+
+    public MessagePact andGiven(String state, Map<String, Object> params) {
+        requireCursor().states.add(makeState(state, params));
+        return this;
+    }
+
+    private static Map<String, Object> makeState(String state, Map<String, Object> params) {
+        Map<String, Object> st = new LinkedHashMap<>();
+        st.put("name", state);
+        if (params != null && !params.isEmpty()) st.put("params", params);
+        return st;
     }
 
     public MessagePact expectsToReceive(String description) {
