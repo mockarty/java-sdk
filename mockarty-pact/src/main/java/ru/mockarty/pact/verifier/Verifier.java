@@ -64,6 +64,26 @@ public final class Verifier {
         void apply(VerifierRequest request) throws Exception;
     }
 
+    /**
+     * Producer callback for message-pact verification.
+     * Returns the bytes the provider would publish for this
+     * interaction, plus any metadata (Kafka headers, AMQP properties).
+     */
+    @FunctionalInterface
+    public interface MessageProducer {
+        MessagePayload produce(String description,
+                               java.util.List<java.util.Map<String, Object>> states)
+            throws Exception;
+    }
+
+    /** Bytes + metadata returned by a {@link MessageProducer}. */
+    public record MessagePayload(byte[] body, java.util.Map<String, String> metadata) {
+        public MessagePayload {
+            if (body == null) body = new byte[0];
+            if (metadata == null) metadata = java.util.Map.of();
+        }
+    }
+
     private final String providerUrl;
     private final String providerName;
     private final String providerVersion;
@@ -72,6 +92,7 @@ public final class Verifier {
     private final Map<String, StateHandler> stateHandlers;
     private final String stateSetupUrl;
     private final RequestFilter requestFilter;
+    private final Map<String, MessageProducer> messageProducers;
     private final HttpClient http;
     private final Duration timeout;
 
@@ -88,6 +109,7 @@ public final class Verifier {
         this.stateHandlers = Map.copyOf(b.stateHandlers);
         this.stateSetupUrl = nz(b.stateSetupUrl);
         this.requestFilter = b.requestFilter;
+        this.messageProducers = Map.copyOf(b.messageProducers);
         this.timeout = b.timeout != null ? b.timeout : Duration.ofSeconds(30);
         this.http = b.http != null ? b.http
             : HttpClient.newBuilder().connectTimeout(this.timeout).build();
@@ -104,6 +126,7 @@ public final class Verifier {
         private final Map<String, StateHandler> stateHandlers = new LinkedHashMap<>();
         private String stateSetupUrl;
         private RequestFilter requestFilter;
+        private final Map<String, MessageProducer> messageProducers = new LinkedHashMap<>();
         private Duration timeout;
         private HttpClient http;
 
@@ -117,6 +140,9 @@ public final class Verifier {
         }
         public Builder stateSetupUrl(String v) { this.stateSetupUrl = v; return this; }
         public Builder requestFilter(RequestFilter v) { this.requestFilter = v; return this; }
+        public Builder messageProducer(String description, MessageProducer fn) {
+            this.messageProducers.put(description, fn); return this;
+        }
         public Builder timeout(Duration v) { this.timeout = v; return this; }
         public Builder httpClient(HttpClient v) { this.http = v; return this; }
         public Verifier build() { return new Verifier(this); }
@@ -141,6 +167,62 @@ public final class Verifier {
             throw new IllegalStateException("verifyFromBroker requires .broker(...)");
         }
         return verifyPactBytes(broker.fetch(consumer, provider, version));
+    }
+
+    /**
+     * Verify a message-pact document (Asynchronous/Messages
+     * interactions). For each expected message, looks up the
+     * {@link MessageProducer} registered for that description, asks
+     * it for the actual bytes, and matches them against the recorded
+     * content shape using the same matcher engine as the HTTP path.
+     */
+    public VerificationResult verifyMessagePactBytes(byte[] raw)
+            throws IOException, InterruptedException {
+        Instant start = Instant.now();
+        List<ru.mockarty.pact.message.MessagePact.Message> msgs =
+            ru.mockarty.pact.message.MessagePactParser.parse(raw);
+        List<InteractionResult> out = new ArrayList<>(msgs.size());
+        for (ru.mockarty.pact.message.MessagePact.Message m : msgs) {
+            String stateName = m.states.isEmpty() ? ""
+                : String.valueOf(m.states.get(0).getOrDefault("name", ""));
+            try {
+                for (Map<String, Object> st : m.states) setUpState(st);
+            } catch (Exception e) {
+                out.add(InteractionResult.error(m.description, stateName,
+                    "state setup: " + e.getMessage()));
+                continue;
+            }
+            MessageProducer producer = messageProducers.get(m.description);
+            if (producer == null) {
+                out.add(InteractionResult.error(m.description, stateName,
+                    "no MessageProducer registered for description \""
+                        + m.description + "\""));
+                continue;
+            }
+            MessagePayload payload;
+            try {
+                payload = producer.produce(m.description, m.states);
+            } catch (Exception e) {
+                out.add(InteractionResult.error(m.description, stateName,
+                    "producer: " + e.getMessage()));
+                continue;
+            }
+            List<Mismatch> mismatches = compareMessageBody(m.content, payload.body());
+            out.add(new InteractionResult(m.description, stateName, 0,
+                mismatches.isEmpty(), "", mismatches));
+        }
+        return new VerificationResult(providerName, start, Instant.now(), out);
+    }
+
+    private static List<Mismatch> compareMessageBody(Object expected, byte[] actual) {
+        // Reuse the HTTP body-mismatch path by funneling through the
+        // same Map-based comparison. The verifier's HTTP path expects
+        // `Map<String,Object>` with a "body" key — we build that shape
+        // here so future matcher additions land in one place.
+        Map<String, Object> wrap = new LinkedHashMap<>();
+        wrap.put("status", 0); // 0 = skip status check
+        wrap.put("body", expected);
+        return compareResponse(wrap, 0, Map.of(), actual);
     }
 
     /** POST verification result back to the broker (pact-foundation contract). */
