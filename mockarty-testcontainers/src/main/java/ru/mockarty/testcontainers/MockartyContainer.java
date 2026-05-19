@@ -51,8 +51,20 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
     /** In-container directory the CLI scans on startup for stub files. */
     public static final String STUBS_MOUNT = "/data/stubs";
 
+    /** In-container directory mapped by {@link #withMappingDirectory}. */
+    public static final String MAPPINGS_MOUNT = "/mocks";
+
+    /** In-container path mapped by {@link #withHarReplay}. */
+    public static final String HAR_MOUNT = "/har/traffic.har";
+
     /** Env-var the CLI reads to decide which stub dialect to expect. */
     public static final String FORMAT_ENV = "MOCKARTY_STUB_FORMAT";
+
+    /** Env-var pointing the CLI at an in-container mappings directory. */
+    public static final String MOCK_DIR_ENV = "MOCKARTY_MOCK_DIR";
+
+    /** Env-var pointing the CLI at an in-container HAR file. */
+    public static final String HAR_REPLAY_ENV = "MOCKARTY_HAR_REPLAY";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
@@ -118,6 +130,63 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
             throw new IllegalArgumentException("stub file path must not be empty");
         }
         return withStubFile(Path.of(hostPath));
+    }
+
+    /**
+     * Bind-mount a host directory of stub files (WireMock / Mockoon /
+     * native Mockarty JSON) into {@link #MAPPINGS_MOUNT} and tell the
+     * CLI to load it at startup. Drop-in replacement for the WireMock
+     * testcontainers {@code withMappingFromResource} idiom — point at
+     * an existing {@code src/test/resources/mocks} directory and it
+     * loads on the first request.
+     *
+     * <p>The directory must exist; otherwise the container will fail
+     * to start with a bind-mount error.
+     */
+    public MockartyContainer withMappingDirectory(Path hostDir) {
+        Objects.requireNonNull(hostDir, "hostDir");
+        Path abs = hostDir.toAbsolutePath();
+        if (!java.nio.file.Files.isDirectory(abs)) {
+            throw new IllegalArgumentException("mappings path is not a directory: " + abs);
+        }
+        withFileSystemBind(abs.toString(), MAPPINGS_MOUNT,
+            org.testcontainers.containers.BindMode.READ_ONLY);
+        withEnv(MOCK_DIR_ENV, MAPPINGS_MOUNT);
+        return this;
+    }
+
+    /** String-path overload. */
+    public MockartyContainer withMappingDirectory(String hostDir) {
+        if (hostDir == null || hostDir.isBlank()) {
+            throw new IllegalArgumentException("mappings dir must not be empty");
+        }
+        return withMappingDirectory(Path.of(hostDir));
+    }
+
+    /**
+     * Bind-mount a HAR file into {@link #HAR_MOUNT} and tell the CLI
+     * to replay its captured traffic at startup. Layer
+     * {@link #withMappingDirectory(Path)} on top to add hand-crafted
+     * overrides.
+     */
+    public MockartyContainer withHarReplay(Path hostFile) {
+        Objects.requireNonNull(hostFile, "hostFile");
+        Path abs = hostFile.toAbsolutePath();
+        if (!java.nio.file.Files.isRegularFile(abs)) {
+            throw new IllegalArgumentException("HAR path is not a file: " + abs);
+        }
+        withFileSystemBind(abs.toString(), HAR_MOUNT,
+            org.testcontainers.containers.BindMode.READ_ONLY);
+        withEnv(HAR_REPLAY_ENV, HAR_MOUNT);
+        return this;
+    }
+
+    /** String-path overload. */
+    public MockartyContainer withHarReplay(String hostFile) {
+        if (hostFile == null || hostFile.isBlank()) {
+            throw new IllegalArgumentException("HAR path must not be empty");
+        }
+        return withHarReplay(Path.of(hostFile));
     }
 
     // -----------------------------------------------------------------

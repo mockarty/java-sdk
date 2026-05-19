@@ -166,7 +166,79 @@ class MockartyContainerBuilderTest {
         assertEquals(8080, MockartyContainer.MOCK_PORT);
         assertEquals(9090, MockartyContainer.METRICS_PORT);
         assertEquals("/data/stubs", MockartyContainer.STUBS_MOUNT);
+        assertEquals("/mocks", MockartyContainer.MAPPINGS_MOUNT);
+        assertEquals("/har/traffic.har", MockartyContainer.HAR_MOUNT);
         assertEquals("MOCKARTY_STUB_FORMAT", MockartyContainer.FORMAT_ENV);
+        assertEquals("MOCKARTY_MOCK_DIR", MockartyContainer.MOCK_DIR_ENV);
+        assertEquals("MOCKARTY_HAR_REPLAY", MockartyContainer.HAR_REPLAY_ENV);
         assertNotNull(MockartyContainer.DEFAULT_IMAGE);
+    }
+
+    @Test
+    void withMappingDirectorySetsEnv(@org.junit.jupiter.api.io.TempDir Path tmp) {
+        MockartyContainer c = new MockartyContainer().withMappingDirectory(tmp);
+        assertEquals(MockartyContainer.MAPPINGS_MOUNT,
+            c.getEnvMap().get(MockartyContainer.MOCK_DIR_ENV));
+    }
+
+    @Test
+    void withMappingDirectoryChainable(@org.junit.jupiter.api.io.TempDir Path tmp) {
+        MockartyContainer c = new MockartyContainer();
+        assertSame(c, c.withMappingDirectory(tmp));
+    }
+
+    @Test
+    void withMappingDirectoryRejectsNonDir(@org.junit.jupiter.api.io.TempDir Path tmp) throws Exception {
+        Path file = tmp.resolve("not-a-dir.json");
+        Files.writeString(file, "{}");
+        assertThrows(IllegalArgumentException.class,
+            () -> new MockartyContainer().withMappingDirectory(file));
+    }
+
+    @Test
+    void withMappingDirectoryRejectsBlankString() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new MockartyContainer().withMappingDirectory("  "));
+    }
+
+    @Test
+    void withMappingDirectoryRejectsNullPath() {
+        assertThrows(NullPointerException.class,
+            () -> new MockartyContainer().withMappingDirectory((Path) null));
+    }
+
+    @Test
+    void withHarReplaySetsEnv(@org.junit.jupiter.api.io.TempDir Path tmp) throws Exception {
+        Path har = tmp.resolve("traffic.har");
+        Files.writeString(har, "{\"log\":{\"entries\":[]}}");
+        MockartyContainer c = new MockartyContainer().withHarReplay(har);
+        assertEquals(MockartyContainer.HAR_MOUNT,
+            c.getEnvMap().get(MockartyContainer.HAR_REPLAY_ENV));
+    }
+
+    @Test
+    void withHarReplayChainable(@org.junit.jupiter.api.io.TempDir Path tmp) throws Exception {
+        Path har = tmp.resolve("traffic.har");
+        Files.writeString(har, "{}");
+        MockartyContainer c = new MockartyContainer();
+        assertSame(c, c.withHarReplay(har));
+    }
+
+    @Test
+    void withHarReplayRejectsDirectory(@org.junit.jupiter.api.io.TempDir Path tmp) {
+        assertThrows(IllegalArgumentException.class,
+            () -> new MockartyContainer().withHarReplay(tmp));
+    }
+
+    @Test
+    void withHarReplayRejectsBlankString() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new MockartyContainer().withHarReplay("  "));
+    }
+
+    @Test
+    void withHarReplayRejectsNullPath() {
+        assertThrows(NullPointerException.class,
+            () -> new MockartyContainer().withHarReplay((Path) null));
     }
 }
