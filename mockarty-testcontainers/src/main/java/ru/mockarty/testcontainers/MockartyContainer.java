@@ -57,8 +57,11 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
     /** In-container path mapped by {@link #withHarReplay}. */
     public static final String HAR_MOUNT = "/har/traffic.har";
 
-    /** Env-var the CLI reads to decide which stub dialect to expect. */
-    public static final String FORMAT_ENV = "MOCKARTY_STUB_FORMAT";
+    /** Env-var the CLI reads to decide which stub dialect to expect.
+     *  MUST match the CLI's applyMockServeEnv reader. The earlier
+     *  draft used "MOCKARTY_STUB_FORMAT", which the CLI silently
+     *  ignored (left container in auto-detect). Review #109/H1. */
+    public static final String FORMAT_ENV = "MOCKARTY_MOCK_FORMAT";
 
     /** Env-var pointing the CLI at an in-container mappings directory. */
     public static final String MOCK_DIR_ENV = "MOCKARTY_MOCK_DIR";
@@ -83,8 +86,13 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
         super(Objects.requireNonNull(imageName, "imageName"));
         withExposedPorts(MOCK_PORT, METRICS_PORT);
         withEnv(FORMAT_ENV, format.slug());
-        waitingFor(Wait.forHttp("/health")
-            .forPort(METRICS_PORT)
+        // Wait on the WireMock-compat admin health endpoint served on
+        // the SAME 8080 listener as the mocks. The earlier draft polled
+        // /health on METRICS_PORT (9090, Prometheus), which the
+        // mock-serve subcommand doesn't bind — the container blocked
+        // until startup timeout and then errored. Review #109/H2.
+        waitingFor(Wait.forHttp("/__admin/health")
+            .forPort(MOCK_PORT)
             .forStatusCode(200)
             .withStartupTimeout(STARTUP_TIMEOUT));
         this.httpClient = HttpClient.newBuilder()
