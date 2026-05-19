@@ -23,4 +23,5 @@ include(
     "mockarty-testcontainers",
     "mockarty-testng",
     "mockarty-cucumber",
+    "mockarty-protocols",
 )
