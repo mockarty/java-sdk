@@ -121,4 +121,35 @@ class TelemetryTest {
         assertTrue(got.startsWith("xxxxxxxxxx"));
         assertTrue(got.contains("truncated 90B"));
     }
+
+    @Test
+    void capPreviewCyrillicRunBoundary() {
+        // "Привет" = 12 UTF-8 bytes, 6 chars. Each char is 2 bytes.
+        // cap=5 would slice mid-codepoint with naive String.substring;
+        // slide back to last lead byte → "Пр" (4 bytes) + marker.
+        String got = Telemetry.capPreview("Привет", 5);
+        assertEquals("Пр…(truncated 8B)", got);
+    }
+
+    @Test
+    void capPreviewByteArrayOverload() {
+        byte[] bytes = "Привет".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("Пр…(truncated 8B)", Telemetry.capPreview(bytes, 5));
+        assertEquals("", Telemetry.capPreview((byte[]) null, 5));
+        assertEquals("", Telemetry.capPreview(bytes, 0));
+        assertEquals("", Telemetry.capPreview(bytes, -3));
+        assertEquals("Привет", Telemetry.capPreview(bytes, 100));
+    }
+
+    @Test
+    void capPreviewNegativeCapClampsToZero() {
+        assertEquals("", Telemetry.capPreview("hello", -1));
+    }
+
+    @Test
+    void capPreviewExactlyOnCodepointBoundary() {
+        // "АБ" = 4 bytes; cap=2 == codepoint boundary, no walkback needed.
+        String got = Telemetry.capPreview("АБВ", 2);
+        assertEquals("А…(truncated 4B)", got);
+    }
 }
