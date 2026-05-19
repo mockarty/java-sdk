@@ -20,6 +20,7 @@
 | `mockarty-java` | Core client library with builders and model classes |
 | `mockarty-junit5` | JUnit 5 extension for test integration |
 | `mockarty-kotlin` | Kotlin DSL and extension functions |
+| `mockarty-protocols` | Test clients for gRPC / Kafka / RabbitMQ / SOAP / GraphQL / SSE / WebSocket with auto-step capture |
 
 ## Requirements
 
@@ -265,6 +266,42 @@ Map<String, Object> store = client.stores().globalGet();
 // Chain store
 client.stores().chainSet("registration-flow", "step", "1");
 ```
+
+## Protocol Clients
+
+The `mockarty-protocols` module lets a CI test drive the system under
+test for **gRPC, Kafka, RabbitMQ, SOAP, GraphQL, SSE, WebSocket**.
+Every call records a `Step` (start / end / duration / status / payload
+preview) so the TCM external run shows a per-call timeline at the end.
+
+```java
+import ru.mockarty.protocols.telemetry.AccumulatingRecorder;
+import ru.mockarty.protocols.grpc.GrpcClient;
+
+AccumulatingRecorder rec = new AccumulatingRecorder();
+try (GrpcClient grpc = new GrpcClient("service:50051", opts -> opts
+        .recorder(rec)
+        .protoDescriptorSet(Files.readAllBytes(Path.of("user.desc"))))) {
+    Map<String, Object> resp = grpc.invokeJson(
+        "acme.UserService/GetUser",
+        Map.of("id", "u-42"),
+        Map.class);
+}
+// At test finish, push the captured timeline:
+client.externalRuns().report(b -> b.caseName("my case").status("passed").steps(rec.payloads()));
+```
+
+Add the module to `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    api("ru.mockarty:mockarty-protocols:0.1.0")
+}
+```
+
+Full cross-language reference (Java / Go / Python side-by-side, every
+protocol, options, classification rules, troubleshooting):
+**[SDK Protocol Clients](https://mockarty.ru/docs/sdk-protocol-clients)**.
 
 ## Configuration
 
