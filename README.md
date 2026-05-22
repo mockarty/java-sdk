@@ -89,6 +89,41 @@ try (MockartyClient client = MockartyClient.builder()
 }
 ```
 
+### Fluent Tester DSL
+
+For end-to-end tests that exercise multiple protocols, the
+`ru.mockarty.tester` package provides a fluent chain mirroring the Go
+and Python SDKs:
+
+```java
+import ru.mockarty.tester.Tester;
+
+@Test
+void userSignupFlow() {
+    Tester t = new Tester.Builder()
+        .baseUrl("http://localhost:8080")
+        .build();
+    t.http().post("/signup")
+        .json(Map.of("email", "a@b.c"))
+        .expectStatus(201)
+        .extract("$.token", "token");
+    t.http().get("/me")
+        .header("Authorization", "Bearer {{token}}")
+        .expectStatus(200)
+        .expectJsonPath("$.email", "a@b.c");
+    t.graphql("/gql")
+        .query("{ me { id } }", null)
+        .expectStatus(200)
+        .expectNoErrors();
+    t.finish();
+    assertTrue(t.ok(), () -> t.errors().toString());
+}
+```
+
+Vocabulary: `expectStatus`, `expectHeader`, `expectBodyContains`,
+`expectJsonPath`, `expectJsonArrayLen`, `extract`. Built on the JDK 11
+stdlib `HttpClient` — zero new dependencies.
+
 ### Kotlin DSL
 
 ```kotlin
