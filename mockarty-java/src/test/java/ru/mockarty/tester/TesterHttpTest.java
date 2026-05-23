@@ -165,6 +165,99 @@ public class TesterHttpTest {
     }
 
     @Test
+    void autoCloseFlushesPending() throws Exception {
+        route("GET", "/", ex -> writeJson(ex, 200, "{}"));
+        try (Tester t = new Tester.Builder().baseUrl(base).build()) {
+            t.http().get("/").expectStatus(200);
+            // try-with-resources triggers close() → finish() → flush.
+        }
+        // No assertion fail here — if try-with-resources broke the
+        // step record would not commit and the previous chain would
+        // leak as an in-flight unrecorded request.
+    }
+
+    @Test
+    void expectBodyContains() {
+        route("GET", "/x", ex -> writeJson(ex, 200, "{\"msg\":\"hello world\"}"));
+        Tester t = new Tester.Builder().baseUrl(base).build();
+        t.http().get("/x").expectBodyContains("hello");
+        t.finish();
+        assertTrue(t.ok(), () -> t.errors().toString());
+    }
+
+    @Test
+    void expectJsonArrayLen() {
+        route("GET", "/x", ex -> writeJson(ex, 200, "{\"items\":[1,2,3,4]}"));
+        Tester t = new Tester.Builder().baseUrl(base).build();
+        t.http().get("/x")
+                .expectJsonPath("$.items[0]", 1)
+                .expectJsonPath("$.items[-1]", 4)
+                .expectJsonArrayLen("$.items", 4);
+        t.finish();
+        assertTrue(t.ok(), () -> t.errors().toString());
+    }
+
+    @Test
+    void builderHeaderAppliesToEveryStep() {
+        AtomicReference<String> hdr = new AtomicReference<>();
+        route("GET", "/", ex -> {
+            hdr.set(ex.getRequestHeaders().getFirst("X-Default"));
+            ex.sendResponseHeaders(200, -1);
+            ex.close();
+        });
+        Tester t = new Tester.Builder()
+                .baseUrl(base)
+                .header("X-Default", "global")
+                .build();
+        t.http().get("/").expectStatus(200);
+        t.finish();
+        assertEquals("global", hdr.get());
+    }
+
+    @Test
+    void failFastSkipsSubsequentSteps() {
+        route("GET", "/a", ex -> { ex.sendResponseHeaders(500, -1); ex.close(); });
+        AtomicReference<Boolean> bCalled = new AtomicReference<>(false);
+        route("GET", "/b", ex -> {
+            bCalled.set(true);
+            ex.sendResponseHeaders(200, -1);
+            ex.close();
+        });
+        Tester t = new Tester.Builder().baseUrl(base).failFast().build();
+        t.http().get("/a").expectStatus(200);
+        t.http().get("/b").expectStatus(200);
+        t.finish();
+        assertFalse(t.ok());
+        assertFalse(bCalled.get(), "fail-fast should skip second call");
+    }
+
+    @Test
+    void graphqlErrorsArray() {
+        route("POST", "/g", ex -> writeJson(ex, 200,
+                "{\"data\":null,\"errors\":[{\"message\":\"boom\"},{\"message\":\"again\"}]}"));
+        Tester t = new Tester.Builder().baseUrl(base).build();
+        t.graphql("/g")
+                .query("X", null)
+                .expectErrors(2)
+                .expectField("$.errors[0].message", "boom");
+        t.finish();
+        assertTrue(t.ok(), () -> t.errors().toString());
+    }
+
+    @Test
+    void reportContainsStepsInChainOrder() {
+        route("GET", "/a", ex -> writeJson(ex, 200, "{}"));
+        route("GET", "/b", ex -> writeJson(ex, 200, "{}"));
+        Tester t = new Tester.Builder().baseUrl(base).build();
+        t.http().get("/a").expectStatus(200);
+        t.http().get("/b").expectStatus(200);
+        t.finish();
+        assertEquals(2, t.report().size());
+        assertTrue(t.report().get(0).name.endsWith("/a"));
+        assertTrue(t.report().get(1).name.endsWith("/b"));
+    }
+
+    @Test
     void jsonPathBasic() {
         Object doc = new com.fasterxml.jackson.databind.ObjectMapper()
                 .convertValue(Map.of("a", Map.of("b", List.of("x", "y", 3))), Object.class);
