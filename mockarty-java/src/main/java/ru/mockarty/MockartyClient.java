@@ -294,6 +294,16 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the Phase 4 CI Triggers API — list saved triggers and
+     * poll the linked CI run state. CRUD is intentionally NOT in the
+     * SDK (admin UI concern); use {@code list()} to find an id to pass
+     * as {@code ciTriggerId} on perf/fuzz launches.
+     */
+    public ru.mockarty.api.CITriggersApi ciTriggers() {
+        return new ru.mockarty.api.CITriggersApi(this);
+    }
+
+    /**
      * Returns the unified entity-search API — resolve names → IDs across
      * mocks, test plans, perf configs, fuzz configs, chaos experiments and
      * contract pacts in one call.
