@@ -61,6 +61,22 @@ public final class Tester implements AutoCloseable {
         return new GraphQLFacet(this, endpoint);
     }
 
+    public KafkaFacet kafka(KafkaFacet.KafkaBroker broker) {
+        return new KafkaFacet(this, broker);
+    }
+
+    public RabbitMQFacet rabbitmq(RabbitMQFacet.RabbitMQBroker broker) {
+        return new RabbitMQFacet(this, broker);
+    }
+
+    public SOAPFacet soap(String endpoint) {
+        return new SOAPFacet(this, endpoint);
+    }
+
+    public DBFacet db(DBFacet.SQLConn conn) {
+        return new DBFacet(this, conn);
+    }
+
     public Tester finish() {
         flushPending();
         return this;
