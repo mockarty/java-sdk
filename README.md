@@ -124,6 +124,28 @@ Vocabulary: `expectStatus`, `expectHeader`, `expectBodyContains`,
 `expectJsonPath`, `expectJsonArrayLen`, `extract`. Built on the JDK 11
 stdlib `HttpClient` — zero new dependencies.
 
+Upload a Tester chain as a TCM external run in one call:
+
+```java
+import ru.mockarty.tester.ExternalRunBridge;
+
+Tester t = new Tester.Builder().baseUrl("http://...").build();
+t.http().get("/me").expectStatus(200);
+t.finish();
+
+client.externalRuns().report("qa",
+    ExternalRunBridge.toExternalRunRequest(t,
+        new ExternalRunBridge.Options()
+            .caseName("me-endpoint")
+            .autoCreate(true)));
+```
+
+`ExternalRunBridge.toExternalRunRequest(t, opts)` maps Tester report
+to `ExternalRunRequest`: per-step `protocol/method/url/statusOrCode`
+go into `metadata`, multi-failure errors join with `"; "`,
+`ISO_INSTANT` timestamps. Same vocabulary as the Go
+(`tester.ToExternalRun`) and Python (`tester.to_report_kwargs`) SDKs.
+
 ### Kotlin DSL
 
 ```kotlin
