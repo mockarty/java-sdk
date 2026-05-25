@@ -72,22 +72,26 @@ class MockartyContainerBuilderTest {
     @Test
     void defaultImage() {
         MockartyContainer c = new MockartyContainer();
+        // configuredImageName() returns the locally-cached string
+        // (no docker pull). getDockerImageName() would trigger
+        // testcontainers' Future.get() and fail on hosts without
+        // the image pulled.
         assertEquals(
             MockartyContainer.DEFAULT_IMAGE,
-            c.getDockerImageName());
+            c.configuredImageName());
     }
 
     @Test
     void customImageString() {
         MockartyContainer c = new MockartyContainer("ghcr.io/acme/mockarty-cli:1.2.3");
-        assertEquals("ghcr.io/acme/mockarty-cli:1.2.3", c.getDockerImageName());
+        assertEquals("ghcr.io/acme/mockarty-cli:1.2.3", c.configuredImageName());
     }
 
     @Test
     void customImageObject() {
         DockerImageName name = DockerImageName.parse("private/registry/cli:tag");
         MockartyContainer c = new MockartyContainer(name);
-        assertEquals("private/registry/cli:tag", c.getDockerImageName());
+        assertEquals("private/registry/cli:tag", c.configuredImageName());
     }
 
     @Test
@@ -168,7 +172,9 @@ class MockartyContainerBuilderTest {
         assertEquals("/data/stubs", MockartyContainer.STUBS_MOUNT);
         assertEquals("/mocks", MockartyContainer.MAPPINGS_MOUNT);
         assertEquals("/har/traffic.har", MockartyContainer.HAR_MOUNT);
-        assertEquals("MOCKARTY_STUB_FORMAT", MockartyContainer.FORMAT_ENV);
+        // Constant was renamed MOCKARTY_STUB_FORMAT → MOCKARTY_MOCK_FORMAT
+        // to match the CLI's applyMockServeEnv reader (review #109/H1).
+        assertEquals("MOCKARTY_MOCK_FORMAT", MockartyContainer.FORMAT_ENV);
         assertEquals("MOCKARTY_MOCK_DIR", MockartyContainer.MOCK_DIR_ENV);
         assertEquals("MOCKARTY_HAR_REPLAY", MockartyContainer.HAR_REPLAY_ENV);
         assertNotNull(MockartyContainer.DEFAULT_IMAGE);

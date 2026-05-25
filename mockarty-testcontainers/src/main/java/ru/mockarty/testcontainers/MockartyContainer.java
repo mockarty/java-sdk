@@ -75,6 +75,12 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
 
     private final HttpClient httpClient;
     private Format format = Format.AUTO;
+    /** Image name captured at construction time. Exposed via
+     *  {@link #configuredImageName()} so callers can read the image
+     *  reference without triggering testcontainers' lazy docker pull
+     *  (which {@code getDockerImageName()} does). Useful in builder
+     *  unit tests that run without a docker daemon. */
+    private final String configuredImageName;
 
     /** Default constructor — uses {@link #DEFAULT_IMAGE}. */
     public MockartyContainer() {
@@ -84,6 +90,7 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
     /** Override the image (e.g. private registry, pinned digest). */
     public MockartyContainer(DockerImageName imageName) {
         super(Objects.requireNonNull(imageName, "imageName"));
+        this.configuredImageName = imageName.asCanonicalNameString();
         withExposedPorts(MOCK_PORT, METRICS_PORT);
         withEnv(FORMAT_ENV, format.slug());
         // Wait on the WireMock-compat admin health endpoint served on
@@ -103,6 +110,20 @@ public class MockartyContainer extends GenericContainer<MockartyContainer> {
     /** Image-string shortcut. */
     public MockartyContainer(String imageReference) {
         this(DockerImageName.parse(imageReference));
+    }
+
+    /**
+     * Return the docker image reference as supplied to the constructor.
+     *
+     * <p>Unlike {@link #getDockerImageName()} (inherited from
+     * GenericContainer), this accessor does NOT trigger testcontainers'
+     * lazy image-pull resolution — it just reads the locally cached
+     * string captured at construction time. Use it in builder unit
+     * tests that run on hosts without a docker daemon, or against
+     * placeholder image names that aren't pullable.</p>
+     */
+    public String configuredImageName() {
+        return configuredImageName;
     }
 
     // -----------------------------------------------------------------
