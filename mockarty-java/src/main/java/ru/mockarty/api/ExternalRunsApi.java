@@ -85,6 +85,47 @@ public class ExternalRunsApi {
     }
 
     /**
+     * POST a batch of external-run results to
+     * {@code /tcm/external-runs/batch} in one round-trip.
+     *
+     * <p>Fan-in endpoint for CI scripts that produce many results per
+     * pipeline. The server caps the batch at 100 items per call —
+     * larger sets must be chunked by the caller. Even when N items
+     * fail the server returns 200 with per-row errors; inspect the
+     * returned {@link JsonNode}'s {@code results[i].error} to
+     * correlate.</p>
+     *
+     * <p>Returns the raw response envelope:</p>
+     * <pre>{@code
+     * {
+     *   "results": [
+     *     {"index": 0, "result": {"runId": "...", "caseId": "..."}},
+     *     {"index": 1, "error": "..."}
+     *   ],
+     *   "counts": {"total": 2, "passed": 1, "failed": 1}
+     * }
+     * }</pre>
+     *
+     * @param namespace target namespace; required.
+     * @param requests  non-empty list of run envelopes; same shape as
+     *                  {@link #report(String, ExternalRunRequest)}.
+     * @return the raw JSON envelope described above.
+     */
+    public JsonNode reportBatch(String namespace, List<ExternalRunRequest> requests)
+            throws MockartyException {
+        if (namespace == null || namespace.isEmpty()) {
+            throw new IllegalArgumentException("namespace is required");
+        }
+        if (requests == null || requests.isEmpty()) {
+            throw new IllegalArgumentException("requests must be a non-empty list");
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("runs", requests);
+        String path = "/api/v1/namespaces/" + namespace + "/tcm/external-runs/batch";
+        return client.post(path, body, JsonNode.class);
+    }
+
+    /**
      * Bulk-upload every {@code <uuid>-result.json} file in an Allure
      * results directory to {@link #report(String, ExternalRunRequest)}.
      *

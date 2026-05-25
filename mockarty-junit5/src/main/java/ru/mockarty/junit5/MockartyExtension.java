@@ -245,6 +245,33 @@ public class MockartyExtension implements
                 if (parts.length == 2) cf.put("value", "");
                 frame.customFields.add(cf);
             }
+            // Phase 2.6: emit annotation values as `mockarty:case:*`
+            // labels so the CLI harvester (which mines Allure-result
+            // labels for the Phase 2.6 fields) carries them through
+            // to /tcm/external-runs. Without this Java tests can set
+            // @TestCase(description=...) but the server never sees
+            // those values — caught by SDK + CLI live smoke 2026-05-18.
+            if (frame.description != null && !frame.description.isEmpty()) {
+                lc.addLabel("mockarty:case:description", frame.description);
+            }
+            if (frame.expectedResult != null && !frame.expectedResult.isEmpty()) {
+                lc.addLabel("mockarty:case:expected_result", frame.expectedResult);
+            }
+            if (frame.claimOwnership) {
+                lc.addLabel("mockarty:case:claim_ownership", "true");
+            }
+            for (java.util.Map<String, Object> cf : frame.customFields) {
+                Object type = cf.get("type");
+                Object name = cf.get("name");
+                Object value = cf.get("value");
+                if (name == null || value == null) continue;
+                // Match the CLI harvester pattern at allure.go:834 —
+                // label name is exactly "mockarty:case:custom_field"
+                // and the value encodes "type:name:value".
+                String typeStr = type != null ? type.toString() : "string";
+                lc.addLabel("mockarty:case:custom_field",
+                        typeStr + ":" + name.toString() + ":" + value.toString());
+            }
             MockartyContext.pushCase(frame);
         }
 
