@@ -25,7 +25,9 @@ import ru.mockarty.api.PerfApi;
 import ru.mockarty.api.PromptsApi;
 import ru.mockarty.api.ProxyApi;
 import ru.mockarty.api.SecretsApi;
+import ru.mockarty.api.SecurityApi;
 import ru.mockarty.api.ExternalRunsApi;
+import ru.mockarty.api.FlowRunsApi;
 import ru.mockarty.api.RecorderApi;
 import ru.mockarty.api.StatsApi;
 import ru.mockarty.api.StoreApi;
@@ -322,6 +324,18 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the server-side IR runner API
+     * ({@code POST /api/v1/api-tester/flow-runs}).
+     *
+     * <p>Pairs with the canonical Mockarty IR ({@code internal/iruir}).
+     * Lets a caller ship a Flow document at the server and receive an
+     * aggregated RunResult without a local goja runtime.</p>
+     */
+    public FlowRunsApi flowRuns() {
+        return new FlowRunsApi(this);
+    }
+
+    /**
      * Returns the Secrets Storage API — namespace-scoped encrypted
      * key/value stores with optional Vault backend (Phase A0).
      */
@@ -335,6 +349,17 @@ public class MockartyClient implements AutoCloseable {
      */
     public PromptsApi prompts() {
         return new PromptsApi(this);
+    }
+
+    /**
+     * Returns the Security Agent API (CI/CD-useful subset).
+     *
+     * <p>Start scans, poll status, list findings, download SARIF, list
+     * scanners, cancel scans. Gated by the {@code security_agent}
+     * licence feature; admin operations live in the UI.</p>
+     */
+    public SecurityApi security() {
+        return new SecurityApi(this);
     }
 
     /**
