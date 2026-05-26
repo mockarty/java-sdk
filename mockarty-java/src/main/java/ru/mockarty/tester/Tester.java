@@ -5,6 +5,7 @@ package ru.mockarty.tester;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -133,6 +134,48 @@ public final class Tester implements AutoCloseable {
     @Override
     public void close() {
         finish();
+    }
+
+    /**
+     * Group child steps under a labelled synthetic parent step so the
+     * Allure / external-runs report renders the chain as a tree rather
+     * than a flat list. Mirrors {@code Tester.Wrap} in the Go SDK and
+     * {@code mockarty.tester.wrap()} in the Python SDK.
+     *
+     * <p>Mechanics: any pending chain commits before {@code body} runs;
+     * any chain left pending inside {@code body} flushes when it
+     * returns; a synthetic {@code wrap} StepRecord with the supplied
+     * name is appended so downstream renderers can group siblings.
+     * Panics inside {@code body} re-propagate after the cleanup runs
+     * so {@code try/finally} idioms aren't surprised.</p>
+     *
+     * @param name short human-readable label (e.g. "login flow"). Used
+     *             verbatim in the report.
+     * @param body the chain to execute. May be {@code null} (no-op).
+     * @return this Tester for fluent chaining.
+     */
+    public Tester wrap(String name, Runnable body) {
+        flushPending();
+        if (body == null) {
+            return this;
+        }
+        StepRecord marker = new StepRecord();
+        marker.protocol = "wrap";
+        marker.name = name == null ? "" : name;
+        marker.startedAt = Instant.now();
+        try {
+            body.run();
+        } finally {
+            flushPending();
+            marker.endedAt = Instant.now();
+            lock.lock();
+            try {
+                steps.add(marker);
+            } finally {
+                lock.unlock();
+            }
+        }
+        return this;
     }
 
     // ── package-private chain machinery ───────────────────────────────

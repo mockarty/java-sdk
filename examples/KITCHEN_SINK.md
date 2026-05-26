@@ -35,14 +35,18 @@ MOCKARTY_NAMESPACE=sandbox \
 ./gradlew :examples:run -PmainClass=ru.mockarty.examples.KitchenSinkExample
 ```
 
-## Notable differences from Go / Python
+## Notable details vs Go / Python
 
-- **No `wrap()`** — the Java SDK's Tester doesn't yet expose a step-
-  grouping helper. Steps render as a flat list in the Allure report
-  rather than nested under a parent. The chains themselves are
-  identical.
+- **`t.wrap(name, () -> { ... })`** — same shape as Go's
+  `Tester.Wrap(name, fn func())` and Python's
+  `mockarty.tester.wrap(t, name, fn)`. Synthetic "wrap" StepRecord
+  with the supplied name is appended to `t.report()` so downstream
+  renderers (Allure, JSON exporter) group siblings under one parent.
 - **`ExternalRunBridge.toExternalRunRequest(t, opts)`** is the
   conversion seam — same kwargs as Python's `to_report_kwargs(t, ...)`.
+- **Fluent `Options` builders** — `new ExternalRunBridge.Options()
+  .caseName("…").framework("…").autoCreate(true)` instead of
+  field-direct assignment.
 
 ## Environment variables
 

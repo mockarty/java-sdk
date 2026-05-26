@@ -75,17 +75,21 @@ public final class KitchenSinkExample {
 
         try (Tester t = new Tester.Builder().baseUrl(backend).build()) {
 
-            // 1+2. Token chain — issue, extract, reuse.
-            t.http().get("/api/v1/token-chain/issue")
-                    .expectStatus(200)
-                    .expectJsonPath("$.token", "tok-abc123-deterministic")
-                    .extract("$.token", "token");
+            // 1+2. Token chain — issue, extract, reuse. Wrapped under
+            // one Allure parent step so the report renders the two
+            // child requests as a tree.
+            t.wrap("token issue + authorised validate", () -> {
+                t.http().get("/api/v1/token-chain/issue")
+                        .expectStatus(200)
+                        .expectJsonPath("$.token", "tok-abc123-deterministic")
+                        .extract("$.token", "token");
 
-            t.http().post("/api/v1/token-chain/validate")
-                    .header("Authorization", "Bearer {{token}}")
-                    .json(Map.of("action", "ping"))
-                    .expectStatus(200)
-                    .expectJsonPath("$.authorization", "Bearer tok-abc123-deterministic");
+                t.http().post("/api/v1/token-chain/validate")
+                        .header("Authorization", "Bearer {{token}}")
+                        .json(Map.of("action", "ping"))
+                        .expectStatus(200)
+                        .expectJsonPath("$.authorization", "Bearer tok-abc123-deterministic");
+            });
 
             // 3. GraphQL — typed query against testbackend's seeded users.
             t.graphql(backend + "/graphql")
