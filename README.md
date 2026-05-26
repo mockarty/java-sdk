@@ -360,6 +360,22 @@ Full cross-language reference (Java / Go / Python side-by-side, every
 protocol, options, classification rules, troubleshooting):
 **[SDK Protocol Clients](https://mockarty.ru/docs/sdk-protocol-clients)**.
 
+## Examples
+
+The [`examples/src/main/java/ru/mockarty/examples/`](./examples/src/main/java/ru/mockarty/examples/)
+directory has 30+ runnable programs covering every facet of the SDK.
+The most useful starting points:
+
+| Example | What it shows |
+|---------|---------------|
+| [`KitchenSinkExample.java`](./examples/src/main/java/ru/mockarty/examples/KitchenSinkExample.java) | Full adopter showcase — Tester DSL chain (HTTP → GraphQL → assertions), `wrap()` grouping, ExternalRunBridge upload to TCM. See [`KITCHEN_SINK.md`](./examples/KITCHEN_SINK.md) for the runnable script. |
+| [`CiCdPipelineExample.java`](./examples/src/main/java/ru/mockarty/examples/CiCdPipelineExample.java) | JUnit5-driven CI test emitting an ExternalRunRequest from a single step. |
+| [`AgentTasksExample.java`](./examples/src/main/java/ru/mockarty/examples/AgentTasksExample.java) | Tester DSL emitting external-run reports from a JUnit5 test method. |
+
+For protocol-specific code: `HttpMocksExample`, `GraphQLMocksExample`,
+`GrpcMocksExample`, `SoapMocksExample`, `MessagingMocksExample`,
+`SseMocksExample`.
+
 ## Configuration
 
 The client can be configured via builder, environment variables, or system properties:
