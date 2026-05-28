@@ -3,7 +3,6 @@
 
 package ru.mockarty.api;
 
-import com.fasterxml.jackson.databind.JavaType;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.CleanupPolicy;
@@ -11,6 +10,7 @@ import ru.mockarty.model.NamespaceUser;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -33,10 +33,26 @@ public class NamespaceSettingsApi {
      * @param namespace the namespace name
      * @return list of namespace users
      */
+    /**
+     * Wire shape: server emits {@code {users: [...], total: N}} — NOT a
+     * bare list. Older SDK builds tried to decode the envelope object
+     * into {@code List<NamespaceUser>} and threw deserialization errors
+     * on every call. The envelope wrapper is now unwrapped here.
+     */
+    @SuppressWarnings("unchecked")
     public List<NamespaceUser> listUsers(String namespace) throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, NamespaceUser.class);
-        return client.get("/api/v1/namespaces/" + encode(namespace) + "/users", listType);
+        Map<String, Object> env = client.get(
+                "/api/v1/namespaces/" + encode(namespace) + "/users", Map.class);
+        if (env == null) {
+            return Collections.emptyList();
+        }
+        Object rawUsers = env.get("users");
+        if (!(rawUsers instanceof List)) {
+            return Collections.emptyList();
+        }
+        return client.getObjectMapper().convertValue(rawUsers,
+                client.getObjectMapper().getTypeFactory()
+                        .constructCollectionType(List.class, NamespaceUser.class));
     }
 
     /**
@@ -101,15 +117,28 @@ public class NamespaceSettingsApi {
      * @param namespace the namespace name
      * @return list of webhook maps
      */
+    /**
+     * Wire shape: server emits {@code {webhooks: [...]}} — unwrap.
+     */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> listWebhooks(String namespace) throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, Map.class);
-        return client.get("/api/v1/namespaces/" + encode(namespace) + "/webhooks", listType);
+        Map<String, Object> env = client.get(
+                "/api/v1/namespaces/" + encode(namespace) + "/webhooks", Map.class);
+        if (env == null) {
+            return Collections.emptyList();
+        }
+        Object rawHooks = env.get("webhooks");
+        if (!(rawHooks instanceof List)) {
+            return Collections.emptyList();
+        }
+        return (List<Map<String, Object>>) rawHooks;
     }
 
     /**
      * Creates a webhook for a namespace.
+     *
+     * <p>Wire shape: server replies with {@code {message: ..., webhook: {...}}} —
+     * unwrap the inner webhook before returning.
      *
      * @param namespace the namespace name
      * @param webhook   the webhook configuration
@@ -117,8 +146,16 @@ public class NamespaceSettingsApi {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createWebhook(String namespace, Map<String, Object> webhook) throws MockartyException {
-        return client.post("/api/v1/namespaces/" + encode(namespace) + "/webhooks",
-                webhook, Map.class);
+        Map<String, Object> env = client.post(
+                "/api/v1/namespaces/" + encode(namespace) + "/webhooks", webhook, Map.class);
+        if (env == null) {
+            return Collections.emptyMap();
+        }
+        Object inner = env.get("webhook");
+        if (inner instanceof Map) {
+            return (Map<String, Object>) inner;
+        }
+        return env;
     }
 
     /**
