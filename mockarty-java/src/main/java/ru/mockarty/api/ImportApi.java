@@ -7,6 +7,7 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.ImportResult;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -67,12 +68,25 @@ public class ImportApi {
     /**
      * Imports mocks from a Protocol Buffers (.proto) file.
      *
-     * @param content   the proto file content
+     * <p>Wire shape: server's gRPC import handler reads {@code protoContent}
+     * (NOT the generic {@code content} envelope) AND expects the bytes
+     * base64-encoded. Older SDK builds sent raw text under {@code content}
+     * and every call 400'd with 'either serverAddress or protoContent
+     * must be provided' or 'failed to decode proto content'.
+     *
+     * @param content   the proto file content as plain text
      * @param namespace the target namespace (null for default)
      * @return the import result
      */
     public ImportResult grpcProto(String content, String namespace) throws MockartyException {
-        return doImport("/api/v1/api-tester/import/grpc", content, namespace);
+        String ns = namespace != null ? namespace : client.getConfig().getNamespace();
+        String encoded = java.util.Base64.getEncoder().encodeToString(
+                content.getBytes(StandardCharsets.UTF_8));
+        Map<String, Object> body = Map.of(
+                "protoContent", encoded,
+                "namespace", ns
+        );
+        return client.post("/api/v1/api-tester/import/grpc", body, ImportResult.class);
     }
 
     /**
