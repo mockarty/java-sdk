@@ -12,7 +12,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class GeneratorRequest {
 
-    @JsonProperty("spec")
+    // Wire field renamed: the server reads `content` (inline spec body),
+    // NOT `spec`. Older SDK builds sent `spec` and every generator call
+    // 400'd with 'either url or content must be provided'. The Java-side
+    // .spec() builder method + getSpec() accessor stay as-is for source
+    // compatibility; only the JSON tag changes.
+    @JsonProperty("content")
     private String spec;
 
     @JsonProperty("url")
