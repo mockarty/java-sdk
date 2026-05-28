@@ -15,6 +15,14 @@ public class AgentTask {
     @JsonProperty("id")
     private String id;
 
+    /**
+     * Title — required by the server's submitAgentTask handler
+     * (binding:'required'). Older SDK builds didn't expose Title
+     * and every Submit 400'd with 'title and prompt are required'.
+     */
+    @JsonProperty("title")
+    private String title;
+
     @JsonProperty("prompt")
     private String prompt;
 
@@ -37,6 +45,11 @@ public class AgentTask {
         return this;
     }
 
+    public AgentTask title(String title) {
+        this.title = title;
+        return this;
+    }
+
     public AgentTask prompt(String prompt) {
         this.prompt = prompt;
         return this;
@@ -56,6 +69,10 @@ public class AgentTask {
 
     public String getId() {
         return id;
+    }
+
+    public String getTitle() {
+        return title;
     }
 
     public String getPrompt() {
