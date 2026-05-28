@@ -4,6 +4,7 @@
 package ru.mockarty.api;
 
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.FuzzingConfig;
@@ -57,10 +58,34 @@ public class FuzzingApi {
      *
      * @return list of fuzzing configurations
      */
+    /**
+     * Lists fuzzing configurations in the client's default namespace.
+     *
+     * <p>Wire shape: {@code {"configs":[...], "total":N, "limit":N, "offset":N}}.
+     * The server reads ``?namespace=`` from the query string only —
+     * passing it in the body is silently ignored. We thread the
+     * client-level namespace so callers in non-default NS see their
+     * own configs.
+     */
+    @SuppressWarnings("unchecked")
     public List<FuzzingConfig> listConfigs() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, FuzzingConfig.class);
-        return client.get("/api/v1/fuzzing/configs", listType);
+        String ns = client.getConfig().getNamespace();
+        String url = "/api/v1/fuzzing/configs"
+                + (ns == null || ns.isEmpty() ? "" : "?namespace=" + encode(ns));
+        Map<String, Object> env = client.get(url, Map.class);
+        if (env == null) {
+            return java.util.Collections.emptyList();
+        }
+        Object raw = env.get("configs");
+        if (!(raw instanceof List)) {
+            return java.util.Collections.emptyList();
+        }
+        ObjectMapper m = client.getObjectMapper();
+        List<FuzzingConfig> out = new java.util.ArrayList<>();
+        for (Object item : (List<?>) raw) {
+            out.add(m.convertValue(item, FuzzingConfig.class));
+        }
+        return out;
     }
 
     /**
@@ -93,6 +118,24 @@ public class FuzzingApi {
      */
     public FuzzingRun start(String configId) throws MockartyException {
         return client.post("/api/v1/fuzzing/run", Map.of("configId", configId), FuzzingRun.class);
+    }
+
+    /**
+     * Starts a new fuzzing run with an inline configuration (no
+     * pre-saved config required).
+     *
+     * <p>The server expects the config wrapped in
+     * {@code {"config": {...}}}, NOT a bare FuzzConfig — passing the
+     * config flat used to return ``400 configId or inline config is
+     * required``. The SDK wraps it here so callers pass a plain
+     * FuzzingConfig as for {@link #createConfig(FuzzingConfig)}.
+     *
+     * @param config inline configuration to fuzz with
+     * @return start envelope: id (= resultId), taskId, runnerId
+     */
+    public FuzzingRun startInline(FuzzingConfig config) throws MockartyException {
+        return client.post("/api/v1/fuzzing/run",
+                Map.of("config", config), FuzzingRun.class);
     }
 
     /**

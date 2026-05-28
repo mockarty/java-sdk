@@ -17,6 +17,14 @@ public class PerfResult {
     @JsonProperty("id")
     private String id;
 
+    /**
+     * Originating runner task ID. Use this to correlate a result with
+     * the PerfTask returned by ``PerfApi.run`` — the result's own
+     * {@code id} is a separate UUID.
+     */
+    @JsonProperty("taskId")
+    private String taskId;
+
     @JsonProperty("configId")
     private String configId;
 
@@ -63,6 +71,11 @@ public class PerfResult {
 
     public PerfResult id(String id) {
         this.id = id;
+        return this;
+    }
+
+    public PerfResult taskId(String taskId) {
+        this.taskId = taskId;
         return this;
     }
 
@@ -135,6 +148,10 @@ public class PerfResult {
 
     public String getId() {
         return id;
+    }
+
+    public String getTaskId() {
+        return taskId;
     }
 
     public String getConfigId() {
