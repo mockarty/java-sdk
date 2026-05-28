@@ -148,8 +148,10 @@ public class MockApi {
      * @param targetNamespace the target namespace
      */
     public void copyToNamespace(List<String> mockIds, String targetNamespace) throws MockartyException {
+        // Server wire field is mockIds, NOT ids — older SDK builds 400'd
+        // every call with 'invalid request payload'.
         Map<String, Object> body = Map.of(
-                "ids", mockIds,
+                "mockIds", mockIds,
                 "targetNamespace", targetNamespace
         );
         client.post("/api/v1/mocks/copy-to-namespace", body);
@@ -236,7 +238,8 @@ public class MockApi {
      * @param ids list of mock IDs to delete
      */
     public void batchDelete(List<String> ids) throws MockartyException {
-        client.delete("/api/v1/mocks/batch", Map.of("ids", ids));
+        // Server reads mockIds, not ids — see CopyToNamespace note.
+        client.delete("/api/v1/mocks/batch", Map.of("mockIds", ids));
     }
 
     /**
@@ -245,33 +248,37 @@ public class MockApi {
      * @param ids list of mock IDs to restore
      */
     public void batchRestore(List<String> ids) throws MockartyException {
-        client.post("/api/v1/mocks/batch/restore", Map.of("ids", ids));
+        client.post("/api/v1/mocks/batch/restore", Map.of("mockIds", ids));
     }
 
     /**
      * Moves mocks to a folder.
+     *
+     * <p>Server reads {@code mockIds} + {@code folderId}.
      *
      * @param mockIds  list of mock IDs to move
      * @param folderId the target folder ID
      */
     public void moveToFolder(List<String> mockIds, String folderId) throws MockartyException {
         Map<String, Object> body = Map.of(
-                "ids", mockIds,
+                "mockIds", mockIds,
                 "folderId", folderId
         );
         client.patch("/api/v1/mocks/batch/move", body);
     }
 
     /**
-     * Batch updates tags for multiple mocks.
+     * Batch updates tags for multiple mocks. The single {@code tags}
+     * argument is treated as "tags to add" since the server splits
+     * add and remove deltas (see {@code tagsToAdd} / {@code tagsToRemove}).
      *
      * @param mockIds list of mock IDs
-     * @param tags    the tags to set
+     * @param tags    the tags to add to every mock in mockIds
      */
     public void batchUpdateTags(List<String> mockIds, List<String> tags) throws MockartyException {
         Map<String, Object> body = Map.of(
-                "ids", mockIds,
-                "tags", tags
+                "mockIds", mockIds,
+                "tagsToAdd", tags
         );
         client.patch("/api/v1/mocks/batch/tags", body);
     }
