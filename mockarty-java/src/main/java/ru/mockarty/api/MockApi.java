@@ -104,10 +104,21 @@ public class MockApi {
     /**
      * Restores a soft-deleted mock by its ID.
      *
+     * <p>Server contract: there is no per-ID restore endpoint; the
+     * single-row case routes through the batch endpoint with a
+     * one-element {@code mockIds} list. Older SDK builds POSTed to
+     * {@code /api/v1/mocks/:id/restore} (which doesn't exist) and
+     * every call 404'd.
+     *
      * @param id the mock ID
      */
     public Mock restore(String id) throws MockartyException {
-        return client.post("/api/v1/mocks/" + encode(id) + "/restore", null, Mock.class);
+        client.post("/api/v1/mocks/batch/restore",
+                Map.of("mockIds", java.util.List.of(id)));
+        // Server's batch/restore returns {message, restored:N} with no
+        // mock body; pull the fresh row via Get so the public signature
+        // (Mock return) stays stable.
+        return get(id);
     }
 
     /**
