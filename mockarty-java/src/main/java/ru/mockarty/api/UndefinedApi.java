@@ -62,14 +62,29 @@ public class UndefinedApi {
     }
 
     /**
-     * Creates a mock from an undefined request.
+     * Auto-generates a mock from a recorded undefined request.
+     *
+     * <p>Targets {@code /convert} (server derives the mock from the
+     * stored row, protocol auto-detected) and unwraps the
+     * {@code {mock, mockId, protocol}} envelope. The older
+     * {@code /create-mock} path required a caller-supplied
+     * {@code {mockData}} body and 400'd on a bare call.
      *
      * @param requestId the undefined request ID
-     * @return the created mock
+     * @return the auto-generated mock
      */
+    @SuppressWarnings("unchecked")
     public Mock createMock(String requestId) throws MockartyException {
-        return client.post("/api/v1/undefined-requests/" + encode(requestId) + "/create-mock",
-                null, Mock.class);
+        Map<String, Object> env = client.post(
+                "/api/v1/undefined-requests/" + encode(requestId) + "/convert", null, Map.class);
+        if (env == null) {
+            return null;
+        }
+        Object raw = env.get("mock");
+        if (raw == null) {
+            return null;
+        }
+        return client.getObjectMapper().convertValue(raw, Mock.class);
     }
 
     private static String encode(String value) {
