@@ -37,10 +37,25 @@ public class PromptsApi {
                 tf.constructMapType(Map.class, String.class, Object.class));
     }
 
+    /**
+     * Wire shape: server emits {@code {templates:[...], count, namespace}}
+     * envelope. Older SDK builds tried to decode as a bare List and
+     * threw on every call.
+     */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> list() throws MockartyException {
         String ns = client.getConfig().getNamespace();
-        return client.get("/api/v1/stores/prompts?namespace=" + encode(ns), listOfMaps());
+        Map<String, Object> env = client.get(
+                "/api/v1/stores/prompts?namespace=" + encode(ns), Map.class);
+        if (env == null) {
+            return java.util.Collections.emptyList();
+        }
+        Object raw = env.get("templates");
+        if (raw == null) raw = env.get("prompts");
+        if (!(raw instanceof List)) {
+            return java.util.Collections.emptyList();
+        }
+        return (List<Map<String, Object>>) raw;
     }
 
     @SuppressWarnings("unchecked")
