@@ -137,11 +137,22 @@ public class RecorderApi {
      *
      * @return list of config maps
      */
+    /**
+     * Wire shape: server emits {@code {configs: [...]}} envelope.
+     * Older SDK builds decoded into bare {@code List<Map>} and the
+     * call always threw a deserialization error.
+     */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> listConfigs() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, Map.class);
-        return client.get("/api/v1/recorder/configs", listType);
+        Map<String, Object> env = client.get("/api/v1/recorder/configs", Map.class);
+        if (env == null) {
+            return java.util.Collections.emptyList();
+        }
+        Object raw = env.get("configs");
+        if (!(raw instanceof List)) {
+            return java.util.Collections.emptyList();
+        }
+        return (List<Map<String, Object>>) raw;
     }
 
     /**
