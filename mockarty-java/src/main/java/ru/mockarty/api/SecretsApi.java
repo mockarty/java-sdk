@@ -190,11 +190,22 @@ public class SecretsApi {
                 body, Map.class);
     }
 
+    /**
+     * Replace the entry's value with {@code newValue}, bumping its
+     * version. Server requires {@code {"value": ...}} in the body —
+     * older SDK builds posted {@code null} and rotate calls 400'd with
+     * 'invalid request payload'. The new value is mandatory.
+     */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> rotateEntry(String storeId, String key) throws MockartyException {
+    public Map<String, Object> rotateEntry(String storeId, String key, String newValue) throws MockartyException {
+        if (newValue == null || newValue.isEmpty()) {
+            throw new MockartyException("rotateEntry: newValue is required");
+        }
+        Map<String, Object> body = new HashMap<>();
+        body.put("value", newValue);
         return client.post(
                 "/api/v1/stores/secrets/" + encode(storeId) + "/entries/" + encode(key) + "/rotate" + nsQuery(),
-                null, Map.class);
+                body, Map.class);
     }
 
     public void deleteEntry(String storeId, String key) throws MockartyException {
