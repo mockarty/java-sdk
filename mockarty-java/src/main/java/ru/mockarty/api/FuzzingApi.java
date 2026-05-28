@@ -162,12 +162,25 @@ public class FuzzingApi {
     /**
      * Lists all fuzzing results.
      *
+     * <p>Wire shape: server emits {@code {results, total, limit, offset}}
+     * envelope. Older SDK builds tried to decode the envelope object
+     * as {@code List<FuzzingResult>} and threw on every call.
+     *
      * @return list of fuzzing results
      */
+    @SuppressWarnings("unchecked")
     public List<FuzzingResult> listResults() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, FuzzingResult.class);
-        return client.get("/api/v1/fuzzing/results", listType);
+        Map<String, Object> env = client.get("/api/v1/fuzzing/results", Map.class);
+        if (env == null) {
+            return java.util.Collections.emptyList();
+        }
+        Object raw = env.get("results");
+        if (!(raw instanceof List)) {
+            return java.util.Collections.emptyList();
+        }
+        return client.getObjectMapper().convertValue(raw,
+                client.getObjectMapper().getTypeFactory()
+                        .constructCollectionType(List.class, FuzzingResult.class));
     }
 
     /**
@@ -206,12 +219,24 @@ public class FuzzingApi {
     /**
      * Lists all fuzzing findings.
      *
+     * <p>Wire shape: server emits {@code {findings, total, limit, offset,
+     * quarantinedCount?}} envelope — unwrap.
+     *
      * @return list of findings
      */
+    @SuppressWarnings("unchecked")
     public List<FuzzingFinding> listFindings() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, FuzzingFinding.class);
-        return client.get("/api/v1/fuzzing/findings", listType);
+        Map<String, Object> env = client.get("/api/v1/fuzzing/findings", Map.class);
+        if (env == null) {
+            return java.util.Collections.emptyList();
+        }
+        Object raw = env.get("findings");
+        if (!(raw instanceof List)) {
+            return java.util.Collections.emptyList();
+        }
+        return client.getObjectMapper().convertValue(raw,
+                client.getObjectMapper().getTypeFactory()
+                        .constructCollectionType(List.class, FuzzingFinding.class));
     }
 
     /**
