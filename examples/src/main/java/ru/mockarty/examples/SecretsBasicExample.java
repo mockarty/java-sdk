@@ -37,8 +37,10 @@ public class SecretsBasicExample {
                         entry.get("version"),
                         String.valueOf(entry.get("value")).length());
 
-                Map<String, Object> rotated = client.secrets().rotateEntry(storeId, "stripe_api_key");
-                System.out.printf("[4] rotated to v%s%n", rotated.get("version"));
+                // Rotate response is a minimal ack; re-fetch to show new state.
+                client.secrets().rotateEntry(storeId, "stripe_api_key", "sk_live_rotated_value");
+                Map<String, Object> afterRotate = client.secrets().getEntry(storeId, "stripe_api_key");
+                System.out.printf("[4] rotated to v%s%n", afterRotate.get("version"));
 
                 List<Map<String, Object>> entries = client.secrets().listEntries(storeId);
                 System.out.printf("[5] %d entries in store%n", entries.size());
