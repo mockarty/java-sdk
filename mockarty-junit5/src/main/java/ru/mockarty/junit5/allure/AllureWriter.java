@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -134,6 +135,69 @@ public final class AllureWriter {
         Path target = dir.resolve(source);
         atomicWrite(target, body == null ? new byte[0] : body);
         return source;
+    }
+
+    /**
+     * Emit {@code environment.properties} — the key/value snapshot Allure
+     * renders in the report's "Environment" widget. Java {@code .properties}
+     * format: one {@code key=value} line per entry, keys sorted for stable
+     * byte output. Newlines / carriage returns inside a value are neutralised
+     * to spaces (a raw newline would split the value into a bogus second
+     * entry). Matches the Python/Go SDK emitters.
+     *
+     * <p>Reference: https://allurereport.org/docs/how-it-works-environment-file/</p>
+     */
+    public static Path writeEnvironment(Path dir, Map<String, String> env) throws IOException {
+        ensureDir(dir);
+        StringBuilder sb = new StringBuilder();
+        if (env != null) {
+            java.util.List<String> keys = new java.util.ArrayList<>(env.keySet());
+            java.util.Collections.sort(keys);
+            for (String k : keys) {
+                String v = env.get(k);
+                if (v == null) {
+                    v = "";
+                }
+                v = v.replace('\n', ' ').replace('\r', ' ');
+                sb.append(k).append('=').append(v).append('\n');
+            }
+        }
+        Path target = dir.resolve("environment.properties");
+        atomicWrite(target, sb.toString().getBytes(StandardCharsets.UTF_8));
+        return target;
+    }
+
+    /**
+     * Emit {@code categories.json} — Allure's failure-categorisation rules.
+     * Each category map carries {@code name} and optionally
+     * {@code matchedStatuses} (list of status strings), {@code messageRegex},
+     * {@code traceRegex}, {@code description}, {@code flaky}. The caller owns
+     * the schema; we serialise the list verbatim.
+     *
+     * <p>Reference: https://allurereport.org/docs/categories/</p>
+     */
+    public static Path writeCategories(Path dir, List<Map<String, Object>> categories)
+            throws IOException {
+        ensureDir(dir);
+        Path target = dir.resolve("categories.json");
+        byte[] bytes = MAPPER.writeValueAsBytes(categories == null
+                ? java.util.Collections.emptyList() : categories);
+        atomicWrite(target, bytes);
+        return target;
+    }
+
+    /**
+     * Emit {@code executor.json} — CI executor metadata (name / type /
+     * buildName / buildUrl / reportUrl). The caller supplies the field map;
+     * we serialise it verbatim.
+     */
+    public static Path writeExecutor(Path dir, Map<String, Object> executor) throws IOException {
+        ensureDir(dir);
+        Path target = dir.resolve("executor.json");
+        byte[] bytes = MAPPER.writeValueAsBytes(executor == null
+                ? java.util.Collections.emptyMap() : executor);
+        atomicWrite(target, bytes);
+        return target;
     }
 
     /**

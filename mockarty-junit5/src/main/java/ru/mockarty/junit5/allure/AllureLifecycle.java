@@ -121,6 +121,11 @@ public final class AllureLifecycle {
         // re-runs collapse into the same history bucket. Adapters can
         // override it before stop().
         t.historyId = stableHistoryId(fullName, null);
+        // testCaseId is the parameter-INDEPENDENT identity = md5(fullName),
+        // matching allure-pytest (test_result.testCaseId = md5(full_name)).
+        // It stays constant across @ParameterizedTest iterations, so TCM
+        // discovery can match the case by fullName when no explicit id is set.
+        t.testCaseId = stableTestCaseId(fullName);
         CTX.get().test = t;
         return t;
     }
@@ -417,6 +422,20 @@ public final class AllureLifecycle {
     public static String stableHistoryId(String fullName, String paramSig) {
         String src = (fullName == null ? "" : fullName)
                 + "|" + (paramSig == null ? "" : paramSig);
+        return md5Hex(src);
+    }
+
+    /** Parameter-independent {@code testCaseId} = {@code md5(fullName)},
+     * matching allure-pytest's {@code testCaseId} computation. Unlike the
+     * historyId it never folds in parameters, so every iteration of a
+     * parameterised test shares one testCaseId — the fullName-based key TCM
+     * discovery matches on when no explicit id was provided. */
+    public static String stableTestCaseId(String fullName) {
+        return md5Hex(fullName == null ? "" : fullName);
+    }
+
+    /** Lowercase hex MD5 of a UTF-8 string. */
+    private static String md5Hex(String src) {
         try {
             java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
             byte[] dig = md.digest(src.getBytes(StandardCharsets.UTF_8));

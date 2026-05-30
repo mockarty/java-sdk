@@ -158,6 +158,38 @@ class AllureLifecycleTest {
     }
 
     @Test
+    @DisplayName("stableTestCaseId is md5(fullName), parameter-independent and stable")
+    void testCaseIdIsMd5OfFullName() throws Exception {
+        String fn = "auth.LoginTest.test_login";
+        java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
+        byte[] dig = md.digest(fn.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : dig) {
+            sb.append(String.format("%02x", b & 0xff));
+        }
+        assertEquals(sb.toString(), AllureLifecycle.stableTestCaseId(fn));
+        // Stable across calls and distinct from a parameterised historyId.
+        assertEquals(AllureLifecycle.stableTestCaseId(fn), AllureLifecycle.stableTestCaseId(fn));
+        assertFalse(AllureLifecycle.stableTestCaseId(fn)
+                .equals(AllureLifecycle.stableHistoryId(fn, "env=stage")));
+    }
+
+    @Test
+    @DisplayName("startTest sets testCaseId = md5(fullName) so discovery can match by fullName")
+    void startTestSetsTestCaseId() {
+        AllureLifecycle lc = AllureLifecycle.get();
+        TestResult t = lc.startTest("login", "auth.LoginTest.test_login");
+        assertNotNull(t.testCaseId, "testCaseId must be set on startTest");
+        assertEquals(AllureLifecycle.stableTestCaseId("auth.LoginTest.test_login"), t.testCaseId);
+        // historyId (md5 of fullName + "|") and testCaseId (md5 of fullName)
+        // are distinct identities — they must not collide.
+        assertFalse(t.testCaseId.equals(t.historyId),
+                "testCaseId must differ from historyId");
+        lc.markPassed();
+        lc.stopTest();
+    }
+
+    @Test
     @DisplayName("attachJson + attachText: TestResult's attachments list grows, source file exists")
     void attachmentLifecycle() {
         AllureLifecycle lc = AllureLifecycle.get();

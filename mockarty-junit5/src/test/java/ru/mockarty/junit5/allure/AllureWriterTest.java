@@ -287,4 +287,64 @@ class AllureWriterTest {
             assertEquals(threads * perThread, count, "all result files must land");
         }
     }
+
+    // ── Sidecar files: environment / categories / executor ───────────────
+
+    @Test
+    @DisplayName("writeEnvironment: key=value lines, keys sorted, newlines neutralised")
+    void writeEnvironmentPropertiesFormat() throws IOException {
+        java.util.Map<String, String> env = new java.util.LinkedHashMap<>();
+        env.put("BUILD", "42");
+        env.put("BRANCH", "feature/login\ninjected=evil");
+        env.put("OS", "linux");
+        Path file = AllureWriter.writeEnvironment(tmp, env);
+        assertTrue(Files.exists(file));
+        assertEquals("environment.properties", file.getFileName().toString());
+        String got = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+        // Keys sorted alphabetically; embedded newline neutralised to a space
+        // so it cannot create a bogus fourth entry.
+        assertEquals("BRANCH=feature/login injected=evil\nBUILD=42\nOS=linux\n", got);
+        // Exactly 3 entries → 3 line feeds.
+        assertEquals(3, got.chars().filter(c -> c == '\n').count());
+    }
+
+    @Test
+    @DisplayName("writeEnvironment: empty map writes an empty file")
+    void writeEnvironmentEmpty() throws IOException {
+        Path file = AllureWriter.writeEnvironment(tmp, new java.util.HashMap<>());
+        assertTrue(Files.exists(file));
+        assertEquals(0, Files.size(file));
+    }
+
+    @Test
+    @DisplayName("writeCategories: serialises matchedStatuses / messageRegex verbatim")
+    void writeCategoriesJson() throws IOException {
+        java.util.Map<String, Object> cat = new java.util.LinkedHashMap<>();
+        cat.put("name", "Product defects");
+        cat.put("matchedStatuses", List.of("failed"));
+        cat.put("messageRegex", ".*AssertionError.*");
+        Path file = AllureWriter.writeCategories(tmp, List.of(cat));
+        assertEquals("categories.json", file.getFileName().toString());
+        JsonNode node = mapper.readTree(file.toFile());
+        assertTrue(node.isArray());
+        assertEquals("Product defects", node.get(0).path("name").asText());
+        assertEquals("failed", node.get(0).path("matchedStatuses").get(0).asText());
+        assertEquals(".*AssertionError.*", node.get(0).path("messageRegex").asText());
+    }
+
+    @Test
+    @DisplayName("writeExecutor: serialises CI metadata verbatim")
+    void writeExecutorJson() throws IOException {
+        java.util.Map<String, Object> exec = new java.util.LinkedHashMap<>();
+        exec.put("name", "GitHub Actions");
+        exec.put("type", "github");
+        exec.put("buildOrder", 42);
+        exec.put("buildUrl", "https://github.com/x/y/actions/runs/42");
+        Path file = AllureWriter.writeExecutor(tmp, exec);
+        assertEquals("executor.json", file.getFileName().toString());
+        JsonNode node = mapper.readTree(file.toFile());
+        assertEquals("GitHub Actions", node.path("name").asText());
+        assertEquals(42, node.path("buildOrder").asInt());
+        assertEquals("https://github.com/x/y/actions/runs/42", node.path("buildUrl").asText());
+    }
 }
