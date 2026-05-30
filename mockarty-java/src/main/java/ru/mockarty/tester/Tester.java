@@ -78,6 +78,18 @@ public final class Tester implements AutoCloseable {
         return new DBFacet(this, conn);
     }
 
+    public S3Facet s3(S3Facet.S3Client client) {
+        return new S3Facet(this, client);
+    }
+
+    public SMTPFacet smtp(SMTPFacet.SMTPSender sender) {
+        return new SMTPFacet(this, sender);
+    }
+
+    public SocketIOFacet socketio(String url) {
+        return new SocketIOFacet(this, url);
+    }
+
     public Tester finish() {
         flushPending();
         return this;
