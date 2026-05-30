@@ -17,8 +17,12 @@ import ru.mockarty.model.PactVerificationResult;
 import ru.mockarty.model.PactVerifyRequest;
 import ru.mockarty.model.ValidatePayloadRequest;
 
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -188,6 +192,118 @@ public class ContractApi {
      */
     public Pact publishPact(Pact pact) throws MockartyException {
         return client.post("/api/v1/contract/pacts", pact, Pact.class);
+    }
+
+    /**
+     * Imports a Pact contract file from disk into Mockarty as a
+     * consumer-driven contract — the one-call bridge from a pact written by
+     * any framework (Mockarty's {@code mockarty-pact} writer, pact-jvm,
+     * pact-js, pact-python) to a first-class Mockarty contract.
+     *
+     * <p>The version is taken from the pact body's
+     * {@code metadata.pactSpecification.version}. Use
+     * {@link #importPactFile(Path, String, String)} to set the version
+     * explicitly (recommended in CI — usually the git SHA).</p>
+     *
+     * @param pactFile path to the Pact JSON file on disk
+     * @return the created contract (server shape: nested consumer/provider,
+     *         id, version)
+     */
+    public Map<String, Object> importPactFile(Path pactFile) throws MockartyException {
+        return importPactFile(pactFile, null, null);
+    }
+
+    /**
+     * Imports a Pact contract file from disk with an explicit version and
+     * namespace.
+     *
+     * @param pactFile  path to the Pact JSON file on disk
+     * @param version   consumer application version (pact-broker semantics);
+     *                  when {@code null} it is derived from the pact body
+     * @param namespace workspace to publish into; {@code null} uses the
+     *                  client's configured namespace
+     * @return the created contract
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> importPactFile(Path pactFile, String version, String namespace)
+            throws MockartyException {
+        String content;
+        try {
+            content = Files.readString(pactFile, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new MockartyException("import pact: read " + pactFile + ": " + e.getMessage(), e);
+        }
+        return importPact(content, version, namespace);
+    }
+
+    /**
+     * Imports a raw Pact JSON document into Mockarty as a consumer-driven
+     * contract. Prefer {@link #importPactFile(Path)} when the pact lives on
+     * disk; this variant suits in-memory pacts.
+     *
+     * @param pactJson  the raw Pact JSON content
+     * @param version   consumer application version; when {@code null} it is
+     *                  derived from the pact body's spec version
+     * @param namespace workspace; {@code null} uses the client's namespace
+     * @return the created contract
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> importPact(String pactJson, String version, String namespace)
+            throws MockartyException {
+        Map<String, Object> doc;
+        try {
+            doc = client.getObjectMapper().readValue(pactJson, Map.class);
+        } catch (IOException e) {
+            throw new MockartyException("import pact: not valid pact JSON: " + e.getMessage(), e);
+        }
+        String consumer = participantName(doc.get("consumer"));
+        String provider = participantName(doc.get("provider"));
+        if (consumer == null || consumer.isEmpty()) {
+            throw new MockartyException("import pact: pact consumer name is required");
+        }
+        if (provider == null || provider.isEmpty()) {
+            throw new MockartyException("import pact: pact provider name is required");
+        }
+
+        String resolvedVersion = version;
+        if (resolvedVersion == null || resolvedVersion.isEmpty()) {
+            resolvedVersion = pactSpecVersion(doc);
+        }
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("pactContent", pactJson);
+        if (resolvedVersion != null && !resolvedVersion.isEmpty()) {
+            body.put("version", resolvedVersion);
+        }
+
+        String ns = namespace != null ? namespace : client.getConfig().getNamespace();
+        String path = "/api/v1/contract/pacts";
+        if (ns != null && !ns.isEmpty()) {
+            path += "?namespace=" + encode(ns);
+        }
+        return client.post(path, body, Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String participantName(Object participant) {
+        if (participant instanceof Map) {
+            Object name = ((Map<String, Object>) participant).get("name");
+            return name != null ? name.toString() : null;
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String pactSpecVersion(Map<String, Object> doc) {
+        Object metadata = doc.get("metadata");
+        if (metadata instanceof Map) {
+            Object spec = ((Map<String, Object>) metadata).get("pactSpecification");
+            if (spec instanceof Map) {
+                Object v = ((Map<String, Object>) spec).get("version");
+                return v != null ? v.toString() : null;
+            }
+        }
+        return null;
     }
 
     /**

@@ -4,6 +4,7 @@
 package ru.mockarty.examples;
 
 import ru.mockarty.MockartyClient;
+import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.CanIDeployResult;
 import ru.mockarty.model.Contract;
 import ru.mockarty.model.ContractValidationResult;
@@ -11,6 +12,7 @@ import ru.mockarty.model.Mock;
 import ru.mockarty.model.Pact;
 import ru.mockarty.model.PactVerificationResult;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +35,7 @@ public class ContractsExample {
             validatePayload(client);
             manageContractConfigs(client);
             pactWorkflow(client);
+            importPactFile(client);
             driftDetection(client);
         }
     }
@@ -304,6 +307,28 @@ public class ContractsExample {
         // 8. Cleanup
         // client.contracts().deletePact(published.getId());
         // System.out.println("Deleted pact");
+    }
+
+    /**
+     * Import a pact FILE produced by a pact framework — the one-call bridge.
+     *
+     * <p>In CI you run consumer tests (mockarty-pact, pact-jvm) that write a
+     * pact file to disk, then publish it to Mockarty in a single call instead
+     * of pasting JSON into the UI. {@code importPactFile} reads the file,
+     * derives the version (or you set it explicitly to the git SHA) and POSTs
+     * to the contract API.</p>
+     */
+    static void importPactFile(MockartyClient client) {
+        System.out.println("\n=== Import Pact File ===");
+        Path pactFile = Path.of("./pacts/order-service-user-service.json");
+        try {
+            Map<String, Object> imported = client.contracts()
+                    .importPactFile(pactFile, "2.1.0", null); // version usually the git SHA
+            System.out.println("Imported pact: " + imported.get("id"));
+        } catch (MockartyException e) {
+            // Expected unless a consumer test wrote the file first.
+            System.out.println("(no pact file at " + pactFile + " — run a consumer test first)");
+        }
     }
 
     /**
