@@ -218,6 +218,13 @@ public final class AllureMirror {
         for (Map.Entry<String, String> e : h.parameters.entrySet()) {
             lc.addParameter(e.getKey(), e.getValue());
         }
+        // Recomputation: historyId now folds in parameter values (sorted by
+        // name, values only, no separator — byte-identical to Python
+        // allure_commons.utils.get_history_id). This ensures a
+        // @ParameterizedTest iteration with args ("Apple", 2) and one with
+        // ("Banana", 3) get different historyIds (they are distinct test
+        // runs), while sharing the same testCaseId.
+        lc.recomputeHistoryId();
     }
 
     // ── Allure runtime bridge ────────────────────────────────────────
