@@ -324,6 +324,17 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the test-discovery sync API — used by SDK/CI adapters (and
+     * the JUnit 5 launcher listener) to sync a manifest of the full test
+     * inventory into TCM so the catalogue mirrors the source tree.
+     *
+     * @see ru.mockarty.api.DiscoveryApi
+     */
+    public ru.mockarty.api.DiscoveryApi discovery() {
+        return new ru.mockarty.api.DiscoveryApi(this);
+    }
+
+    /**
      * Returns the server-side IR runner API
      * ({@code POST /api/v1/api-tester/flow-runs}).
      *
