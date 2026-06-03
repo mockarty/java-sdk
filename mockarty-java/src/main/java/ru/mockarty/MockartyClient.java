@@ -444,7 +444,7 @@ public class MockartyClient implements AutoCloseable {
         }
         HttpRequest request = builder.build();
         try {
-            HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse<byte[]> response = sendWithRetry(request,
                     HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 handleErrorResponse(response.statusCode(), new String(response.body()));
@@ -555,7 +555,7 @@ public class MockartyClient implements AutoCloseable {
                 .GET()
                 .build();
         try {
-            HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse<byte[]> response = sendWithRetry(request,
                     HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 handleErrorResponse(response.statusCode(), new String(response.body()));
@@ -608,6 +608,49 @@ public class MockartyClient implements AutoCloseable {
         }
     }
 
+    // sendWithRetry centralises every httpClient.send call so transient
+    // failures (network IOExceptions and HTTP 429/502/503/504) are retried
+    // up to config.getMaxRetries() times with exponential backoff. The
+    // BodyPublishers used here (ofString / ofByteArray) are re-subscribable,
+    // so re-sending the same HttpRequest is safe.
+    private <T> HttpResponse<T> sendWithRetry(HttpRequest request, HttpResponse.BodyHandler<T> handler)
+            throws IOException, InterruptedException {
+        int attempts = Math.max(1, config.getMaxRetries() + 1);
+        IOException lastIO = null;
+        for (int i = 0; i < attempts; i++) {
+            try {
+                HttpResponse<T> resp = httpClient.send(request, handler);
+                if (i < attempts - 1 && isRetryableStatus(resp.statusCode())) {
+                    log.debug("retrying {} {} after HTTP {} (attempt {}/{})",
+                            request.method(), request.uri(), resp.statusCode(), i + 1, attempts);
+                    sleepBackoff(i);
+                    continue;
+                }
+                return resp;
+            } catch (IOException e) {
+                lastIO = e;
+                if (i >= attempts - 1) {
+                    throw e;
+                }
+                log.debug("retrying {} {} after I/O error: {} (attempt {}/{})",
+                        request.method(), request.uri(), e.getMessage(), i + 1, attempts);
+                sleepBackoff(i);
+            }
+        }
+        // Unreachable: the loop either returns a response or throws lastIO.
+        throw lastIO != null ? lastIO : new IOException("retry budget exhausted");
+    }
+
+    private static boolean isRetryableStatus(int status) {
+        return status == 429 || status == 502 || status == 503 || status == 504;
+    }
+
+    private static void sleepBackoff(int attempt) throws InterruptedException {
+        // 200ms, 400ms, 800ms, … capped at 2s.
+        long ms = Math.min(2000L, 200L * (1L << Math.min(attempt, 10)));
+        Thread.sleep(ms);
+    }
+
     private <T> T execute(HttpRequest request, Class<T> responseType) throws MockartyException {
         String responseBody = executeRaw(request);
         if (responseType == String.class) {
@@ -641,7 +684,7 @@ public class MockartyClient implements AutoCloseable {
     private String executeRaw(HttpRequest request) throws MockartyException {
         log.debug("{} {}", request.method(), request.uri());
         try {
-            HttpResponse<String> response = httpClient.send(request,
+            HttpResponse<String> response = sendWithRetry(request,
                     HttpResponse.BodyHandlers.ofString());
 
             log.debug("Response: {} ({} chars)", response.statusCode(),
@@ -809,6 +852,7 @@ public class MockartyClient implements AutoCloseable {
         private String apiKey;
         private String namespace;
         private Duration timeout;
+        private Integer maxRetries;
         private HttpClient httpClient;
 
         Builder() {
@@ -860,10 +904,20 @@ public class MockartyClient implements AutoCloseable {
         }
 
         /**
+         * Sets the maximum number of automatic retries on transient failures
+         * (network errors and HTTP 429/502/503/504). {@code 0} disables
+         * retries. Defaults to 2.
+         */
+        public Builder maxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+            return this;
+        }
+
+        /**
          * Builds the MockartyClient with the configured settings.
          */
         public MockartyClient build() {
-            MockartyConfig config = MockartyConfig.create(baseUrl, apiKey, namespace, timeout);
+            MockartyConfig config = MockartyConfig.create(baseUrl, apiKey, namespace, timeout, maxRetries);
             return new MockartyClient(config, httpClient);
         }
     }
