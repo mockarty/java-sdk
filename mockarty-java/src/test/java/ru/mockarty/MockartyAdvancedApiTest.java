@@ -282,7 +282,14 @@ class MockartyAdvancedApiTest {
         @DisplayName("should list fuzzing results")
         void listResults() throws Exception {
             server.createContext("/api/v1/fuzzing/results", exchange -> {
-                String json = "[{\"id\":\"r1\",\"status\":\"completed\"},{\"id\":\"r2\",\"status\":\"running\"}]";
+                // Real server contract: a {results, total, limit, offset}
+                // envelope (swagger fuzzing/results), NOT a bare array — the
+                // SDK decodes env.get("results"). Mocking a bare array here
+                // made the Map decode throw MismatchedInputException.
+                String json = "{\"results\":["
+                        + "{\"id\":\"r1\",\"status\":\"completed\"},"
+                        + "{\"id\":\"r2\",\"status\":\"running\"}],"
+                        + "\"total\":2,\"limit\":50,\"offset\":0}";
                 byte[] body = json.getBytes();
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, body.length);

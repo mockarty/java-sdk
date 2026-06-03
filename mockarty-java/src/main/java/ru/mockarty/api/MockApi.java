@@ -176,9 +176,18 @@ public class MockApi {
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> logs(String id) throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, Map.class);
-        return client.get("/api/v1/mocks/" + encode(id) + "/logs", listType);
+        // Server returns model.LogsMock -> {"id", "requests":[...]} (an
+        // object), NOT a bare array. Deserializing as a List threw
+        // "Cannot deserialize value of type List from Object value" on every
+        // call; read the envelope and pull the rows out of "requests".
+        JavaType mapType = client.getObjectMapper().getTypeFactory()
+                .constructMapType(Map.class, String.class, Object.class);
+        Map<String, Object> envelope =
+                client.get("/api/v1/mocks/" + encode(id) + "/logs", mapType);
+        if (envelope != null && envelope.get("requests") instanceof List) {
+            return (List<Map<String, Object>>) envelope.get("requests");
+        }
+        return List.of();
     }
 
     /**

@@ -181,10 +181,15 @@ class AllureLifecycleTest {
         TestResult t = lc.startTest("login", "auth.LoginTest.test_login");
         assertNotNull(t.testCaseId, "testCaseId must be set on startTest");
         assertEquals(AllureLifecycle.stableTestCaseId("auth.LoginTest.test_login"), t.testCaseId);
-        // historyId (md5 of fullName + "|") and testCaseId (md5 of fullName)
-        // are distinct identities — they must not collide.
-        assertFalse(t.testCaseId.equals(t.historyId),
-                "testCaseId must differ from historyId");
+        // For a NON-parameterised test the historyId folds in no parameter
+        // values, so it collapses to md5(fullName) — byte-identical to the
+        // testCaseId. This is the exact behaviour of allure-pytest /
+        // allure-python-commons (and the Mockarty Python/Go writers), the
+        // cross-language invariant that lets Allure group retries across
+        // mixed-language reports. The two identities only diverge once
+        // parameters are present — covered by the stableHistoryId test above.
+        assertEquals(t.testCaseId, t.historyId,
+                "non-parameterised historyId must coincide with testCaseId (allure-pytest parity)");
         lc.markPassed();
         lc.stopTest();
     }
