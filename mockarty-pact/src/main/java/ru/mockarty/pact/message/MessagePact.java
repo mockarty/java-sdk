@@ -48,6 +48,7 @@ import java.util.regex.Pattern;
 public final class MessagePact {
 
     public static final String MESSAGE_INTERACTION_TYPE = "Asynchronous/Messages";
+    public static final String SYNC_MESSAGE_INTERACTION_TYPE = "Synchronous/Messages";
 
     private static final ObjectMapper MAPPER =
         new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
@@ -143,6 +144,27 @@ public final class MessagePact {
         return this;
     }
 
+    /** Declare an expected reply, turning this into a SYNCHRONOUS message:
+     * {@code withContent} is then the request the consumer sends and each
+     * {@code expectsResponse} adds one acceptable reply. Matchers in {@code body}
+     * are extracted to matchingRules. Call more than once for several replies. */
+    public MessagePact expectsResponse(Object body) {
+        MessageReply r = new MessageReply();
+        r.content = body;
+        r.contentType = "application/json";
+        requireCursor().responses.add(r);
+        return this;
+    }
+
+    /** Attach metadata to the most recently declared response. */
+    public MessagePact withResponseMetadata(Map<String, String> meta) {
+        Message c = requireCursor();
+        if (!c.responses.isEmpty() && meta != null) {
+            c.responses.get(c.responses.size() - 1).metadata.putAll(meta);
+        }
+        return this;
+    }
+
     private Message requireCursor() {
         if (cursor == null) {
             throw new IllegalStateException(
@@ -213,8 +235,9 @@ public final class MessagePact {
     // ------------------------------------------------------------------
 
     private static ObjectNode serialiseV4(Message m) {
+        boolean sync = !m.responses.isEmpty();
         ObjectNode ix = MAPPER.createObjectNode();
-        ix.put("type", MESSAGE_INTERACTION_TYPE);
+        ix.put("type", sync ? SYNC_MESSAGE_INTERACTION_TYPE : MESSAGE_INTERACTION_TYPE);
         ix.put("description", m.description);
         if (!m.states.isEmpty()) {
             ArrayNode arr = ix.putArray("providerStates");
@@ -231,6 +254,25 @@ public final class MessagePact {
             ix.putPOJO("matchingRules", rules);
         }
         if (!m.metadata.isEmpty()) ix.putPOJO("metadata", m.metadata);
+        if (sync) {
+            // Synchronous/Messages: contents above is the request; response[]
+            // holds the expected replies, each with its own contents + rules.
+            ArrayNode responses = ix.putArray("response");
+            for (MessageReply r : m.responses) {
+                ObjectNode rEntry = responses.addObject();
+                ObjectNode rContents = rEntry.putObject("contents");
+                rContents.put("contentType", r.contentType == null || r.contentType.isBlank()
+                        ? "application/json" : r.contentType);
+                Map<String, Object> rRules = new LinkedHashMap<>();
+                rContents.putPOJO("content", collectBodyRules(r.content, "$", rRules));
+                if (!rRules.isEmpty()) {
+                    Map<String, Object> rm = new LinkedHashMap<>();
+                    rm.put("body", rRules);
+                    rEntry.putPOJO("matchingRules", rm);
+                }
+                if (!r.metadata.isEmpty()) rEntry.putPOJO("metadata", r.metadata);
+            }
+        }
         return ix;
     }
 
@@ -337,5 +379,15 @@ public final class MessagePact {
         public Object content;
         public Map<String, String> metadata = new LinkedHashMap<>();
         public List<Map<String, Object>> states = new ArrayList<>();
+        /** Non-empty => SYNCHRONOUS message: {@code content} is the request and
+         * each entry here is an expected reply. */
+        public List<MessageReply> responses = new ArrayList<>();
+    }
+
+    /** One expected reply in a synchronous (request/response) message. */
+    public static final class MessageReply {
+        public Object content;
+        public String contentType = "";
+        public Map<String, String> metadata = new LinkedHashMap<>();
     }
 }
