@@ -39,7 +39,12 @@ public sealed interface Matcher
         Matcher.EachKey,
         Matcher.EachValue,
         Matcher.JsonPath,
-        Matcher.XmlPath {
+        Matcher.XmlPath,
+        Matcher.NotNull,
+        Matcher.Include,
+        Matcher.ContentType,
+        Matcher.AtLeastOne,
+        Matcher.Format {
 
     /** The example value embedded into the request/response body. */
     Object example();
@@ -162,5 +167,41 @@ public sealed interface Matcher
     record XmlPath(String path, Matcher inner) implements Matcher {
         @Override public Object example() { return inner.example(); }
         @Override public boolean v4Only() { return true; }
+    }
+
+    // ── Scalar & format matchers (server-parity catalogue) ───────────
+
+    /** Matches any non-null value (the inverse of a literal {@code null}). */
+    record NotNull(Object example) implements Matcher {
+        public boolean v4Only() { return false; }
+    }
+
+    /** Matches a string that contains {@code substring}. */
+    record Include(String substring, Object exampleValue) implements Matcher {
+        @Override public Object example() { return exampleValue; }
+        @Override public boolean v4Only() { return false; }
+    }
+
+    /** Matches a string whose value starts with {@code contentType}
+     * (tolerating trailing parameters such as {@code ; charset=utf-8}). */
+    record ContentType(String contentType, Object exampleValue) implements Matcher {
+        @Override public Object example() { return exampleValue; }
+        @Override public boolean v4Only() { return false; }
+    }
+
+    /** Matches an array that contains at least one element. */
+    record AtLeastOne(Object example) implements Matcher {
+        public boolean v4Only() { return false; }
+    }
+
+    /**
+     * Regex-backed format matcher (date / time / timestamp / uuid / semver /
+     * ipv4). {@code matchName} is the on-the-wire {@code match} tag;
+     * {@code regex} is a caller override or {@code null} to use the engine's
+     * default pattern (kept identical to the Mockarty server engine).
+     */
+    record Format(String matchName, String regex, Object exampleValue) implements Matcher {
+        @Override public Object example() { return exampleValue; }
+        @Override public boolean v4Only() { return false; }
     }
 }

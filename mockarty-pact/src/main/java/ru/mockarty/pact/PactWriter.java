@@ -468,6 +468,21 @@ final class PactWriter {
                 r.put("match", "xmlPath");
                 r.put("path", xp.path());
                 r.put("rule", serialise(xp.inner(), v));
+            } else if (m instanceof Matcher.NotNull) {
+                r.put("match", "notNull");
+            } else if (m instanceof Matcher.Include inc) {
+                r.put("match", "include");
+                r.put("value", inc.substring());
+            } else if (m instanceof Matcher.ContentType ct) {
+                r.put("match", "contentType");
+                r.put("value", ct.contentType());
+            } else if (m instanceof Matcher.AtLeastOne) {
+                r.put("match", "atLeastOne");
+            } else if (m instanceof Matcher.Format f) {
+                r.put("match", f.matchName());
+                if (f.regex() != null) {
+                    r.put("regex", f.regex());
+                }
             } else {
                 throw new IllegalStateException(
                         "Unhandled matcher variant: " + m.getClass().getName());
