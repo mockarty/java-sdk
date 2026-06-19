@@ -109,6 +109,16 @@ public final class Tester implements AutoCloseable {
         return new WebSocketFacet(this, url);
     }
 
+    /**
+     * gRPC facet — the fluent assertion layer over a user-supplied
+     * {@link GrpcFacet.GrpcInvoker} (the mockarty-protocols GrpcClient satisfies
+     * it via a one-line adapter). Mirrors the Go/Python gRPC facet.
+     */
+    public GrpcFacet grpc(GrpcFacet.GrpcInvoker invoker) {
+        flushPending();
+        return new GrpcFacet(this, invoker);
+    }
+
     public Tester finish() {
         flushPending();
         return this;
