@@ -169,9 +169,23 @@ public class MockartyExtension implements
 
         AllureLifecycle lc = AllureLifecycle.get();
         AllureModel.TestResult tr = lc.startTest(displayName, fullName);
-        // Stable historyId: fullName + displayName-derived parameter hash so
-        // @ParameterizedTest iterations collapse onto the same row across
-        // retries but stay distinct from sibling iterations.
+        // Stable historyId: fullName + displayName-derived parameter signature so
+        // @ParameterizedTest iterations stay distinct from sibling iterations yet
+        // stable across retries.
+        //
+        // Cross-language parity note: JUnit 5 does NOT expose the
+        // @ParameterizedTest arguments to a generic extension as named
+        // parameters (only the rendered displayName is available) — exactly the
+        // constraint vanilla allure-junit5 hits, so we deliberately derive the
+        // signature from displayName to stay byte-identical to an allure-junit5
+        // run (same-framework aggregation). The fluent Tester path
+        // (AllureMirror.recomputeHistoryId) DOES have explicit name=value
+        // parameters and there derives the signature from sorted-by-name VALUES
+        // to match the Go/Python SDK writers. testCaseId is md5(fullName) on all
+        // paths, so a parameterized case still aggregates cross-language even
+        // though per-iteration historyId can't byte-match a py/go iteration
+        // (frameworks represent parameters differently — an inherent limit, not
+        // a defect).
         String paramSig = displayName.equals(testMethod.getName())
                 ? "" : displayName;
         tr.historyId = AllureLifecycle.stableHistoryId(fullName, paramSig);

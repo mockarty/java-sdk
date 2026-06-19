@@ -90,6 +90,15 @@ public final class Tester implements AutoCloseable {
         return new SocketIOFacet(this, url);
     }
 
+    /**
+     * Server-Sent-Events facet bound to a stream endpoint URL. Relative paths
+     * resolve against the configured base URL. Mirrors the Go/Python SSE facet.
+     */
+    public SSEFacet sse(String endpoint) {
+        flushPending();
+        return new SSEFacet(this, endpoint);
+    }
+
     public Tester finish() {
         flushPending();
         return this;
