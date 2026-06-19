@@ -99,6 +99,16 @@ public final class Tester implements AutoCloseable {
         return new SSEFacet(this, endpoint);
     }
 
+    /**
+     * Raw WebSocket facet bound to a ws:// / wss:// URL (or a relative path /
+     * http(s) URL whose scheme is auto-rewritten to ws/wss). Mirrors the
+     * Go/Python WebSocket facet.
+     */
+    public WebSocketFacet websocket(String url) {
+        flushPending();
+        return new WebSocketFacet(this, url);
+    }
+
     public Tester finish() {
         flushPending();
         return this;
