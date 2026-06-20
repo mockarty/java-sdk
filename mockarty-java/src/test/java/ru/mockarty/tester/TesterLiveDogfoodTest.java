@@ -91,4 +91,48 @@ public class TesterLiveDogfoodTest {
         assertEquals("42", t.vars().get("uid"));
         assertEquals("connected", t.vars().get("first"));
     }
+
+    @Test
+    void graphqlAgainstLiveMock() throws Exception {
+        String ns = "sandbox";
+        String route = rt("/graphql");
+        post("/api/v1/mocks", "{\"namespace\":\"" + ns + "\",\"pathPrefix\":\"" + route + "\",\"graphql\":{\"operation\":\"query\",\"field\":\"user\"},\"response\":{\"statusCode\":200,\"headers\":{\"Content-Type\":[\"application/json\"]},\"payload\":{\"data\":{\"user\":{\"id\":\"u-graphql-1\",\"name\":\"Mockarty\"}}}}}", true);
+        Thread.sleep(200);
+
+        Tester t = new Tester.Builder().build();
+        t.graphql(server + "/stubs/" + ns + route)
+                .query("query { user { id name } }", null)
+                .expectStatus(200)
+                .expectNoErrors()
+                .expectField("$.data.user.id", "u-graphql-1")
+                .extract("$.data.user.name", "uname")
+                .done();
+        t.finish();
+
+        assertTrue(t.ok(), () -> "java GraphQL DSL failed against live mock: " + t.errors());
+        assertEquals("Mockarty", t.vars().get("uname"));
+    }
+
+    @Test
+    void soapAgainstLiveMock() throws Exception {
+        String ns = "sandbox";
+        String route = rt("/soap/calc");
+        String respXml = "<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>"
+                + "<soap:Envelope xmlns:soap=\\\"http://schemas.xmlsoap.org/soap/envelope/\\\">"
+                + "<soap:Body><AddResponse xmlns=\\\"urn:Calc\\\"><result>5</result></AddResponse></soap:Body>"
+                + "</soap:Envelope>";
+        post("/api/v1/mocks", "{\"namespace\":\"" + ns + "\",\"pathPrefix\":\"" + route + "\",\"soap\":{\"path\":\"" + route + "\",\"service\":\"Calc\",\"method\":\"Add\",\"action\":\"urn:Calc/Add\"},\"response\":{\"statusCode\":200,\"headers\":{\"Content-Type\":[\"text/xml; charset=utf-8\"]},\"payload\":\"" + respXml + "\"}}", true);
+        Thread.sleep(200);
+
+        Tester t = new Tester.Builder().build();
+        t.soap(server + "/stubs/" + ns + route)
+                .call("urn:Calc/Add", "<Add xmlns=\"urn:Calc\"><a>2</a><b>3</b></Add>")
+                .expectStatus(200)
+                .expectNoFault()
+                .expectXPathContains("//*[local-name()='result']", "5")
+                .done();
+        t.finish();
+
+        assertTrue(t.ok(), () -> "java SOAP DSL failed against live mock: " + t.errors());
+    }
 }
