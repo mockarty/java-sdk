@@ -38,6 +38,27 @@ public class MockApi {
     }
 
     /**
+     * Creates a mock, resolving a duplicate-entity conflict via {@code intent}.
+     *
+     * <p>When a similar mock already exists the server returns HTTP 409
+     * {@code duplicate_entity}. Pass {@code "create_new"} to keep both (e.g.
+     * several condition-differentiated mocks on one route) or {@code "overwrite"}
+     * to replace the existing one in place. A null/blank intent behaves like
+     * {@link #create(Mock)}.
+     *
+     * @param mock   the mock to create
+     * @param intent {@code "create_new"} or {@code "overwrite"} (or null)
+     * @return the save response
+     */
+    public SaveMockResponse create(Mock mock, String intent) throws MockartyException {
+        String path = "/api/v1/mocks";
+        if (intent != null && !intent.isEmpty()) {
+            path += "?intent=" + encode(intent);
+        }
+        return client.post(path, mock, SaveMockResponse.class);
+    }
+
+    /**
      * Retrieves a mock by its ID.
      *
      * @param id the mock ID
