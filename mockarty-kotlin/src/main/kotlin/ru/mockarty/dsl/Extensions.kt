@@ -215,7 +215,10 @@ fun MockartyClient.validateMocks(request: Map<String, Any>): Map<String, Any> {
  * Starts a fuzzing run and returns the run object.
  */
 fun MockartyClient.startFuzzing(configId: String): FuzzingRun {
-    return fuzzing().start(configId)
+    // FuzzingApi.start(FuzzingConfig) takes a config object; a saved config id
+    // goes through startFromConfig (parity with the Java API — the Kotlin DSL
+    // had drifted onto a non-existent start(String) overload).
+    return fuzzing().startFromConfig(configId)
 }
 
 /**
@@ -231,7 +234,9 @@ fun MockartyClient.getFuzzingResult(runId: String): FuzzingResult {
  * Starts a new recording session.
  */
 fun MockartyClient.startRecording(config: Map<String, Any>): RecorderSession {
-    return recorder().start(config)
+    // RecorderApi exposes startRecording(Map) — the Kotlin DSL had drifted onto
+    // a non-existent start(Map) overload (parity with the Java API).
+    return recorder().startRecording(config)
 }
 
 // ---- Test Run Extensions ----
