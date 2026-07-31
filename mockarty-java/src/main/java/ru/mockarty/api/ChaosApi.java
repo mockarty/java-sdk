@@ -141,6 +141,62 @@ public class ChaosApi {
         return client.post("/api/v1/chaos/experiments/" + encode(id) + "/abort", null, Map.class);
     }
 
+    /**
+     * Approves an experiment created with safety.requireApproval.
+     *
+     * @param id   the experiment ID
+     * @param note optional approval note (may be null)
+     * @return approval status response
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> approve(String id, String note) throws MockartyException {
+        Map<String, Object> body = note != null ? Map.of("note", note) : null;
+        return client.post("/api/v1/chaos/experiments/" + encode(id) + "/approve", body, Map.class);
+    }
+
+    /**
+     * Withdraws a previously granted approval (while the run is still pending).
+     *
+     * @param id the experiment ID
+     * @return unapproval status response
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> unapprove(String id) throws MockartyException {
+        return client.post("/api/v1/chaos/experiments/" + encode(id) + "/unapprove", null, Map.class);
+    }
+
+    /**
+     * Lists recurring chaos schedules.
+     *
+     * @return schedules wrapper with schedules, total
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listSchedules() throws MockartyException {
+        return client.get("/api/v1/chaos/schedules", Map.class);
+    }
+
+    /**
+     * Pauses a recurring schedule.
+     *
+     * @param id the schedule ID
+     * @return pause status response
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> pauseSchedule(String id) throws MockartyException {
+        return client.post("/api/v1/chaos/schedules/" + encode(id) + "/pause", null, Map.class);
+    }
+
+    /**
+     * Deletes a recurring schedule.
+     *
+     * @param id the schedule ID
+     * @return delete status response
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> deleteSchedule(String id) throws MockartyException {
+        return client.delete("/api/v1/chaos/schedules/" + encode(id), null, Map.class);
+    }
+
     // ---- Experiment Metrics & Reporting ----
 
     /**
@@ -288,7 +344,7 @@ public class ChaosApi {
      * @return test result with connected, capabilities, etc.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> testInlineConnection(String kubeconfig, String context) throws MockartyException {
+    public Map<String, Object> testInlineKubeconfig(String kubeconfig, String context) throws MockartyException {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("kubeconfig", kubeconfig);
         if (context != null) {
