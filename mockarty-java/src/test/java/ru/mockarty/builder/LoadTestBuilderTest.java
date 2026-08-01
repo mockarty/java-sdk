@@ -35,7 +35,7 @@ class LoadTestBuilderTest {
         assertTrue(script.contains("import http from 'k6/http'"));
         assertTrue(script.contains("export const options"));
         assertTrue(script.contains("export default function"));
-        assertTrue(script.contains("http.get(`${__ENV.BASE_URL}/health`)"));
+        assertTrue(script.contains("http.get(`${BASE_URL}/health`)"));
         assertTrue(script.contains("\"vus\":5"));
         assertTrue(script.contains("\"duration\":\"30s\""));
     }
@@ -81,7 +81,7 @@ class LoadTestBuilderTest {
                 .post("/cart", Map.of("sku", "abc"))
                 .toK6Script();
 
-        assertTrue(script.contains("http.post(`${__ENV.BASE_URL}/cart`"));
+        assertTrue(script.contains("http.post(`${BASE_URL}/cart`"));
         assertTrue(script.contains("application/json"));
         assertTrue(script.contains("sku"));
         assertTrue(script.contains("abc"));
@@ -104,7 +104,7 @@ class LoadTestBuilderTest {
     @Test
     void defaultRequestIsGetRoot() {
         String script = LoadTestBuilder.named("t").target("http://x").toK6Script();
-        assertTrue(script.contains("http.get(`${__ENV.BASE_URL}/`)"));
+        assertTrue(script.contains("http.get(`${BASE_URL}/`)"));
     }
 
     @Test
@@ -133,5 +133,25 @@ class LoadTestBuilderTest {
         Map<String, Object> parsed = MAPPER.readValue(Files.readString(p), Map.class);
         assertEquals("x", parsed.get("name"));
         assertTrue(parsed.containsKey("script"));
+    }
+
+    @Test
+    void bakesBaseUrlDefaultAndUnescapedThreshold() {
+        String script = LoadTestBuilder.named("t")
+                .target("http://127.0.0.1:5870")
+                .get("/health")
+                .threshold("http_req_duration", "p(95)<500")
+                .toK6Script();
+        assertTrue(script.contains("const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:5870';"),
+                "missing baked BASE_URL default:\n" + script);
+        assertTrue(!script.contains("${__ENV.BASE_URL}"), "should use ${BASE_URL}, not ${__ENV.BASE_URL}");
+        assertTrue(!script.contains("\\u003c"), "threshold must not be HTML-escaped");
+        assertTrue(script.contains("p(95)<500"), "threshold expression verbatim");
+    }
+
+    @Test
+    void noTargetNoBaseUrlConst() {
+        String script = LoadTestBuilder.named("t").get("/health").toK6Script();
+        assertTrue(!script.contains("const BASE_URL"), "no target() -> no BASE_URL const");
     }
 }

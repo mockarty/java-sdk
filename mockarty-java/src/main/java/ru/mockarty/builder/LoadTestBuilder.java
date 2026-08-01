@@ -215,7 +215,14 @@ public final class LoadTestBuilder {
         sb.append("import http from 'k6/http';\n");
         sb.append("import { check, sleep } from 'k6';\n\n");
         sb.append("export const options = ").append(optionsJson()).append(";\n\n");
+        // Bake the target() base URL as a runnable default so the exported
+        // script works out of the box (matching the perf engine's own builder
+        // pattern), while staying overridable via `-e BASE_URL=...` / __ENV.
+        if (baseUrl != null) {
+            sb.append("const BASE_URL = __ENV.BASE_URL || ").append(jsStr(baseUrl)).append(";\n\n");
+        }
         sb.append("export default function () {\n");
+        sb.append("  let r;\n");
         for (Req req : resolvedRequests()) {
             sb.append(requestJs(req));
         }
@@ -287,7 +294,7 @@ public final class LoadTestBuilder {
             if (!path.isEmpty() && !path.startsWith("/")) {
                 path = "/" + path;
             }
-            url = "`${__ENV.BASE_URL}" + path + "`";
+            url = "`${BASE_URL}" + path + "`";
         } else {
             url = jsStr(req.path);
         }
@@ -333,17 +340,17 @@ public final class LoadTestBuilder {
         StringBuilder sb = new StringBuilder();
         if (req.body == null) {
             if (params != null) {
-                sb.append("  let r = http.").append(method).append("(").append(url)
+                sb.append("  r = http.").append(method).append("(").append(url)
                         .append(", null, ").append(params).append(");\n");
             } else {
-                sb.append("  let r = http.").append(method).append("(").append(url).append(");\n");
+                sb.append("  r = http.").append(method).append("(").append(url).append(");\n");
             }
         } else {
             if (params != null) {
-                sb.append("  let r = http.").append(method).append("(").append(url)
+                sb.append("  r = http.").append(method).append("(").append(url)
                         .append(", ").append(bodyLit).append(", ").append(params).append(");\n");
             } else {
-                sb.append("  let r = http.").append(method).append("(").append(url)
+                sb.append("  r = http.").append(method).append("(").append(url)
                         .append(", ").append(bodyLit).append(");\n");
             }
         }

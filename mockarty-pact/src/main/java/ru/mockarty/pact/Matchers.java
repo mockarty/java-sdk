@@ -188,6 +188,72 @@ public final class Matchers {
         return new Matcher.XmlPath(xpath, inner);
     }
 
+    // ── Scalar & format matchers (server-parity catalogue) ───────────
+
+    /** Matches any value that is not {@code null}. */
+    public static Matcher notNull(Object example) {
+        Objects.requireNonNull(example, "notNull: example must not be null");
+        return new Matcher.NotNull(example);
+    }
+
+    /** Matches a string that contains {@code substring}. */
+    public static Matcher include(String substring) {
+        Objects.requireNonNull(substring, "include: substring must not be null");
+        return new Matcher.Include(substring, substring);
+    }
+
+    /** Matches a string whose value starts with {@code contentType}. */
+    public static Matcher contentType(String contentType) {
+        Objects.requireNonNull(contentType, "contentType: value must not be null");
+        return new Matcher.ContentType(contentType, contentType);
+    }
+
+    /** Matches an array that contains at least one element. The {@code example}
+     * is rendered as the single-element array preview the verifier replays. */
+    public static Matcher atLeastOne(Object example) {
+        Objects.requireNonNull(example, "atLeastOne: example must not be null");
+        return new Matcher.AtLeastOne(List.of(example));
+    }
+
+    /** Matches an ISO date string (e.g. {@code 2026-06-12}). */
+    public static Matcher date(String example) { return format("date", null, example); }
+
+    /** {@link #date} with a caller-supplied regex override. */
+    public static Matcher date(String example, String regex) { return format("date", regex, example); }
+
+    /** Matches a {@code HH:MM:SS[.fraction]} string. */
+    public static Matcher time(String example) { return format("time", null, example); }
+
+    /** {@link #time} with a caller-supplied regex override. */
+    public static Matcher time(String example, String regex) { return format("time", regex, example); }
+
+    /** Matches an RFC 3339 / ISO 8601 timestamp (e.g. {@code 2026-06-12T10:30:00Z}). */
+    public static Matcher dateTime(String example) { return format("timestamp", null, example); }
+
+    /** {@link #dateTime} with a caller-supplied regex override. */
+    public static Matcher dateTime(String example, String regex) { return format("timestamp", regex, example); }
+
+    /** Alias of {@link #dateTime} for pact-jvm parity. */
+    public static Matcher timestamp(String example) { return dateTime(example); }
+
+    /** Matches a canonical UUID string. */
+    public static Matcher uuid(String example) { return format("uuid", null, example); }
+
+    /** {@link #uuid} with a caller-supplied regex override. */
+    public static Matcher uuid(String example, String regex) { return format("uuid", regex, example); }
+
+    /** Matches a SemVer 2.0 version string (e.g. {@code 1.2.3}). */
+    public static Matcher semver(String example) { return format("semver", null, example); }
+
+    /** Matches a dotted-quad IPv4 address string. */
+    public static Matcher ipv4(String example) { return format("ipv4", null, example); }
+
+    private static Matcher format(String matchName, String regex, Object example) {
+        Objects.requireNonNull(example, matchName + ": example must not be null");
+        if (regex != null) compileGuard(regex);
+        return new Matcher.Format(matchName, regex, example);
+    }
+
     // ── Internals ────────────────────────────────────────────────────
 
     private static void compileGuard(String regex) {

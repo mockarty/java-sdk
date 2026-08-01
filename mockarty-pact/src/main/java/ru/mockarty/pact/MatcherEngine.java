@@ -197,6 +197,30 @@ public final class MatcherEngine {
             } else {
                 dispatch(xp.inner(), resolved, path + "[" + xp.path() + "]", out);
             }
+        } else if (m instanceof Matcher.NotNull) {
+            if (actual == null) {
+                out.add(report(path, "notNull", "non-null", "null"));
+            }
+        } else if (m instanceof Matcher.Include inc) {
+            if (!(actual instanceof CharSequence) || !actual.toString().contains(inc.substring())) {
+                out.add(report(path, "include(" + inc.substring() + ")", inc.substring(), actual));
+            }
+        } else if (m instanceof Matcher.ContentType ct) {
+            if (!(actual instanceof CharSequence)
+                    || (!ct.contentType().isEmpty() && !actual.toString().strip().startsWith(ct.contentType()))) {
+                out.add(report(path, "contentType(" + ct.contentType() + ")", ct.contentType(), actual));
+            }
+        } else if (m instanceof Matcher.AtLeastOne) {
+            if (!(actual instanceof List<?> list)) {
+                out.add(report(path, "atLeastOne", "array", actual));
+            } else if (list.isEmpty()) {
+                out.add(report(path, "atLeastOne", "non-empty array", actual));
+            }
+        } else if (m instanceof Matcher.Format f) {
+            String pat = f.regex() != null ? f.regex() : defaultFormatRegex(f.matchName());
+            if (!(actual instanceof CharSequence) || !safeMatches(pat, actual.toString())) {
+                out.add(report(path, f.matchName() + "(" + pat + ")", f.matchName(), actual));
+            }
         } else {
             // Defence-in-depth — the sealed compile-time check should make
             // this unreachable. If it ever fires, surface as a clearly-tagged
@@ -382,6 +406,22 @@ public final class MatcherEngine {
             return true;
         }
         return Objects.equals(a, b);
+    }
+
+    /** Default format patterns — kept byte-for-byte identical to the
+     * server-side matcher engine (internal/contract/pact_matcher.go) so the
+     * consumer mock server and the provider verifier agree on the format. */
+    private static String defaultFormatRegex(String matchName) {
+        return switch (matchName) {
+            case "date" -> "^\\d{4}-\\d{2}-\\d{2}$";
+            case "time" -> "^\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?$";
+            case "timestamp", "datetime" ->
+                    "^\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:?\\d{2})?$";
+            case "uuid" -> "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+            case "semver" -> "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$";
+            case "ipv4" -> "^(\\d{1,3}\\.){3}\\d{1,3}$";
+            default -> ".*";
+        };
     }
 
     private static boolean safeMatches(String regex, String input) {

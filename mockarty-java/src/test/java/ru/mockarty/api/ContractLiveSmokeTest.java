@@ -43,7 +43,7 @@ class ContractLiveSmokeTest {
                     .protocol("http")
                     .specUrl("http://127.0.0.1:5770/health");
 
-            Contract saved = client.contracts().createConfig(config);
+            Contract saved = client.contracts().saveConfig(config);
             assertNotNull(saved.getId(), "createConfig returned no id");
             assertEquals(name, saved.getName(), "createConfig name mismatch");
             String configId = saved.getId();

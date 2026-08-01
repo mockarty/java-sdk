@@ -8,6 +8,10 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import ru.mockarty.pact.Matcher;
+import ru.mockarty.pact.MatcherJson;
+import ru.mockarty.pact.SpecVersion;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -44,6 +48,7 @@ import java.util.regex.Pattern;
 public final class MessagePact {
 
     public static final String MESSAGE_INTERACTION_TYPE = "Asynchronous/Messages";
+    public static final String SYNC_MESSAGE_INTERACTION_TYPE = "Synchronous/Messages";
 
     private static final ObjectMapper MAPPER =
         new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
@@ -139,6 +144,27 @@ public final class MessagePact {
         return this;
     }
 
+    /** Declare an expected reply, turning this into a SYNCHRONOUS message:
+     * {@code withContent} is then the request the consumer sends and each
+     * {@code expectsResponse} adds one acceptable reply. Matchers in {@code body}
+     * are extracted to matchingRules. Call more than once for several replies. */
+    public MessagePact expectsResponse(Object body) {
+        MessageReply r = new MessageReply();
+        r.content = body;
+        r.contentType = "application/json";
+        requireCursor().responses.add(r);
+        return this;
+    }
+
+    /** Attach metadata to the most recently declared response. */
+    public MessagePact withResponseMetadata(Map<String, String> meta) {
+        Message c = requireCursor();
+        if (!c.responses.isEmpty() && meta != null) {
+            c.responses.get(c.responses.size() - 1).metadata.putAll(meta);
+        }
+        return this;
+    }
+
     private Message requireCursor() {
         if (cursor == null) {
             throw new IllegalStateException(
@@ -209,8 +235,9 @@ public final class MessagePact {
     // ------------------------------------------------------------------
 
     private static ObjectNode serialiseV4(Message m) {
+        boolean sync = !m.responses.isEmpty();
         ObjectNode ix = MAPPER.createObjectNode();
-        ix.put("type", MESSAGE_INTERACTION_TYPE);
+        ix.put("type", sync ? SYNC_MESSAGE_INTERACTION_TYPE : MESSAGE_INTERACTION_TYPE);
         ix.put("description", m.description);
         if (!m.states.isEmpty()) {
             ArrayNode arr = ix.putArray("providerStates");
@@ -218,8 +245,34 @@ public final class MessagePact {
         }
         ObjectNode contents = ix.putObject("contents");
         contents.put("contentType", m.contentType.isBlank() ? "application/json" : m.contentType);
-        contents.putPOJO("content", resolveMatchers(m.content));
+        Map<String, Object> bodyRules = new LinkedHashMap<>();
+        Object resolved = collectBodyRules(m.content, "$", bodyRules);
+        contents.putPOJO("content", resolved);
+        if (!bodyRules.isEmpty()) {
+            Map<String, Object> rules = new LinkedHashMap<>();
+            rules.put("body", bodyRules);
+            ix.putPOJO("matchingRules", rules);
+        }
         if (!m.metadata.isEmpty()) ix.putPOJO("metadata", m.metadata);
+        if (sync) {
+            // Synchronous/Messages: contents above is the request; response[]
+            // holds the expected replies, each with its own contents + rules.
+            ArrayNode responses = ix.putArray("response");
+            for (MessageReply r : m.responses) {
+                ObjectNode rEntry = responses.addObject();
+                ObjectNode rContents = rEntry.putObject("contents");
+                rContents.put("contentType", r.contentType == null || r.contentType.isBlank()
+                        ? "application/json" : r.contentType);
+                Map<String, Object> rRules = new LinkedHashMap<>();
+                rContents.putPOJO("content", collectBodyRules(r.content, "$", rRules));
+                if (!rRules.isEmpty()) {
+                    Map<String, Object> rm = new LinkedHashMap<>();
+                    rm.put("body", rRules);
+                    rEntry.putPOJO("matchingRules", rm);
+                }
+                if (!r.metadata.isEmpty()) rEntry.putPOJO("metadata", r.metadata);
+            }
+        }
         return ix;
     }
 
@@ -239,13 +292,16 @@ public final class MessagePact {
         return mr;
     }
 
-    @SuppressWarnings("unchecked")
+    /**
+     * Replace every {@link Matcher} embedded in message content with its
+     * example value, recursing through maps and lists. Mirrors the Go/Python
+     * message DSL: the rendered body carries concrete values while the matcher
+     * metadata is emitted separately (see {@link #collectBodyRules}).
+     */
     static Object resolveMatchers(Object v) {
-        // Minimal: matchers in this Java DSL are plain JSON values
-        // (no Like()/Regex() wrappers in the Java surface yet — those
-        // exist in the consumer DSL in ru.mockarty.pact.Matchers and
-        // can be added later by walking and stripping). For now this
-        // is identity: the user supplies plain values.
+        if (v instanceof Matcher m) {
+            return resolveMatchers(m.example());
+        }
         if (v instanceof Map<?, ?> m) {
             Map<Object, Object> out = new LinkedHashMap<>();
             for (Map.Entry<?, ?> e : m.entrySet()) out.put(e.getKey(), resolveMatchers(e.getValue()));
@@ -257,6 +313,47 @@ public final class MessagePact {
             return out;
         }
         return v;
+    }
+
+    /**
+     * Walk message content and collect V4 body matching rules keyed by
+     * JSONPath (rooted at {@code $}). The shape — {@code {path: {"matchers":
+     * [...], "combine": "AND"}}} placed under the {@code body} category — is
+     * identical to the HTTP body rules the server already normalises, so a
+     * provider verifier enforces message-content matchers, not just examples.
+     */
+    private static Object collectBodyRules(Object v, String path, Map<String, Object> bodyRules) {
+        if (v instanceof Matcher m) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("matchers", List.of(MatcherJson.rule(m, SpecVersion.V4)));
+            entry.put("combine", "AND");
+            bodyRules.put(path, entry);
+            // EachLike-style container matchers cover every element with one
+            // rule; recurse into the template under a wildcard so nested
+            // matchers land at the right place.
+            String childPath = isContainerMatcher(m) ? path + "[*]" : path;
+            return collectBodyRules(m.example(), childPath, bodyRules);
+        }
+        if (v instanceof Map<?, ?> mp) {
+            Map<Object, Object> out = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : mp.entrySet()) {
+                out.put(e.getKey(), collectBodyRules(e.getValue(), path + "." + e.getKey(), bodyRules));
+            }
+            return out;
+        }
+        if (v instanceof List<?> ls) {
+            List<Object> out = new ArrayList<>(ls.size());
+            for (int i = 0; i < ls.size(); i++) {
+                out.add(collectBodyRules(ls.get(i), path + "[" + i + "]", bodyRules));
+            }
+            return out;
+        }
+        return v;
+    }
+
+    private static boolean isContainerMatcher(Matcher m) {
+        return m instanceof Matcher.EachLike || m instanceof Matcher.MinType
+                || m instanceof Matcher.MaxType || m instanceof Matcher.MinMaxType;
     }
 
     private static byte[] encodeBody(Object body, String contentType) {
@@ -282,5 +379,15 @@ public final class MessagePact {
         public Object content;
         public Map<String, String> metadata = new LinkedHashMap<>();
         public List<Map<String, Object>> states = new ArrayList<>();
+        /** Non-empty => SYNCHRONOUS message: {@code content} is the request and
+         * each entry here is an expected reply. */
+        public List<MessageReply> responses = new ArrayList<>();
+    }
+
+    /** One expected reply in a synchronous (request/response) message. */
+    public static final class MessageReply {
+        public Object content;
+        public String contentType = "";
+        public Map<String, String> metadata = new LinkedHashMap<>();
     }
 }
