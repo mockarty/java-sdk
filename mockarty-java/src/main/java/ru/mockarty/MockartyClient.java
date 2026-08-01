@@ -17,6 +17,7 @@ import ru.mockarty.api.FolderApi;
 import ru.mockarty.api.FuzzingApi;
 import ru.mockarty.api.GeneratorApi;
 import ru.mockarty.api.HealthApi;
+import ru.mockarty.api.MeApi;
 import ru.mockarty.api.ImportApi;
 import ru.mockarty.api.MockApi;
 import ru.mockarty.api.NamespaceApi;
@@ -176,6 +177,14 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the Me API for per-caller endpoints ({@code /api/v1/me/*}),
+     * e.g. the manual-action queue. Parity with Go {@code Me()} / Python {@code me}.
+     */
+    public MeApi me() {
+        return new MeApi(this);
+    }
+
+    /**
      * Returns the Generator API for generating mocks from API specifications.
      */
     public GeneratorApi generator() {
@@ -240,6 +249,20 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the recorded-UI-test API (save / run / poll / export).
+     */
+    public ru.mockarty.api.UITestApi uiTests() {
+        return new ru.mockarty.api.UITestApi(this);
+    }
+
+    /**
+     * Returns the git-sync API — bind a repo, pull/push autotest collections.
+     */
+    public ru.mockarty.api.GitSyncApi gitSync() {
+        return new ru.mockarty.api.GitSyncApi(this);
+    }
+
+    /**
      * Returns the Folder API for mock folder management.
      */
     public FolderApi folders() {
@@ -296,7 +319,7 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
-     * Returns the Phase 4 CI Triggers API — list saved triggers and
+     * Returns the CI Triggers API — list saved triggers and
      * poll the linked CI run state. CRUD is intentionally NOT in the
      * SDK (admin UI concern); use {@code list()} to find an id to pass
      * as {@code ciTriggerId} on perf/fuzz launches.
@@ -321,6 +344,17 @@ public class MockartyClient implements AutoCloseable {
      */
     public ExternalRunsApi externalRuns() {
         return new ExternalRunsApi(this);
+    }
+
+    /**
+     * Returns the test-discovery sync API — used by SDK/CI adapters (and
+     * the JUnit 5 launcher listener) to sync a manifest of the full test
+     * inventory into TCM so the catalogue mirrors the source tree.
+     *
+     * @see ru.mockarty.api.DiscoveryApi
+     */
+    public ru.mockarty.api.DiscoveryApi discovery() {
+        return new ru.mockarty.api.DiscoveryApi(this);
     }
 
     /**
@@ -433,7 +467,7 @@ public class MockartyClient implements AutoCloseable {
         }
         HttpRequest request = builder.build();
         try {
-            HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse<byte[]> response = sendWithRetry(request,
                     HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 handleErrorResponse(response.statusCode(), new String(response.body()));
@@ -544,7 +578,7 @@ public class MockartyClient implements AutoCloseable {
                 .GET()
                 .build();
         try {
-            HttpResponse<byte[]> response = httpClient.send(request,
+            HttpResponse<byte[]> response = sendWithRetry(request,
                     HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() >= 400) {
                 handleErrorResponse(response.statusCode(), new String(response.body()));
@@ -597,6 +631,49 @@ public class MockartyClient implements AutoCloseable {
         }
     }
 
+    // sendWithRetry centralises every httpClient.send call so transient
+    // failures (network IOExceptions and HTTP 429/502/503/504) are retried
+    // up to config.getMaxRetries() times with exponential backoff. The
+    // BodyPublishers used here (ofString / ofByteArray) are re-subscribable,
+    // so re-sending the same HttpRequest is safe.
+    private <T> HttpResponse<T> sendWithRetry(HttpRequest request, HttpResponse.BodyHandler<T> handler)
+            throws IOException, InterruptedException {
+        int attempts = Math.max(1, config.getMaxRetries() + 1);
+        IOException lastIO = null;
+        for (int i = 0; i < attempts; i++) {
+            try {
+                HttpResponse<T> resp = httpClient.send(request, handler);
+                if (i < attempts - 1 && isRetryableStatus(resp.statusCode())) {
+                    log.debug("retrying {} {} after HTTP {} (attempt {}/{})",
+                            request.method(), request.uri(), resp.statusCode(), i + 1, attempts);
+                    sleepBackoff(i);
+                    continue;
+                }
+                return resp;
+            } catch (IOException e) {
+                lastIO = e;
+                if (i >= attempts - 1) {
+                    throw e;
+                }
+                log.debug("retrying {} {} after I/O error: {} (attempt {}/{})",
+                        request.method(), request.uri(), e.getMessage(), i + 1, attempts);
+                sleepBackoff(i);
+            }
+        }
+        // Unreachable: the loop either returns a response or throws lastIO.
+        throw lastIO != null ? lastIO : new IOException("retry budget exhausted");
+    }
+
+    private static boolean isRetryableStatus(int status) {
+        return status == 429 || status == 502 || status == 503 || status == 504;
+    }
+
+    private static void sleepBackoff(int attempt) throws InterruptedException {
+        // 200ms, 400ms, 800ms, … capped at 2s.
+        long ms = Math.min(2000L, 200L * (1L << Math.min(attempt, 10)));
+        Thread.sleep(ms);
+    }
+
     private <T> T execute(HttpRequest request, Class<T> responseType) throws MockartyException {
         String responseBody = executeRaw(request);
         if (responseType == String.class) {
@@ -630,7 +707,7 @@ public class MockartyClient implements AutoCloseable {
     private String executeRaw(HttpRequest request) throws MockartyException {
         log.debug("{} {}", request.method(), request.uri());
         try {
-            HttpResponse<String> response = httpClient.send(request,
+            HttpResponse<String> response = sendWithRetry(request,
                     HttpResponse.BodyHandlers.ofString());
 
             log.debug("Response: {} ({} chars)", response.statusCode(),
@@ -798,6 +875,7 @@ public class MockartyClient implements AutoCloseable {
         private String apiKey;
         private String namespace;
         private Duration timeout;
+        private Integer maxRetries;
         private HttpClient httpClient;
 
         Builder() {
@@ -849,10 +927,20 @@ public class MockartyClient implements AutoCloseable {
         }
 
         /**
+         * Sets the maximum number of automatic retries on transient failures
+         * (network errors and HTTP 429/502/503/504). {@code 0} disables
+         * retries. Defaults to 2.
+         */
+        public Builder maxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+            return this;
+        }
+
+        /**
          * Builds the MockartyClient with the configured settings.
          */
         public MockartyClient build() {
-            MockartyConfig config = MockartyConfig.create(baseUrl, apiKey, namespace, timeout);
+            MockartyConfig config = MockartyConfig.create(baseUrl, apiKey, namespace, timeout, maxRetries);
             return new MockartyClient(config, httpClient);
         }
     }
