@@ -4,6 +4,7 @@
 package ru.mockarty.api;
 
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
@@ -17,6 +18,7 @@ import ru.mockarty.model.QuarantineEntry;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -111,31 +113,32 @@ public class FuzzingApi {
     // ---- Fuzzing Runs ----
 
     /**
-     * Starts a new fuzzing run using the given configuration ID.
+     * Starts a new fuzzing run with an inline configuration (no pre-saved
+     * config required). 3-language parity: matches Go {@code Start(config)} and
+     * Python {@code start(config)} — {@code start} ALWAYS means "inline config"
+     * across all SDKs (the by-ID variant is {@link #startFromConfig(String)}).
      *
-     * @param configId the fuzzing configuration ID
-     * @return the started fuzzing run
-     */
-    public FuzzingRun start(String configId) throws MockartyException {
-        return client.post("/api/v1/fuzzing/run", Map.of("configId", configId), FuzzingRun.class);
-    }
-
-    /**
-     * Starts a new fuzzing run with an inline configuration (no
-     * pre-saved config required).
-     *
-     * <p>The server expects the config wrapped in
-     * {@code {"config": {...}}}, NOT a bare FuzzConfig — passing the
-     * config flat used to return ``400 configId or inline config is
-     * required``. The SDK wraps it here so callers pass a plain
-     * FuzzingConfig as for {@link #createConfig(FuzzingConfig)}.
+     * <p>The server expects the config wrapped in {@code {"config": {...}}}, NOT
+     * a bare FuzzConfig — passing it flat returns 400; the SDK wraps it here.
      *
      * @param config inline configuration to fuzz with
      * @return start envelope: id (= resultId), taskId, runnerId
      */
-    public FuzzingRun startInline(FuzzingConfig config) throws MockartyException {
+    public FuzzingRun start(FuzzingConfig config) throws MockartyException {
         return client.post("/api/v1/fuzzing/run",
                 Map.of("config", config), FuzzingRun.class);
+    }
+
+    /**
+     * Starts a new fuzzing run referencing a previously-saved configuration ID.
+     * 3-language parity: matches Go {@code StartFromConfig(id)} and Python
+     * {@code start_from_config(id)}.
+     *
+     * @param configId the saved fuzzing configuration ID
+     * @return the started fuzzing run
+     */
+    public FuzzingRun startFromConfig(String configId) throws MockartyException {
+        return client.post("/api/v1/fuzzing/run", Map.of("configId", configId), FuzzingRun.class);
     }
 
     /**
@@ -410,9 +413,16 @@ public class FuzzingApi {
      * @return list of schedules
      */
     public List<FuzzingSchedule> listSchedules() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, FuzzingSchedule.class);
-        return client.get("/api/v1/fuzzing/schedules", listType);
+        // The server wraps the result as {"schedules":[{...}]}.
+        JsonNode root = client.get("/api/v1/fuzzing/schedules", JsonNode.class);
+        JsonNode arr = root != null && root.isObject() ? root.path("schedules") : root;
+        List<FuzzingSchedule> out = new ArrayList<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                out.add(client.getObjectMapper().convertValue(n, FuzzingSchedule.class));
+            }
+        }
+        return out;
     }
 
     /**

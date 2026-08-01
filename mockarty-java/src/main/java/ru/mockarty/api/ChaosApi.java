@@ -288,7 +288,7 @@ public class ChaosApi {
      * @return test result with connected, capabilities, etc.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> testInlineConnection(String kubeconfig, String context) throws MockartyException {
+    public Map<String, Object> testInlineKubeconfig(String kubeconfig, String context) throws MockartyException {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("kubeconfig", kubeconfig);
         if (context != null) {

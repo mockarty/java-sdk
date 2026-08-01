@@ -4,6 +4,7 @@
 package ru.mockarty.api;
 
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.ImportResult;
@@ -12,6 +13,7 @@ import ru.mockarty.model.RecorderSession;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +34,7 @@ public class RecorderApi {
      * @param config the recorder start configuration (name, targetUrl, namespace, etc.)
      * @return the created session
      */
-    public RecorderSession start(Map<String, Object> config) throws MockartyException {
+    public RecorderSession startRecording(Map<String, Object> config) throws MockartyException {
         return client.post("/api/v1/recorder/start", config, RecorderSession.class);
     }
 
@@ -42,9 +44,17 @@ public class RecorderApi {
      * @return list of sessions
      */
     public List<RecorderSession> listSessions() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, RecorderSession.class);
-        return client.get("/api/v1/recorder/sessions", listType);
+        // The server wraps the result as {"sessions":[{...},{...}]}, so unwrap
+        // the "sessions" array before deserializing to RecorderSession.
+        JsonNode root = client.get("/api/v1/recorder/sessions", JsonNode.class);
+        JsonNode arr = root != null && root.isObject() ? root.path("sessions") : root;
+        List<RecorderSession> out = new ArrayList<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                out.add(client.getObjectMapper().convertValue(n, RecorderSession.class));
+            }
+        }
+        return out;
     }
 
     /**
@@ -105,7 +115,7 @@ public class RecorderApi {
      * @param options optional configuration for mock creation
      * @return the import result with created mock IDs
      */
-    public ImportResult createMocks(String id, Map<String, Object> options) throws MockartyException {
+    public ImportResult createMocksFromSession(String id, Map<String, Object> options) throws MockartyException {
         return client.post("/api/v1/recorder/" + encode(id) + "/mocks", options, ImportResult.class);
     }
 
@@ -128,6 +138,19 @@ public class RecorderApi {
      */
     public ImportResult export(String id, Map<String, Object> options) throws MockartyException {
         return client.post("/api/v1/recorder/" + encode(id) + "/export", options, ImportResult.class);
+    }
+
+    /**
+     * Exports a recording session as a Postman Collection v2.1 document.
+     * Parity with Go ExportSessionAsPostman / Python export_session_as_postman.
+     *
+     * @param id        the session ID
+     * @param entryIds  optional subset of entry IDs to include (null = all)
+     * @return the Postman collection as bytes
+     */
+    public byte[] exportSessionAsPostman(String id, java.util.List<String> entryIds) throws MockartyException {
+        Object body = (entryIds != null && !entryIds.isEmpty()) ? Map.of("entryIds", entryIds) : null;
+        return client.postBytes("/api/v1/recorder/" + encode(id) + "/export-postman", body);
     }
 
     // ---- Recorder Configs ----

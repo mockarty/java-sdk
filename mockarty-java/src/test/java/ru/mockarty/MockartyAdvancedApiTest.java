@@ -223,7 +223,7 @@ class MockartyAdvancedApiTest {
                 }
             });
 
-            FuzzingRun result = client.fuzzing().start("cfg-1");
+            FuzzingRun result = client.fuzzing().startFromConfig("cfg-1");
             assertEquals("run-1", result.getId());
             assertEquals("running", result.getStatus());
         }
@@ -282,7 +282,14 @@ class MockartyAdvancedApiTest {
         @DisplayName("should list fuzzing results")
         void listResults() throws Exception {
             server.createContext("/api/v1/fuzzing/results", exchange -> {
-                String json = "[{\"id\":\"r1\",\"status\":\"completed\"},{\"id\":\"r2\",\"status\":\"running\"}]";
+                // Real server contract: a {results, total, limit, offset}
+                // envelope (swagger fuzzing/results), NOT a bare array — the
+                // SDK decodes env.get("results"). Mocking a bare array here
+                // made the Map decode throw MismatchedInputException.
+                String json = "{\"results\":["
+                        + "{\"id\":\"r1\",\"status\":\"completed\"},"
+                        + "{\"id\":\"r2\",\"status\":\"running\"}],"
+                        + "\"total\":2,\"limit\":50,\"offset\":0}";
                 byte[] body = json.getBytes();
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, body.length);
@@ -375,7 +382,7 @@ class MockartyAdvancedApiTest {
             Contract config = new Contract()
                     .name("User API")
                     .protocol("http");
-            Contract result = client.contracts().createConfig(config);
+            Contract result = client.contracts().saveConfig(config);
             assertEquals("ct-1", result.getId());
             assertEquals("User API", result.getName());
         }
@@ -446,7 +453,7 @@ class MockartyAdvancedApiTest {
                 }
             });
 
-            RecorderSession session = client.recorder().start(Map.of(
+            RecorderSession session = client.recorder().startRecording(Map.of(
                     "name", "My Session",
                     "targetUrl", "http://example.com",
                     "namespace", "test-namespace"

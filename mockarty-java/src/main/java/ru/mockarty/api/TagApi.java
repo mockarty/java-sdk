@@ -3,11 +3,14 @@
 
 package ru.mockarty.api;
 
-import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.Tag;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,9 +31,26 @@ public class TagApi {
      * @return list of tags
      */
     public List<Tag> list() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, Tag.class);
-        return client.get("/api/v1/tags", listType);
+        String namespace = client.getConfig().getNamespace();
+        String path = "/api/v1/tags";
+        if (namespace != null && !namespace.isEmpty()) {
+            path += "?namespace=" + URLEncoder.encode(namespace, StandardCharsets.UTF_8);
+        }
+        // The server wraps the result as {"namespace":..,"tags":["a","b"]} where
+        // each entry is a bare tag name (not a Tag object), so unwrap + map.
+        JsonNode root = client.get(path, JsonNode.class);
+        JsonNode arr = root != null && root.isObject() ? root.path("tags") : root;
+        List<Tag> out = new ArrayList<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                if (n.isTextual()) {
+                    out.add(new Tag().name(n.asText()));
+                } else if (n.isObject()) {
+                    out.add(client.getObjectMapper().convertValue(n, Tag.class));
+                }
+            }
+        }
+        return out;
     }
 
     /**

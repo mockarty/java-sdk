@@ -32,6 +32,10 @@ public class NamespaceApi {
         client.post("/api/v1/namespaces", Map.of("name", name));
     }
 
+    // copyMocks removed — it POSTed to a non-existent
+    // /api/v1/namespaces/copy-mocks route (404). Use
+    // mocks().copyToNamespace(mockIds, target) for the real operation.
+
     /**
      * Lists all available namespaces.
      *

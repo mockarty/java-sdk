@@ -3,13 +3,14 @@
 
 package ru.mockarty.api;
 
-import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.MockFolder;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,9 +31,21 @@ public class FolderApi {
      * @return list of folders
      */
     public List<MockFolder> list() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, MockFolder.class);
-        return client.get("/api/v1/mock-folders", listType);
+        String namespace = client.getConfig().getNamespace();
+        String path = "/api/v1/mock-folders";
+        if (namespace != null && !namespace.isEmpty()) {
+            path += "?namespace=" + URLEncoder.encode(namespace, StandardCharsets.UTF_8);
+        }
+        // The server wraps the result as {"folders":[{...}]}.
+        JsonNode root = client.get(path, JsonNode.class);
+        JsonNode arr = root != null && root.isObject() ? root.path("folders") : root;
+        List<MockFolder> out = new ArrayList<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                out.add(client.getObjectMapper().convertValue(n, MockFolder.class));
+            }
+        }
+        return out;
     }
 
     /**

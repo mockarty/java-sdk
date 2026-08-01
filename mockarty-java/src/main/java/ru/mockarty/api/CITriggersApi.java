@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * API for Phase 4 generic-webhook CI Triggers.
+ * API for generic-webhook CI Triggers.
  *
  * <p>Exposes ONLY the surface useful from a CI/CD script's perspective
  * (per Mockarty SDK scope policy): list saved triggers, get one,
@@ -103,6 +103,37 @@ public class CITriggersApi {
      */
     public void cancelRun(String runId) throws MockartyException {
         client.post("/api/v1/ci/runs/" + encode(runId) + "/cancel", null);
+    }
+
+    /** Creates a CI trigger. Parity: Go Create / Python create. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> create(String namespace, Map<String, Object> trigger) throws MockartyException {
+        String path = "/api/v1/ci/triggers";
+        if (namespace != null && !namespace.isEmpty()) path += "?namespace=" + encode(namespace);
+        return client.post(path, trigger, Map.class);
+    }
+
+    /** Updates a CI trigger. Parity: Go Update / Python update. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> update(String triggerId, String namespace, Map<String, Object> trigger) throws MockartyException {
+        String path = "/api/v1/ci/triggers/" + encode(triggerId);
+        if (namespace != null && !namespace.isEmpty()) path += "?namespace=" + encode(namespace);
+        return client.patch(path, trigger, Map.class);
+    }
+
+    /** Deletes a CI trigger. Parity: Go Delete / Python delete. */
+    public void delete(String triggerId, String namespace) throws MockartyException {
+        String path = "/api/v1/ci/triggers/" + encode(triggerId);
+        if (namespace != null && !namespace.isEmpty()) path += "?namespace=" + encode(namespace);
+        client.delete(path);
+    }
+
+    /** Test-fires a CI trigger's dispatch. Parity: Go TestDispatch / Python test_dispatch. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> testDispatch(String triggerId, String namespace) throws MockartyException {
+        String path = "/api/v1/ci/triggers/" + encode(triggerId) + "/test";
+        if (namespace != null && !namespace.isEmpty()) path += "?namespace=" + encode(namespace);
+        return client.post(path, java.util.Collections.emptyMap(), Map.class);
     }
 
     private static String encode(String s) {
