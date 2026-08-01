@@ -84,7 +84,7 @@ public class FuzzingExample {
         System.out.println("Created fuzzing config: " + created.getId());
 
         // Start the fuzzing run
-        FuzzingRun run = client.fuzzing().start(created.getId());
+        FuzzingRun run = client.fuzzing().startFromConfig(created.getId());
         System.out.println("Started fuzzing run: " + run.getId());
         System.out.println("  Status: " + run.getStatus());
 

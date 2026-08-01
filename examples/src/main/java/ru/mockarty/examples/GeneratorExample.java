@@ -114,8 +114,8 @@ public class GeneratorExample {
 
         GeneratorResponse response = client.generator().fromOpenAPI(request);
         System.out.println("Generated mocks from OpenAPI:");
-        System.out.println("  Total mocks: " + response.getMockCount());
-        System.out.println("  Mock IDs: " + response.getMockIds());
+        System.out.println("  Created: " + response.getCreated() + ", updated: " + response.getUpdated());
+        System.out.println("  Mocks: " + response.getMocks());
     }
 
     /**
@@ -177,7 +177,7 @@ public class GeneratorExample {
 
         GeneratorResponse response = client.generator().fromProto(request);
         System.out.println("Generated mocks from Proto:");
-        System.out.println("  Total mocks: " + response.getMockCount());
+        System.out.println("  Created: " + response.getCreated() + ", updated: " + response.getUpdated());
     }
 
     /**
@@ -242,7 +242,7 @@ public class GeneratorExample {
 
         GeneratorResponse response = client.generator().fromGraphQL(request);
         System.out.println("Generated mocks from GraphQL schema:");
-        System.out.println("  Total mocks: " + response.getMockCount());
+        System.out.println("  Created: " + response.getCreated() + ", updated: " + response.getUpdated());
     }
 
     /**
@@ -306,7 +306,7 @@ public class GeneratorExample {
 
         GeneratorResponse response = client.generator().fromWSDL(request);
         System.out.println("Generated mocks from WSDL:");
-        System.out.println("  Total mocks: " + response.getMockCount());
+        System.out.println("  Created: " + response.getCreated() + ", updated: " + response.getUpdated());
     }
 
     /**
@@ -334,7 +334,7 @@ public class GeneratorExample {
         // Preview shows what would be created without actually creating mocks
         GeneratorPreview preview = client.generator().previewOpenAPI(request);
         System.out.println("Preview result:");
-        System.out.println("  Mocks that would be created: " + preview.getMockCount());
+        System.out.println("  Mocks that would be created: " + preview.getCount());
         System.out.println("  Mock details: " + preview.getMocks());
     }
 
@@ -395,7 +395,7 @@ public class GeneratorExample {
 
         ImportResult result = client.imports().postman(postmanCollection, "sandbox");
         System.out.println("Imported from Postman:");
-        System.out.println("  Total: " + result.getTotal());
+        System.out.println("  Skipped: " + result.getSkipped());
         System.out.println("  Created: " + result.getCreated());
     }
 }

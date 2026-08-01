@@ -225,6 +225,57 @@ class LoginTest {
 }
 ```
 
+### Test discovery (catalogue sync)
+
+Where the result reporter ships per-test *outcomes*, test discovery syncs
+the full test *inventory* — every test the launcher collected, including
+ones that will not run in this invocation — so the Mockarty TCM catalogue
+mirrors the source tree. New tests are created, existing tests keep their
+human-authored metadata, and tests removed from code are marked orphaned
+(never deleted).
+
+The `mockarty-junit5` module auto-registers a JUnit Platform
+`TestExecutionListener` via SPI. It is **off by default** and runs
+side-by-side with the result reporter. Enable it for a CI collect-and-sync
+step:
+
+```bash
+./gradlew test \
+  -Dmockarty.discover=true \
+  -Dmockarty.discover.source=junit5:auth-suite \
+  -DMOCKARTY_BASE_URL=https://mockarty.example.com \
+  -DMOCKARTY_API_KEY=mk_... \
+  -DMOCKARTY_NAMESPACE=qa
+```
+
+| Setting | System property | Env variable | Default |
+|---------|-----------------|--------------|---------|
+| Enable | `mockarty.discover` | `MOCKARTY_DISCOVER` | off |
+| Source (scope key) | `mockarty.discover.source` | `MOCKARTY_DISCOVER_SOURCE` | `junit5` |
+| Prune missing | `mockarty.discover.pruneMissing` | `MOCKARTY_DISCOVER_PRUNE` | `true` |
+
+The listener walks the discovered test plan and maps each leaf test:
+`fullName` = `Class#method`, `name` = display name, `suite` = the test
+class, `sourceRef` = `File.java`, `labels` = JUnit `@Tag`s. A sync failure
+is logged and swallowed — discovery never fails the build.
+
+You can also build and sync a manifest manually (handy for non-JUnit test
+sources):
+
+```java
+DiscoveryResult res = client.discovery().sync("qa",
+    new DiscoveryManifest("junit5:auth-suite")
+        .framework("junit5")
+        .pruneMissing(true)
+        .addCase(new DiscoveryManifestCase("com.example.AuthTest#testLogin", "testLogin")
+            .suite("AuthTest")
+            .sourceRef("AuthTest.java")
+            .labels(java.util.List.of("smoke"))));
+System.out.println("created=" + res.getCreated() + " orphaned=" + res.getOrphaned());
+```
+
+See [`DiscoveryExample.java`](./examples/src/main/java/ru/mockarty/examples/DiscoveryExample.java).
+
 ## Supported Protocols
 
 ### HTTP
@@ -371,6 +422,7 @@ The most useful starting points:
 | [`KitchenSinkExample.java`](./examples/src/main/java/ru/mockarty/examples/KitchenSinkExample.java) | Full adopter showcase — Tester DSL chain (HTTP → GraphQL → assertions), `wrap()` grouping, ExternalRunBridge upload to TCM. See [`KITCHEN_SINK.md`](./examples/KITCHEN_SINK.md) for the runnable script. |
 | [`CiCdPipelineExample.java`](./examples/src/main/java/ru/mockarty/examples/CiCdPipelineExample.java) | JUnit5-driven CI test emitting an ExternalRunRequest from a single step. |
 | [`AgentTasksExample.java`](./examples/src/main/java/ru/mockarty/examples/AgentTasksExample.java) | Tester DSL emitting external-run reports from a JUnit5 test method. |
+| [`DiscoveryExample.java`](./examples/src/main/java/ru/mockarty/examples/DiscoveryExample.java) | Syncs a test-discovery manifest into TCM via `client.discovery().sync(...)`, and documents the JUnit5 auto-discovery listener switch. |
 
 For protocol-specific code: `HttpMocksExample`, `GraphQLMocksExample`,
 `GrpcMocksExample`, `SoapMocksExample`, `MessagingMocksExample`,

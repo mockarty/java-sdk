@@ -12,6 +12,7 @@ import ru.mockarty.model.AssertAction;
 import ru.mockarty.model.ContentResponse;
 import ru.mockarty.model.Extract;
 import ru.mockarty.model.Mock;
+import ru.mockarty.model.MockVersion;
 import ru.mockarty.model.Page;
 import ru.mockarty.model.SaveMockResponse;
 
@@ -418,27 +419,29 @@ public class AdvancedExample {
         System.out.println("Updated mock to version 3");
 
         // List all versions
-        List<Mock> versions = client.mocks().listVersions("versioned-mock");
+        // A version row carries the revision metadata; the mock body of that
+        // revision hangs off getMock().
+        List<MockVersion> versions = client.mocks().listVersions("versioned-mock");
         System.out.println("Mock versions: " + versions.size());
-        for (Mock version : versions) {
+        for (MockVersion version : versions) {
             System.out.println("  Version: " + version.getVersion() +
                     " tags=" + version.getTags() +
-                    " updatedAt=" + version.getUpdatedAt());
+                    " createdAt=" + version.getCreatedAt());
         }
 
         // Get a specific version
         if (versions.size() >= 2) {
-            Mock oldVersion = client.mocks().getVersion("versioned-mock",
-                    versions.get(1).getVersion());
+            String previous = String.valueOf(versions.get(1).getVersion());
+            MockVersion oldVersion = client.mocks().getVersion("versioned-mock", previous);
             System.out.println("Retrieved old version: " + oldVersion.getVersion());
             System.out.println("  Tags: " + oldVersion.getTags());
         }
 
         // Restore a previous version
         if (versions.size() >= 2) {
-            client.mocks().restoreVersion("versioned-mock",
-                    versions.get(1).getVersion());
-            System.out.println("Restored mock to version: " + versions.get(1).getVersion());
+            String previous = String.valueOf(versions.get(1).getVersion());
+            client.mocks().restoreVersion("versioned-mock", previous);
+            System.out.println("Restored mock to version: " + previous);
 
             // Verify the restore
             Mock restored = client.mocks().get("versioned-mock");
@@ -488,7 +491,7 @@ public class AdvancedExample {
         System.out.println("Mocks with 'production' + 'v2' tags: " + taggedMocks.getTotal());
 
         // Partial update: use patch to update just tags on a single mock
-        client.mocks().patchMock("batch-tag-0", Map.of(
+        client.mocks().patch("batch-tag-0", Map.of(
                 "tags", List.of("production", "v2", "validated", "critical-path", "hot-fix")
         ));
         System.out.println("Patched mock 'batch-tag-0' with additional 'hot-fix' tag");

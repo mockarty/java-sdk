@@ -93,7 +93,7 @@ public class CollectionsExample {
         System.out.println("Collection name: " + details.get("name"));
 
         // Run the collection
-        Map<String, Object> runResult = client.collections().run(collectionId);
+        Map<String, Object> runResult = client.collections().execute(collectionId);
         System.out.println("Run result: " + runResult);
         System.out.println("  Total requests: " + runResult.get("totalRequests"));
         System.out.println("  Passed: " + runResult.get("passed"));

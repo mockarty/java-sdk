@@ -17,6 +17,7 @@ import ru.mockarty.model.ImportResult;
 import ru.mockarty.model.Mock;
 import ru.mockarty.model.Page;
 import ru.mockarty.model.Pact;
+import ru.mockarty.model.PactParty;
 import ru.mockarty.model.PactVerificationResult;
 import ru.mockarty.model.PerfConfig;
 import ru.mockarty.model.TestRun;
@@ -267,16 +268,15 @@ public class CiCdPipelineExample {
                 new GeneratorRequest()
                         .spec(openApiSpec)
                         .namespace(PIPELINE_NAMESPACE)
-                        .generateFaker(true)
         );
-        result.mocksGenerated = genResult.getMocksCreated();
-        System.out.println("Generated " + genResult.getMocksCreated() + " mocks from OpenAPI spec");
+        result.mocksGenerated = genResult.getCreated();
+        System.out.println("Generated " + genResult.getCreated() + " mocks from OpenAPI spec");
 
         // Verify mocks were created
         Page<Mock> mocks = client.mocks().list(PIPELINE_NAMESPACE, null, null, 0, 50);
         System.out.println("Total mocks in namespace: " + mocks.getTotal());
 
-        result.steps.add("import: " + genResult.getMocksCreated() + " mocks generated");
+        result.steps.add("import: " + genResult.getCreated() + " mocks generated");
     }
 
     /**
@@ -287,10 +287,10 @@ public class CiCdPipelineExample {
 
         // Publish a consumer pact
         Pact pact = new Pact()
-                .consumer("order-service")
-                .provider("user-service")
+                .consumer(new PactParty("order-service"))
+                .provider(new PactParty("user-service"))
                 .version(BUILD_ID)
-                .interactions(List.of(
+                .spec(Map.of("interactions", List.of(
                         Map.of(
                                 "description", "get user for order processing",
                                 "request", Map.of(
@@ -306,7 +306,7 @@ public class CiCdPipelineExample {
                                         )
                                 )
                         )
-                ));
+                )));
 
         Pact published = client.contracts().publishPact(pact);
         System.out.println("Published pact: " + published.getId());
@@ -318,8 +318,9 @@ public class CiCdPipelineExample {
                 "providerVersion", BUILD_ID
         ));
 
-        result.contractsPassed = verification.isSuccess();
-        System.out.println("Pact verification: " + (verification.isSuccess() ? "PASSED" : "FAILED"));
+        boolean verified = "passed".equalsIgnoreCase(verification.getStatus());
+        result.contractsPassed = verified;
+        System.out.println("Pact verification: " + (verified ? "PASSED" : "FAILED"));
 
         // Can I deploy check
         CanIDeployResult deployCheck = client.contracts().canIDeploy(Map.of(
@@ -328,10 +329,10 @@ public class CiCdPipelineExample {
                 "to", "staging"
         ));
 
-        result.canDeploy = deployCheck.isDeployable();
-        System.out.println("Can I deploy to staging? " + deployCheck.isDeployable());
+        result.canDeploy = deployCheck.isSafe();
+        System.out.println("Can I deploy to staging? " + deployCheck.isSafe());
 
-        result.steps.add("contracts: " + (verification.isSuccess() ? "PASSED" : "FAILED"));
+        result.steps.add("contracts: " + (verified ? "PASSED" : "FAILED"));
     }
 
     /**
@@ -378,7 +379,7 @@ public class CiCdPipelineExample {
         System.out.println("Created test collection: " + collectionId);
 
         // Run the collection
-        Map<String, Object> runResult = client.collections().run(collectionId);
+        Map<String, Object> runResult = client.collections().execute(collectionId);
         System.out.println("Test run completed:");
         System.out.println("  Total: " + runResult.get("total"));
         System.out.println("  Passed: " + runResult.get("passed"));
@@ -422,7 +423,7 @@ public class CiCdPipelineExample {
         FuzzingConfig created = client.fuzzing().createConfig(config);
 
         // Start fuzzing
-        FuzzingRun run = client.fuzzing().start(created.getId());
+        FuzzingRun run = client.fuzzing().startFromConfig(created.getId());
         System.out.println("Started fuzzing run: " + run.getId());
 
         // Wait for completion (in real CI, poll with timeout)

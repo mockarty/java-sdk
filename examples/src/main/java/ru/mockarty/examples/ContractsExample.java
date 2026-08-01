@@ -10,6 +10,7 @@ import ru.mockarty.model.Contract;
 import ru.mockarty.model.ContractValidationResult;
 import ru.mockarty.model.Mock;
 import ru.mockarty.model.Pact;
+import ru.mockarty.model.PactParty;
 import ru.mockarty.model.PactVerificationResult;
 
 import java.nio.file.Path;
@@ -204,13 +205,14 @@ public class ContractsExample {
         System.out.println("Validation results: " + results.size());
 
         for (ContractValidationResult result : results) {
-            System.out.println("  Result: " + result.getId());
+            System.out.println("  Result for contract: " + result.getContractId());
             System.out.println("    Status: " + result.getStatus());
         }
 
         // Get a specific result
         if (!results.isEmpty()) {
-            ContractValidationResult detail = client.contracts().getResult(results.get(0).getId());
+            ContractValidationResult detail =
+                    client.contracts().getResult(results.get(0).getContractId());
             System.out.println("Detailed result: " + detail);
         }
     }
@@ -225,10 +227,10 @@ public class ContractsExample {
 
         // 1. Publish a consumer pact
         Pact pact = new Pact()
-                .consumer("order-service")
-                .provider("user-service")
+                .consumer(new PactParty("order-service"))
+                .provider(new PactParty("user-service"))
                 .version("1.2.0")
-                .interactions(List.of(
+                .spec(Map.of("interactions", List.of(
                         Map.of(
                                 "description", "get user by id",
                                 "request", Map.of(
@@ -256,7 +258,7 @@ public class ContractsExample {
                                         "body", Map.of("error", "User not found")
                                 )
                         )
-                ));
+                )));
 
         Pact published = client.contracts().publishPact(pact);
         System.out.println("Published pact: " + published.getId());
@@ -273,7 +275,7 @@ public class ContractsExample {
 
         // 3. Get pact details
         Pact detail = client.contracts().getPact(published.getId());
-        System.out.println("Pact details: " + detail.getInteractions().size() + " interactions");
+        System.out.println("Pact details: " + detail.getSpec());
 
         // 4. Verify the pact against the provider
         PactVerificationResult verification = client.contracts().verifyPact(Map.of(
@@ -282,7 +284,8 @@ public class ContractsExample {
                 "providerVersion", "2.0.0"
         ));
         System.out.println("Pact verification: " + verification.getStatus());
-        System.out.println("  Success: " + verification.isSuccess());
+        System.out.println("  Violations: "
+                + (verification.getViolations() == null ? 0 : verification.getViolations().size()));
 
         // 5. List all verifications
         List<PactVerificationResult> verifications = client.contracts().listVerifications();
@@ -294,7 +297,7 @@ public class ContractsExample {
                 "version", "1.2.0",
                 "to", "production"
         ));
-        System.out.println("Can I deploy? " + deployCheck.isDeployable());
+        System.out.println("Can I deploy? " + deployCheck.isSafe());
         System.out.println("  Reason: " + deployCheck.getReason());
 
         // 7. Generate mocks from pact interactions

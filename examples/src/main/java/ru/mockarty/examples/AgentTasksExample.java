@@ -94,7 +94,7 @@ public class AgentTasksExample {
 
         for (AgentTask task : tasks) {
             System.out.println("  Task: " + task.getId());
-            System.out.println("    Type: " + task.getType());
+            System.out.println("    Title: " + task.getTitle());
             System.out.println("    Status: " + task.getStatus());
             System.out.println("    Created: " + task.getCreatedAt());
 

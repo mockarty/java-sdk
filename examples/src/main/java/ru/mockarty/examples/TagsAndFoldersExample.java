@@ -79,12 +79,12 @@ public class TagsAndFoldersExample {
 
         // Create root folders
         MockFolder apiFolder = client.folders().create(
-                new MockFolder().name("API Services").description("All API service mocks")
+                new MockFolder().name("API Services")
         );
         System.out.println("Created folder: " + apiFolder.getName() + " (id: " + apiFolder.getId() + ")");
 
         MockFolder integrationFolder = client.folders().create(
-                new MockFolder().name("Integration Tests").description("Mocks for integration testing")
+                new MockFolder().name("Integration Tests")
         );
         System.out.println("Created folder: " + integrationFolder.getName());
 
@@ -92,7 +92,6 @@ public class TagsAndFoldersExample {
         MockFolder usersFolder = client.folders().create(
                 new MockFolder()
                         .name("User Service")
-                        .description("User-related mocks")
                         .parentId(apiFolder.getId())
         );
         System.out.println("Created sub-folder: " + usersFolder.getName());
@@ -100,7 +99,6 @@ public class TagsAndFoldersExample {
         MockFolder ordersFolder = client.folders().create(
                 new MockFolder()
                         .name("Order Service")
-                        .description("Order-related mocks")
                         .parentId(apiFolder.getId())
         );
         System.out.println("Created sub-folder: " + ordersFolder.getName());
@@ -108,7 +106,6 @@ public class TagsAndFoldersExample {
         MockFolder paymentsFolder = client.folders().create(
                 new MockFolder()
                         .name("Payment Service")
-                        .description("Payment-related mocks")
                         .parentId(apiFolder.getId())
         );
         System.out.println("Created sub-folder: " + paymentsFolder.getName());
@@ -125,7 +122,6 @@ public class TagsAndFoldersExample {
         MockFolder updated = client.folders().update(usersFolder.getId(),
                 new MockFolder()
                         .name("User Service (v2)")
-                        .description("Updated user service mocks for v2 API")
         );
         System.out.println("Updated folder: " + updated.getName());
 

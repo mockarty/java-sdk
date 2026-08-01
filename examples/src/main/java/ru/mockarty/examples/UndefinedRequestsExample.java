@@ -48,10 +48,9 @@ public class UndefinedRequestsExample {
 
         for (UndefinedRequest req : requests) {
             System.out.println("  " + req.getMethod() + " " + req.getPath());
-            System.out.println("    Namespace: " + req.getNamespace());
+            System.out.println("    Protocol: " + req.getProtocol());
             System.out.println("    Count: " + req.getCount());
-            System.out.println("    First seen: " + req.getFirstSeen());
-            System.out.println("    Last seen: " + req.getLastSeen());
+            System.out.println("    Last seen: " + req.getTimestamp());
         }
 
         // Group by path to identify most common missing mocks

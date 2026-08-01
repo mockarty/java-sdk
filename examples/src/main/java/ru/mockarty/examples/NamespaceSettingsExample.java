@@ -89,28 +89,28 @@ public class NamespaceSettingsExample {
         // Get the current cleanup policy
         CleanupPolicy current = client.namespaceSettings().getCleanupPolicy(NAMESPACE);
         System.out.println("Current cleanup policy:");
-        System.out.println("  Enabled: " + current.isEnabled());
-        System.out.println("  Mock TTL: " + current.getMockTtlDays() + " days");
+        System.out.println("  Enabled: " + current.getEnabled());
+        System.out.println("  Retention: " + current.getRetentionDays() + " days");
         System.out.println("  Log retention: " + current.getLogRetentionDays() + " days");
 
         // Update the cleanup policy
         CleanupPolicy updated = new CleanupPolicy()
                 .enabled(true)
-                .mockTtlDays(30)           // Delete mocks older than 30 days
+                .retentionDays(30)         // Delete mocks older than 30 days
                 .logRetentionDays(7)       // Keep logs for 7 days
                 .cleanupDeletedMocks(true) // Purge soft-deleted mocks
                 .cleanupExpiredMocks(true) // Remove expired TTL mocks
-                .cleanupInterval("24h");   // Run cleanup every 24 hours
+                .schedule("24h");          // Run cleanup every 24 hours
 
         client.namespaceSettings().updateCleanupPolicy(NAMESPACE, updated);
         System.out.println("Updated cleanup policy:");
-        System.out.println("  Mock TTL: 30 days");
+        System.out.println("  Retention: 30 days");
         System.out.println("  Log retention: 7 days");
         System.out.println("  Cleanup interval: 24h");
 
         // Verify the update
         CleanupPolicy verified = client.namespaceSettings().getCleanupPolicy(NAMESPACE);
-        System.out.println("Verified - Enabled: " + verified.isEnabled());
+        System.out.println("Verified - Enabled: " + verified.getEnabled());
     }
 
     /**

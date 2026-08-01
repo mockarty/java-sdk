@@ -74,7 +74,7 @@ public class BasicExample {
 
         SaveMockResponse saved = client.mocks().create(getUserMock);
         System.out.println("Created mock: " + saved.getMock().getId());
-        System.out.println("Was overwrite: " + saved.isOverwrite());
+        System.out.println("Was overwrite: " + saved.isOverwritten());
 
         // --- 4. Retrieve the mock back ---
         Mock fetched = client.mocks().get("example-user-get");

@@ -104,6 +104,25 @@ public class HttpMocksExample {
     }
 
     /**
+     * Scripted response: compute the body from the request with JavaScript. The
+     * script receives {@code request} and fills {@code response}. See the Scripted
+     * Responses guide. Use respondWithScript(code, true) to allow outbound calls.
+     */
+    static void createScriptedResponseMock(MockartyClient client) {
+        Mock mock = MockBuilder.http("/api/calc/:op", "POST")
+                .id("calc")
+                .respondWithScript(
+                        "const d = request.json();"
+                                + " const out = request.params.op === 'double' ? d.v * 2 : d.v / 2;"
+                                + " response.status = 201;"
+                                + " response.json({ op: request.params.op, in: d.v, out: out });")
+                .build();
+
+        client.mocks().create(mock);
+        System.out.println("Created POST /api/calc/:op with a scripted response");
+    }
+
+    /**
      * PUT with header-based conditions.
      * Matches only with a valid Authorization header.
      */
@@ -130,29 +149,30 @@ public class HttpMocksExample {
     static void createMockWithFakerTemplates(MockartyClient client) {
         Mock mock = MockBuilder.http("/api/fake-data", "GET")
                 .id("http-faker-demo")
-                .respond(200, Map.of(
-                        "uuid", "$.fake.UUID",
-                        "firstName", "$.fake.FirstName",
-                        "lastName", "$.fake.LastName",
-                        "email", "$.fake.Email",
-                        "phone", "$.fake.PhoneNumber",
-                        "address", Map.of(
+                // Map.of() caps at 10 pairs — ofEntries keeps the shape readable.
+                .respond(200, Map.ofEntries(
+                        Map.entry("uuid", "$.fake.UUID"),
+                        Map.entry("firstName", "$.fake.FirstName"),
+                        Map.entry("lastName", "$.fake.LastName"),
+                        Map.entry("email", "$.fake.Email"),
+                        Map.entry("phone", "$.fake.PhoneNumber"),
+                        Map.entry("address", Map.of(
                                 "street", "$.fake.StreetAddress",
                                 "city", "$.fake.City",
                                 "country", "$.fake.Country",
                                 "zip", "$.fake.ZipCode"
-                        ),
-                        "company", "$.fake.Company",
-                        "creditCard", "$.fake.CreditCardNumber",
-                        "ipv4", "$.fake.IPv4",
-                        "userAgent", "$.fake.UserAgent",
-                        "paragraph", "$.fake.Paragraph",
-                        "randomInt", "$.fake.IntRange(1,1000)",
-                        "price", "$.fake.FloatRange(9.99,999.99)",
-                        "boolean", "$.fake.Bool",
-                        "date", "$.fake.DateISO",
-                        "color", "$.fake.HexColor",
-                        "word", "$.fake.Word"
+                        )),
+                        Map.entry("company", "$.fake.Company"),
+                        Map.entry("creditCard", "$.fake.CreditCardNumber"),
+                        Map.entry("ipv4", "$.fake.IPv4"),
+                        Map.entry("userAgent", "$.fake.UserAgent"),
+                        Map.entry("paragraph", "$.fake.Paragraph"),
+                        Map.entry("randomInt", "$.fake.IntRange(1,1000)"),
+                        Map.entry("price", "$.fake.FloatRange(9.99,999.99)"),
+                        Map.entry("boolean", "$.fake.Bool"),
+                        Map.entry("date", "$.fake.DateISO"),
+                        Map.entry("color", "$.fake.HexColor"),
+                        Map.entry("word", "$.fake.Word")
                 ))
                 .build();
 
