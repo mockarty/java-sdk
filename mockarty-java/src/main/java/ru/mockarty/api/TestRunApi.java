@@ -6,8 +6,6 @@ package ru.mockarty.api;
 import com.fasterxml.jackson.databind.JavaType;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
-import ru.mockarty.model.MergedRunList;
-import ru.mockarty.model.MergedRunView;
 import ru.mockarty.model.TestRun;
 
 import java.net.URLEncoder;
@@ -82,6 +80,17 @@ public class TestRunApi {
         return client.get(path.toString(), listType);
     }
 
+    /** Lists test runs for a collection (client-side filter). Parity: Python list_by_collection / Go ListByCollection. */
+    public List<TestRun> listByCollection(String collectionId) throws MockartyException {
+        List<TestRun> out = new java.util.ArrayList<>();
+        for (TestRun r : list()) {
+            if (collectionId != null && collectionId.equals(r.getCollectionId())) {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
     /**
      * Gets a specific test run by ID.
      *
@@ -152,16 +161,18 @@ public class TestRunApi {
         return client.getObjectMapper().convertValue(raw, trType);
     }
 
-    // ── Merged test runs (T-12 / backlog #55) ──────────────────────────
+    // ── Aggregate report (stateless; replaces the removed merge surface) ──
 
     /**
-     * Report formats accepted by {@link #getMergedRunReport(String, String)}.
-     * Allure/JUnit/HTML are intentionally unsupported: merged runs span
-     * heterogeneous sources and have no plan/DAG shape to project into
-     * Allure's test-suite semantics.
+     * Report formats for {@link #aggregateRunsReport(String, List, String)}.
+     * The persistent merge surface (POST/GET/DELETE /test-runs/merges*) was
+     * removed server-side in migration 100; this endpoint recomputes the
+     * report per call with nothing persisted.
      */
-    public static final String MERGED_RUN_REPORT_FORMAT_UNIFIED = "unified";
-    public static final String MERGED_RUN_REPORT_FORMAT_MARKDOWN = "markdown";
+    public static final String AGGREGATE_REPORT_FORMAT_UNIFIED = "unified";
+    public static final String AGGREGATE_REPORT_FORMAT_MARKDOWN = "markdown";
+    public static final String AGGREGATE_REPORT_FORMAT_HTML = "html";
+    public static final String AGGREGATE_REPORT_FORMAT_JUNIT = "junit";
 
     /**
      * Report formats accepted by {@link #getTestRunReport(String, String)}
@@ -195,85 +206,34 @@ public class TestRunApi {
     }
 
     /**
-     * Creates a merged test run aggregating {@code sourceRunIds}.
+     * Builds a release-ready aggregate report over several test runs.
      *
-     * <p>Equivalent to {@code POST /api/v1/test-runs/merges}.
-     * {@code sourceRunIds} must contain at least one UUID; the server enforces
-     * cross-namespace rules (admin/support bypass).</p>
+     * <p>{@code POST /api/v1/test-runs/reports/aggregate}. Stateless — nothing
+     * is persisted, each call recomputes. HTML output is self-contained
+     * (inline CSS + SVG charts), so saving as PDF via the browser print dialog
+     * is the supported PDF path (no server-side headless-Chrome dependency).</p>
      *
-     * @param name         human-readable label for the merge
-     * @param sourceRunIds UUIDs of existing runs to attach
-     * @return the freshly-created parent row with the initial source snapshot
+     * @param name   optional label (server falls back to "Aggregate of N runs")
+     * @param runIds UUIDs of the runs to aggregate; must be non-empty
+     * @param format one of {@code AGGREGATE_REPORT_FORMAT_*};
+     *               {@link #AGGREGATE_REPORT_FORMAT_UNIFIED} on null/empty
+     * @return raw response bytes (JSON / markdown / HTML / JUnit XML)
      */
-    public MergedRunView mergeRuns(String name, List<String> sourceRunIds) throws MockartyException {
-        if (sourceRunIds == null || sourceRunIds.isEmpty()) {
-            throw new IllegalArgumentException("sourceRunIds must not be empty");
+    public byte[] aggregateRunsReport(String name, List<String> runIds, String format)
+            throws MockartyException {
+        if (runIds == null || runIds.isEmpty()) {
+            throw new IllegalArgumentException("runIds must not be empty");
         }
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("name", name == null ? "" : name);
-        body.put("sourceRunIds", sourceRunIds);
-        return client.post("/api/v1/test-runs/merges", body, MergedRunView.class);
-    }
-
-    /** Convenience wrapper with server-default pagination. */
-    public MergedRunList listMergedRuns() throws MockartyException {
-        return listMergedRuns(0, 0);
-    }
-
-    /**
-     * Lists merged runs in the client's namespace, newest first.
-     *
-     * @param limit  page size; &lt;=0 uses the server default (50). Capped at 500.
-     * @param offset page offset; &lt;=0 means no offset.
-     * @return paginated envelope (items + total/limit/offset)
-     */
-    public MergedRunList listMergedRuns(int limit, int offset) throws MockartyException {
-        StringBuilder path = new StringBuilder("/api/v1/test-runs/merges");
-        boolean first = true;
-        if (limit > 0) {
-            path.append(first ? '?' : '&').append("limit=").append(limit);
-            first = false;
-        }
-        if (offset > 0) {
-            path.append(first ? '?' : '&').append("offset=").append(offset);
-        }
-        return client.get(path.toString(), MergedRunList.class);
-    }
-
-    /**
-     * Fetches a merged run with the latest source snapshot.
-     *
-     * @param mergedRunId UUID of the merged parent row
-     */
-    public MergedRunView getMergedRun(String mergedRunId) throws MockartyException {
-        return client.get(
-                "/api/v1/test-runs/merges/" + encode(mergedRunId),
-                MergedRunView.class);
-    }
-
-    /**
-     * Deletes the merge parent. Source runs are untouched; edge rows in
-     * {@code test_run_merges} are dropped by ON DELETE CASCADE.
-     */
-    public void deleteMergedRun(String mergedRunId) throws MockartyException {
-        client.delete("/api/v1/test-runs/merges/" + encode(mergedRunId));
-    }
-
-    /**
-     * Downloads the aggregated merged-run report.
-     *
-     * @param mergedRunId UUID of the merged parent row
-     * @param format      {@link #MERGED_RUN_REPORT_FORMAT_UNIFIED} (default on null/empty)
-     *                    or {@link #MERGED_RUN_REPORT_FORMAT_MARKDOWN}
-     * @return raw response bytes (JSON or markdown text)
-     */
-    public byte[] getMergedRunReport(String mergedRunId, String format) throws MockartyException {
         String effective = (format == null || format.isEmpty())
-                ? MERGED_RUN_REPORT_FORMAT_UNIFIED
+                ? AGGREGATE_REPORT_FORMAT_UNIFIED
                 : format;
-        return client.getBytes(
-                "/api/v1/test-runs/merges/" + encode(mergedRunId)
-                        + "/report?format=" + encode(effective));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("run_ids", runIds);
+        if (name != null && !name.isEmpty()) {
+            body.put("name", name);
+        }
+        return client.postBytes(
+                "/api/v1/test-runs/reports/aggregate?format=" + encode(effective), body);
     }
 
     private static String encode(String value) {
