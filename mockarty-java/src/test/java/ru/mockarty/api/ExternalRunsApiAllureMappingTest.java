@@ -15,8 +15,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -49,7 +49,12 @@ class ExternalRunsApiAllureMappingTest {
 
         assertEquals(ExternalRunRequest.STATUS_PASSED, req.getStatus());
         assertEquals("login", req.getTestDisplayName());
-        assertEquals("ru.example.LoginTest.login", req.getCaseName());
+        // caseName is the human-readable display name; fullName is the
+        // server's deterministic dedup key and must travel on its own field —
+        // sending fullName as caseName only left the run resolving by display
+        // name, so a renamed test forked a second case.
+        assertEquals("login", req.getCaseName());
+        assertEquals("ru.example.LoginTest.login", req.getFullName());
         assertEquals("u-1", req.getExternalId());
         assertEquals(250L, req.getDurationMs());
         assertTrue(req.isAutoCreate(), "no AS_ID label → autoCreate must be true");
@@ -79,8 +84,8 @@ class ExternalRunsApiAllureMappingTest {
     }
 
     @Test
-    @DisplayName("AS_ID label pins caseId and clears autoCreate")
-    void asIdLabelPinsCaseId() throws Exception {
+    @DisplayName("AS_ID label pins testCaseId, never caseId, and keeps autoCreate")
+    void asIdLabelPinsTestCaseId() throws Exception {
         String json = "{"
                 + "\"uuid\":\"u-3\","
                 + "\"name\":\"login\","
@@ -89,8 +94,48 @@ class ExternalRunsApiAllureMappingTest {
                 + "}";
         JsonNode root = mapper.readTree(json);
         ExternalRunRequest req = ExternalRunsApi.allureToExternalRun(root, tmp, mapper);
-        assertEquals("CASE-LOGIN-1", req.getCaseId());
-        assertFalse(req.isAutoCreate(), "AS_ID label must disable autoCreate");
+        // @AllureId arrives as the AS_ID label. It is the AUTHOR-PINNED
+        // identity, not Mockarty's internal case UUID: putting it in caseId
+        // made the server look up a non-existent UUID, and the autoCreate(false)
+        // that came with it meant the whole result was dropped.
+        assertEquals("CASE-LOGIN-1", req.getTestCaseId());
+        assertNull(req.getCaseId(), "AS_ID must never be smuggled in as the internal case UUID");
+        assertTrue(req.isAutoCreate(), "a pinned id must not disable autoCreate");
+    }
+
+    @Test
+    @DisplayName("Allure testCaseId field pins testCaseId; ALLURE_ID label is accepted too")
+    void testCaseIdFieldAndAlternateLabels() throws Exception {
+        JsonNode explicit = mapper.readTree("{\"uuid\":\"u-3a\",\"name\":\"x\","
+                + "\"status\":\"passed\",\"testCaseId\":\"TC-7\"}");
+        assertEquals("TC-7",
+                ExternalRunsApi.allureToExternalRun(explicit, tmp, mapper).getTestCaseId());
+
+        JsonNode viaLabel = mapper.readTree("{\"uuid\":\"u-3b\",\"name\":\"x\","
+                + "\"status\":\"passed\","
+                + "\"labels\":[{\"name\":\"ALLURE_ID\",\"value\":\"TC-8\"}]}");
+        assertEquals("TC-8",
+                ExternalRunsApi.allureToExternalRun(viaLabel, tmp, mapper).getTestCaseId());
+    }
+
+    @Test
+    @DisplayName("A step with no status is broken, not passed")
+    void stepWithoutStatusIsBroken() throws Exception {
+        String json = "{\"uuid\":\"u-7\",\"name\":\"x\",\"status\":\"passed\","
+                + "\"steps\":[{\"name\":\"unobserved\"}]}";
+        JsonNode root = mapper.readTree(json);
+        ExternalRunRequest req = ExternalRunsApi.allureToExternalRun(root, tmp, mapper);
+        // Defaulting an unrecorded step to "passed" invents a green result for
+        // work that was never observed.
+        assertEquals(ExternalRunRequest.STATUS_BROKEN, req.getSteps().get(0).getStatus());
+    }
+
+    @Test
+    @DisplayName("Missing run status is broken, not passed")
+    void missingStatusIsBroken() throws Exception {
+        JsonNode root = mapper.readTree("{\"uuid\":\"u-8\",\"name\":\"x\"}");
+        ExternalRunRequest req = ExternalRunsApi.allureToExternalRun(root, tmp, mapper);
+        assertEquals(ExternalRunRequest.STATUS_BROKEN, req.getStatus());
     }
 
     @Test

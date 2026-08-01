@@ -7,12 +7,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mockarty.MockartyClient;
+import ru.mockarty.exception.AllureUploadEmptyException;
+import ru.mockarty.exception.AllureUploadPartialException;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.ExternalAttachment;
 import ru.mockarty.model.ExternalRunRequest;
 import ru.mockarty.model.ExternalRunResponse;
 import ru.mockarty.model.ExternalStep;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -138,13 +141,16 @@ public class ExternalRunsApi {
      * <ul>
      *   <li>{@code uuid} → externalId.</li>
      *   <li>{@code name} → testDisplayName.</li>
-     *   <li>{@code fullName} → caseName (with autoCreate=true so missing
-     *       cases get materialised).</li>
+     *   <li>{@code name} → caseName, {@code fullName} → fullName (the
+     *       server's deterministic dedup key), with autoCreate=true so missing
+     *       cases get materialised.</li>
      *   <li>{@code status} → status (mapped lowercase wire form).</li>
      *   <li>{@code statusDetails.message + trace} → error.</li>
      *   <li>{@code stop - start} → durationMs.</li>
-     *   <li>{@code labels[name=AS_ID].value} → caseId when present
-     *       (matches allure-pytest / allure-junit5 conventions).</li>
+     *   <li>{@code testCaseId}, or the {@code AS_ID} / {@code ALLURE_ID}
+     *       label an Allure TestOps adapter writes for {@code @AllureId},
+     *       → testCaseId (the author-pinned identity — NOT caseId, which is
+     *       Mockarty's internal case UUID).</li>
      *   <li>{@code steps[]} → flat ExternalStep list (nested steps are
      *       hoisted with name prefixed by the parent's name).</li>
      *   <li>Attachment metadata is shipped as {@link ExternalAttachment}
@@ -152,10 +158,18 @@ public class ExternalRunsApi {
      *       directory; missing files are skipped fail-soft.</li>
      * </ul>
      *
-     * <p>Returns the list of {@link ExternalRunResponse} for each
-     * successfully uploaded file. Files that fail to upload (network,
-     * parse error) are logged on stderr and skipped — never abort the
-     * batch on the first error.</p>
+     * <p>Upload is best-effort per file so a single malformed
+     * {@code *-result.json} does not kill a CI upload — but a partial upload
+     * is NOT reported as a success: when any file is skipped the method throws
+     * {@link AllureUploadPartialException}, which carries both the skipped
+     * entries and the responses that did land. A directory holding no results
+     * at all throws {@link AllureUploadEmptyException}, and a missing directory
+     * throws {@link FileNotFoundException} — a CI step that silently uploads
+     * nothing is a green pipeline hiding a test run that produced nothing.</p>
+     *
+     * @throws FileNotFoundException        {@code resultsDir} is null or not a directory
+     * @throws AllureUploadEmptyException   the directory holds no {@code *-result.json}
+     * @throws AllureUploadPartialException at least one result was not reported
      */
     public List<ExternalRunResponse> uploadAllureDir(String namespace, Path resultsDir)
             throws IOException {
@@ -163,24 +177,42 @@ public class ExternalRunsApi {
             throw new IllegalArgumentException("namespace is required");
         }
         if (resultsDir == null || !Files.isDirectory(resultsDir)) {
-            return Collections.emptyList();
+            throw new FileNotFoundException(
+                    "mockarty: allure-results directory not found: " + resultsDir);
         }
         ObjectMapper mapper = new ObjectMapper();
         List<ExternalRunResponse> out = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+        List<Path> files = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(
                 resultsDir, "*-result.json")) {
             for (Path file : stream) {
-                try {
-                    JsonNode root = mapper.readTree(file.toFile());
-                    ExternalRunRequest req = allureToExternalRun(root, resultsDir, mapper);
-                    out.add(report(namespace, req));
-                } catch (Throwable t) {
-                    // Fail-soft per-file. The catalogue continues so a
-                    // single bad result.json doesn't kill the CI upload.
-                    System.err.println("[mockarty-junit5] skipped Allure file "
-                            + file + ": " + t.getMessage());
-                }
+                files.add(file);
             }
+        }
+        // DirectoryStream order is filesystem-dependent; sort so the upload
+        // order matches the Go/Python implementations.
+        Collections.sort(files);
+        for (Path file : files) {
+            try {
+                JsonNode root = mapper.readTree(file.toFile());
+                ExternalRunRequest req = allureToExternalRun(root, resultsDir, mapper);
+                out.add(report(namespace, req));
+            } catch (Throwable t) {
+                // Fail-soft per-file: the loop continues so one bad
+                // result.json doesn't kill the CI upload. Every skip is
+                // recorded and surfaced below — never silently dropped.
+                skipped.add(file.getFileName() + ": " + t.getMessage());
+                System.err.println("[mockarty] skipped Allure file "
+                        + file + ": " + t.getMessage());
+            }
+        }
+        if (!skipped.isEmpty()) {
+            throw new AllureUploadPartialException(out, skipped);
+        }
+        if (files.isEmpty()) {
+            throw new AllureUploadEmptyException("mockarty: no *-result.json in "
+                    + resultsDir + " — nothing was reported to Mockarty");
         }
         return out;
     }
@@ -203,11 +235,22 @@ public class ExternalRunsApi {
         req.frameworkVersion("2");
         req.externalId(uuid);
         req.testDisplayName(name);
-        req.caseName(fullName);
+        req.caseName(name.isEmpty() ? fullName : name);
+        // fullName is the server's deterministic dedup key (external_full_name).
+        // Without it every re-run of the same suite resolved by display name
+        // only, so a renamed or duplicate-named test forked a second case.
+        if (!fullName.isEmpty()) {
+            req.fullName(fullName);
+        }
         req.autoCreate(true);
 
-        // Severity-as-id: a label {name: "AS_ID", value: "<caseId>"} pins
-        // the TCM case id. Mirrors allure-pytest's @id mapping.
+        // Author-pinned identity. Allure's own field is `testCaseId`; Allure
+        // TestOps adapters express `@AllureId(123)` as the `AS_ID` label
+        // instead. Both must land on testCaseId — NOT on caseId, which is
+        // Mockarty's internal case UUID: sending "123" there made the server
+        // look up a non-existent UUID and fall through, and pinning
+        // autoCreate(false) alongside it meant the result was dropped outright.
+        String pinnedId = root.path("testCaseId").asText("");
         JsonNode labels = root.path("labels");
         if (labels.isArray()) {
             Map<String, String> firstByName = new HashMap<>();
@@ -216,14 +259,18 @@ public class ExternalRunsApi {
                 JsonNode l = it.next();
                 String lname = l.path("name").asText("");
                 String lvalue = l.path("value").asText("");
-                if ("AS_ID".equals(lname) && !lvalue.isEmpty()) {
-                    req.caseId(lvalue);
-                    req.autoCreate(false);
+                String lkey = lname.toLowerCase(java.util.Locale.ROOT);
+                if (("as_id".equals(lkey) || "allure_id".equals(lkey) || "allureid".equals(lkey))
+                        && !lvalue.isEmpty()) {
+                    pinnedId = lvalue;
                 }
                 if (!firstByName.containsKey(lname)) {
                     firstByName.put(lname, lvalue);
                 }
             }
+        }
+        if (!pinnedId.isEmpty()) {
+            req.testCaseId(pinnedId);
         }
 
         long start = root.path("start").asLong(0);
@@ -297,8 +344,27 @@ public class ExternalRunsApi {
         return req;
     }
 
+    /**
+     * Step statuses have a NARROWER server vocabulary than run statuses
+     * (passed / failed / skipped / broken / error) — sending "cancelled" there
+     * fails validation and rejects the whole upload. Anything unrecognised,
+     * including an absent status, maps to broken: a step we never observed is
+     * not a pass.
+     */
+    private static String mapStepStatus(String allure) {
+        if (allure == null) return ExternalRunRequest.STATUS_BROKEN;
+        switch (allure) {
+            case "passed":  return ExternalRunRequest.STATUS_PASSED;
+            case "failed":  return ExternalRunRequest.STATUS_FAILED;
+            case "skipped": return ExternalRunRequest.STATUS_SKIPPED;
+            default:        return ExternalRunRequest.STATUS_BROKEN;
+        }
+    }
+
     private static String mapStatus(String allure) {
-        if (allure == null) return ExternalRunRequest.STATUS_PASSED;
+        // No status at all is NOT a pass — Allure's own "unknown" and an absent
+        // field both mean "we never observed an outcome", which maps to broken.
+        if (allure == null || allure.isEmpty()) return ExternalRunRequest.STATUS_BROKEN;
         switch (allure) {
             case "passed":    return ExternalRunRequest.STATUS_PASSED;
             case "failed":    return ExternalRunRequest.STATUS_FAILED;
@@ -320,9 +386,11 @@ public class ExternalRunsApi {
             JsonNode s = it.next();
             String name = s.path("name").asText("");
             String full = prefix.isEmpty() ? name : prefix + " / " + name;
+            // A step with no status has NOT been observed to pass. Defaulting
+            // it to "passed" invents a green result for work we never saw.
             ExternalStep es = new ExternalStep()
                     .name(full)
-                    .status(s.path("status").asText("passed"));
+                    .status(mapStepStatus(s.path("status").asText("")));
             long st = s.path("start").asLong(0);
             long sp = s.path("stop").asLong(0);
             if (sp > st && st > 0) {
