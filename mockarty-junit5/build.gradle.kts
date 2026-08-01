@@ -40,4 +40,7 @@ tasks.test {
     // show up as phantom test cases. They are still reachable by explicit
     // selection from DiscoveryManifestAssemblerTest / MockartyDiscoveryListenerTest.
     exclude("**/DiscoveryFixtures*")
+    // Same reasoning for the Allure test-plan fixtures: real @Test methods
+    // that exist only so MockartyTestPlanFilterTest can selectClass() them.
+    exclude("**/TestPlanFixtures*")
 }
