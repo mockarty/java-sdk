@@ -24,4 +24,7 @@ include(
     "mockarty-testng",
     "mockarty-cucumber",
     "mockarty-protocols",
+    // Examples are built like any other module so they cannot silently rot —
+    // they sat outside this list and accumulated 48 compile errors unnoticed.
+    "examples",
 )
