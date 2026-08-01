@@ -12,16 +12,26 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Response returned when creating or updating a mock.
  *
- * <p>Wire shape (admin node, {@code POST /api/v1/mocks}):
+ * <p>Wire shape (admin node, {@code POST /api/v1/mocks}). As of 2026-06-21
+ * (G2 envelope unification) the server emits the mock's fields at the TOP
+ * LEVEL (matching {@code GET /mocks/:id}) and keeps the {@code "mock"} wrapper
+ * as a deprecated mirror for one release cycle:
  * <pre>{@code
  * {
  *   "id":      "<mock-id>",
- *   "mock":    {...full mock...},
+ *   "namespace": "...", ...        // flat mock fields (new)
+ *   "mock":    {...full mock...},  // deprecated wrapper (kept this release)
  *   "isNew":   <true|false>,   // true when an existing mock with this id was replaced
  *   "success": true,
  *   "message": "Mock created successfully"
  * }
  * }</pre>
+ *
+ * <p>This SDK binds the {@code "mock"} wrapper, which the server still emits,
+ * so it decodes correctly today. (Forward follow-up: when the wrapper is
+ * eventually removed, add an {@code @JsonAnySetter} that reconstructs
+ * {@link #getMock()} from the top-level fields — to be done with a Java test
+ * run.)</p>
  *
  * <p>The server's {@code isNew} field is semantically <em>"was overwrite"</em>
  * (it's true when an existing record was replaced). This SDK exposes a

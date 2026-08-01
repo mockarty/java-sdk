@@ -7,6 +7,7 @@ import ru.mockarty.model.AssertAction;
 import ru.mockarty.model.Callback;
 import ru.mockarty.model.Condition;
 import ru.mockarty.model.ContentResponse;
+import ru.mockarty.model.ResponseScript;
 import ru.mockarty.model.Extract;
 import ru.mockarty.model.GrpcRequestContext;
 import ru.mockarty.model.GraphQLRequestContext;
@@ -338,6 +339,24 @@ public class MockBuilder {
      */
     public MockBuilder respondWithError(int statusCode, String error) {
         mock.response(new ContentResponse().statusCode(statusCode).error(error));
+        return this;
+    }
+
+    /**
+     * Sets a JavaScript scripted response: the code receives {@code request} and
+     * fills {@code response} when the mock is hit. See the Scripted Responses guide.
+     */
+    public MockBuilder respondWithScript(String code) {
+        mock.response(new ContentResponse().script(new ResponseScript().code(code)));
+        return this;
+    }
+
+    /**
+     * Sets a scripted response that may make outbound calls (mk.http.send). Off by
+     * default; enable only when the response must reach an external system.
+     */
+    public MockBuilder respondWithScript(String code, boolean allowNet) {
+        mock.response(new ContentResponse().script(new ResponseScript().code(code).allowNet(allowNet)));
         return this;
     }
 

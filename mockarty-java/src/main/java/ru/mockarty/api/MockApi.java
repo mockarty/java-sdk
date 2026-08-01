@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.Mock;
+import ru.mockarty.model.MockVersion;
 import ru.mockarty.model.Page;
 import ru.mockarty.model.SaveMockResponse;
 
@@ -35,6 +36,46 @@ public class MockApi {
      */
     public SaveMockResponse create(Mock mock) throws MockartyException {
         return client.post("/api/v1/mocks", mock, SaveMockResponse.class);
+    }
+
+    /**
+     * Creates a mock, resolving a duplicate-entity conflict via {@code intent}.
+     *
+     * <p>When a similar mock already exists the server returns HTTP 409
+     * {@code duplicate_entity}. Pass {@code "create_new"} to keep both (e.g.
+     * several condition-differentiated mocks on one route) or {@code "overwrite"}
+     * to replace the existing one in place. A null/blank intent behaves like
+     * {@link #create(Mock)}.
+     *
+     * @param mock   the mock to create
+     * @param intent {@code "create_new"} or {@code "overwrite"} (or null)
+     * @return the save response
+     */
+    public SaveMockResponse create(Mock mock, String intent) throws MockartyException {
+        String path = "/api/v1/mocks";
+        if (intent != null && !intent.isEmpty()) {
+            path += "?intent=" + encode(intent);
+        }
+        return client.post(path, mock, SaveMockResponse.class);
+    }
+
+    /**
+     * Creates or overwrites the mock with the given ID — parity with the Go SDK
+     * ({@code MockAPI.Update(id, mock)}) and Python ({@code mocks.update(id, mock)}),
+     * which the Java SDK was missing (3-language parity gap found via cross-SDK
+     * audit). Mockarty updates a mock by POSTing it with the same ID, so this
+     * stamps the ID onto the payload and saves.
+     *
+     * @param id   the mock ID to update
+     * @param mock the new mock state
+     * @return the saved mock
+     */
+    public Mock update(String id, Mock mock) throws MockartyException {
+        if (id != null && !id.isEmpty()) {
+            mock.id(id);
+        }
+        SaveMockResponse resp = client.post("/api/v1/mocks", mock, SaveMockResponse.class);
+        return resp.getMock();
     }
 
     /**
@@ -176,32 +217,92 @@ public class MockApi {
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> logs(String id) throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, Map.class);
-        return client.get("/api/v1/mocks/" + encode(id) + "/logs", listType);
+        // Server returns model.LogsMock -> {"id", "requests":[...]} (an
+        // object), NOT a bare array. Deserializing as a List threw
+        // "Cannot deserialize value of type List from Object value" on every
+        // call; read the envelope and pull the rows out of "requests".
+        JavaType mapType = client.getObjectMapper().getTypeFactory()
+                .constructMapType(Map.class, String.class, Object.class);
+        Map<String, Object> envelope =
+                client.get("/api/v1/mocks/" + encode(id) + "/logs", mapType);
+        if (envelope != null && envelope.get("requests") instanceof List) {
+            return (List<Map<String, Object>>) envelope.get("requests");
+        }
+        return List.of();
     }
 
     /**
-     * Lists all versions of a mock.
+     * Lists a mock's version history, newest first.
+     *
+     * <p>Wire shape: {@code {mock_id, versions: [...], count}}. The rows are
+     * revision records, not mocks — the mock body of a revision hangs off
+     * {@link MockVersion#getMock()}. (Decoding the envelope as a bare
+     * {@code List<Mock>} yielded an empty list for every mock that had a
+     * history.)</p>
      *
      * @param id the mock ID
-     * @return list of mock versions
+     * @return the revision rows
      */
-    public List<Mock> listVersions(String id) throws MockartyException {
+    public List<MockVersion> listVersions(String id) throws MockartyException {
+        JavaType envelopeType = client.getObjectMapper().getTypeFactory()
+                .constructMapType(Map.class,
+                        client.getObjectMapper().getTypeFactory().constructType(String.class),
+                        client.getObjectMapper().getTypeFactory().constructType(Object.class));
+        Map<String, Object> envelope =
+                client.get("/api/v1/mocks/" + encode(id) + "/versions", envelopeType);
+        Object rows = envelope == null ? null : envelope.get("versions");
+        if (!(rows instanceof List)) {
+            return List.of();
+        }
         JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, Mock.class);
-        return client.get("/api/v1/mocks/" + encode(id) + "/versions", listType);
+                .constructCollectionType(List.class, MockVersion.class);
+        return client.getObjectMapper().convertValue(rows, listType);
     }
 
     /**
-     * Gets a specific version of a mock.
+     * Gets a specific revision of a mock.
+     *
+     * <p>Wire shape: {@code {version: {...}, previous_version: {...}}} — the
+     * envelope is unwrapped here. Use
+     * {@link #getVersionWithPrevious(String, String)} when the preceding
+     * revision is needed for a diff.</p>
      *
      * @param id      the mock ID
-     * @param version the version identifier
-     * @return the mock at that version
+     * @param version the revision number
+     * @return the revision row
      */
-    public Mock getVersion(String id, String version) throws MockartyException {
-        return client.get("/api/v1/mocks/" + encode(id) + "/versions/" + encode(version), Mock.class);
+    public MockVersion getVersion(String id, String version) throws MockartyException {
+        return getVersionWithPrevious(id, version)[0];
+    }
+
+    /**
+     * Gets a revision together with the one before it.
+     *
+     * @return a two-element array: {@code [current, previous]}; {@code previous}
+     *         is {@code null} for the first revision
+     * @throws MockartyException when the revision does not exist — returning an
+     *         empty row would read as "revision 0 exists"
+     */
+    public MockVersion[] getVersionWithPrevious(String id, String version)
+            throws MockartyException {
+        JavaType envelopeType = client.getObjectMapper().getTypeFactory()
+                .constructMapType(Map.class,
+                        client.getObjectMapper().getTypeFactory().constructType(String.class),
+                        client.getObjectMapper().getTypeFactory().constructType(Object.class));
+        Map<String, Object> envelope = client.get(
+                "/api/v1/mocks/" + encode(id) + "/versions/" + encode(version), envelopeType);
+        Object current = envelope == null ? null : envelope.get("version");
+        if (current == null) {
+            throw new MockartyException(
+                    "mockarty: mock " + id + " has no version " + version);
+        }
+        Object previous = envelope.get("previous_version");
+        return new MockVersion[] {
+                client.getObjectMapper().convertValue(current, MockVersion.class),
+                previous == null
+                        ? null
+                        : client.getObjectMapper().convertValue(previous, MockVersion.class),
+        };
     }
 
     /**
@@ -221,7 +322,7 @@ public class MockApi {
      * @param patch the fields to update
      * @return the updated mock
      */
-    public Mock patchMock(String id, Map<String, Object> patch) throws MockartyException {
+    public Mock patch(String id, Map<String, Object> patch) throws MockartyException {
         return client.patch("/api/v1/mocks/" + encode(id), patch, Mock.class);
     }
 

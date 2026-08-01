@@ -48,6 +48,9 @@ public class ContentResponse {
     @JsonProperty("soapFault")
     private Map<String, Object> soapFault;
 
+    @JsonProperty("script")
+    private ResponseScript script;
+
     @JsonProperty("mcpIsError")
     private Boolean mcpIsError;
 
@@ -116,6 +119,21 @@ public class ContentResponse {
         return this;
     }
 
+    /**
+     * Sets a JavaScript scripted response: the code receives {@code request} and
+     * fills {@code response} when the mock is hit. See the Scripted Responses guide.
+     */
+    public ContentResponse script(ResponseScript script) {
+        this.script = script;
+        return this;
+    }
+
+    /** Convenience: a scripted response from JavaScript source. */
+    public ContentResponse script(String code) {
+        this.script = new ResponseScript().code(code);
+        return this;
+    }
+
     // Getters
 
     public Map<String, List<String>> getHeaders() {
@@ -164,6 +182,10 @@ public class ContentResponse {
 
     public Boolean getMcpIsError() {
         return mcpIsError;
+    }
+
+    public ResponseScript getScript() {
+        return script;
     }
 
     @Override
