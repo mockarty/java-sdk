@@ -20,7 +20,7 @@ import java.lang.annotation.Target;
  *       the test runs. Mutually exclusive with a non-empty {@code value()}.</li>
  * </ul>
  *
- * <p><b>Phase 2.6 Mockarty extensions</b> (owner directive 2026-05-18 —
+ * <p><b>Mockarty extensions</b> (owner directive 2026-05-18 —
  * see {@code docs/research/SDK_MOCKARTY_EXTENSIONS_AUDIT.md}). Allure
  * adapters never set any of these; they ride the
  * {@code ExternalRunRequest} fields the server gained in the same
@@ -79,7 +79,7 @@ public @interface TestCase {
     boolean autoCreate() default false;
 
     /**
-     * Markdown description for the TCM case row. Phase 2.6 Mockarty
+     * Markdown description for the TCM case row. Mockarty
      * extension — Allure adapters never set this. Empty string = use
      * the boilerplate fallback on auto-create.
      */

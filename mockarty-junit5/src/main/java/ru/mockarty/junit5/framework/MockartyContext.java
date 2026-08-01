@@ -87,7 +87,7 @@ public final class MockartyContext {
 
     /** One frame on the case stack — one {@link TestCase}-annotated test.
      *
-     * <p>Phase 2.6 fields (description / expectedResult / customFields /
+     * <p>Mockarty extension fields (description / expectedResult / customFields /
      * claimOwnership) carry the Mockarty-extended @TestCase metadata to
      * the upload bridge so the server's ExternalRunRequest can apply them
      * to the underlying TCM row. Allure adapters never set any of these.</p>

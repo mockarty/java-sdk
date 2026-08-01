@@ -169,9 +169,23 @@ public class MockartyExtension implements
 
         AllureLifecycle lc = AllureLifecycle.get();
         AllureModel.TestResult tr = lc.startTest(displayName, fullName);
-        // Stable historyId: fullName + displayName-derived parameter hash so
-        // @ParameterizedTest iterations collapse onto the same row across
-        // retries but stay distinct from sibling iterations.
+        // Stable historyId: fullName + displayName-derived parameter signature so
+        // @ParameterizedTest iterations stay distinct from sibling iterations yet
+        // stable across retries.
+        //
+        // Cross-language parity note: JUnit 5 does NOT expose the
+        // @ParameterizedTest arguments to a generic extension as named
+        // parameters (only the rendered displayName is available) — exactly the
+        // constraint vanilla allure-junit5 hits, so we deliberately derive the
+        // signature from displayName to stay byte-identical to an allure-junit5
+        // run (same-framework aggregation). The fluent Tester path
+        // (AllureMirror.recomputeHistoryId) DOES have explicit name=value
+        // parameters and there derives the signature from sorted-by-name VALUES
+        // to match the Go/Python SDK writers. testCaseId is md5(fullName) on all
+        // paths, so a parameterized case still aggregates cross-language even
+        // though per-iteration historyId can't byte-match a py/go iteration
+        // (frameworks represent parameters differently — an inherent limit, not
+        // a defect).
         String paramSig = displayName.equals(testMethod.getName())
                 ? "" : displayName;
         tr.historyId = AllureLifecycle.stableHistoryId(fullName, paramSig);
@@ -225,7 +239,7 @@ public class MockartyExtension implements
             frame.caseName = emptyToNull(tc.name());
             frame.planId = emptyToNull(tc.plan());
             frame.autoCreate = tc.autoCreate();
-            // Phase 2.6 Mockarty extensions — see SDK_MOCKARTY_
+            // Mockarty extensions — see SDK_MOCKARTY_
             // EXTENSIONS_AUDIT.md. These ride the matching server-
             // side ExternalRunRequest fields landed in 1067beba.
             frame.description = emptyToNull(tc.description());
@@ -245,9 +259,9 @@ public class MockartyExtension implements
                 if (parts.length == 2) cf.put("value", "");
                 frame.customFields.add(cf);
             }
-            // Phase 2.6: emit annotation values as `mockarty:case:*`
+            // Emit annotation values as `mockarty:case:*`
             // labels so the CLI harvester (which mines Allure-result
-            // labels for the Phase 2.6 fields) carries them through
+            // labels for the Mockarty extension fields) carries them through
             // to /tcm/external-runs. Without this Java tests can set
             // @TestCase(description=...) but the server never sees
             // those values — caught by SDK + CLI live smoke 2026-05-18.

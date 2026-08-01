@@ -150,6 +150,37 @@ class AllureParityTest {
     }
 
     @Test
+    @DisplayName("historyId byte-parity with Python allure_commons: parameter values sorted by name, no separator")
+    void historyIdWithParametersByteParity() {
+        // Full name + parameters ("email", "not-an-email") → md5 byte-identical
+        // to Python allure_commons.utils.get_history_id.
+        String fullName = "ru.example.LoginTest.shouldFailOnInvalidEmail";
+        String paramSig = "not-an-email"; // one param, value only
+        String got = AllureLifecycle.stableHistoryId(fullName, paramSig);
+
+        // Go SDK produces the same value:
+        //   stableHistoryId("ru.example.LoginTest.shouldFailOnInvalidEmail", "not-an-email")
+        assertEquals("0e67d278f9a0560373d8052d458f31db", got,
+                "historyId must match Go + Python byte-for-byte");
+
+        // Multi-param: values sorted by name, no separator.
+        String multiParams = "Apple" + "42";
+        String multiGot = AllureLifecycle.stableHistoryId(
+                "com.example.ParameterizedTest.testMethod", multiParams);
+        assertEquals("7a0cb9d0e575a1be4cb8383893c977d3", multiGot,
+                "multi-param historyId must match Go + Python");
+    }
+
+    @Test
+    @DisplayName("historyId parameter-independent without parameters")
+    void historyIdNoParametersMatchesPython() {
+        String fullName = "com.example.SimpleTest.plainMethod";
+        String got = AllureLifecycle.stableHistoryId(fullName, null);
+        assertEquals("2820911e4c5a8cd4cb395ff44be16173", got,
+                "no-param historyId must match Go + Python");
+    }
+
+    @Test
     @DisplayName("Canonical schema: timestamps survive as longs (not ISO strings)")
     void timestampsAsLongs() throws IOException {
         TestResult t = new TestResult();

@@ -321,6 +321,31 @@ public final class AllureLifecycle {
         }
     }
 
+    /**
+     * Recomputation of {@code historyId} from the current fullName + parameters.
+     *
+     * <p>Call this AFTER all labels, links, and parameters have been pushed onto
+     * the test result (e.g. at the end of {@code applyToLifecycle}).  The
+     * parameter values are sorted by name and concatenated with no separator,
+     * byte-identical to {@code allure_commons.utils.get_history_id} in Python
+     * and the Go {@code stableHistoryId}.</p>
+     */
+    public void recomputeHistoryId() {
+        TestResult tr = CTX.get().test;
+        if (tr == null) {
+            return;
+        }
+        String fullName = tr.fullName;
+        // Build param signature: sorted-by-name values, no separator.
+        StringBuilder sb = new StringBuilder();
+        if (!tr.parameters.isEmpty()) {
+            tr.parameters.stream()
+                    .sorted(java.util.Comparator.comparing(p -> p.name))
+                    .forEachOrdered(p -> sb.append(p.value));
+        }
+        tr.historyId = stableHistoryId(fullName, sb.toString());
+    }
+
     // ── Container lifecycle ─────────────────────────────────────────────
 
     /** Begin a Container scope; returns the container UUID for cross-test wiring. */
@@ -417,11 +442,14 @@ public final class AllureLifecycle {
         return sd;
     }
 
-    /** Stable hash for the historyId. Same {@code fullName} + same {@code paramSig}
-     * always produce the same id — enables Allure to collapse retries. */
+    /** Stable hash for the historyId. Same {@code fullName} + same parameter
+     * values (sorted by name, values only, NO separator) always produce the
+     * same id — byte-identical to Python's {@code allure_commons.utils.get_history_id}
+     * and Go's {@code computeHistoryID}.  Enables Allure to collapse retries
+     * across mixed-language reports. */
     public static String stableHistoryId(String fullName, String paramSig) {
         String src = (fullName == null ? "" : fullName)
-                + "|" + (paramSig == null ? "" : paramSig);
+                + (paramSig == null ? "" : paramSig);
         return md5Hex(src);
     }
 
