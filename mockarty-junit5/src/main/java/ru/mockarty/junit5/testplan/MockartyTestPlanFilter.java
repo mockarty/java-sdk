@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,6 +65,15 @@ public class MockartyTestPlanFilter implements PostDiscoveryFilter {
     private static final Set<String> ID_ANNOTATIONS = new LinkedHashSet<>(
             java.util.Arrays.asList("AllureId", "AllureID"));
 
+    /**
+     * Path of the plan the last filter instance enforced, or null when none
+     * was configured. JUnit gives a filter no "discovery finished" callback,
+     * so this is how {@link MockartyTestPlanListener} learns that a run which
+     * discovered zero tests was narrowed by a plan rather than genuinely
+     * empty. One launcher per JVM run makes a static safe here.
+     */
+    private static final AtomicReference<String> ACTIVE_PLAN_PATH = new AtomicReference<>();
+
     private final AllureTestPlan plan;
     private final RuntimeException loadFailure;
     private volatile boolean emptyPlanReported;
@@ -103,6 +113,7 @@ public class MockartyTestPlanFilter implements PostDiscoveryFilter {
         if (plan == null) {
             return FilterResult.included("no Allure test plan configured");
         }
+        ACTIVE_PLAN_PATH.set(plan.getPath());
         if (plan.isEmpty()) {
             reportEmptyPlanOnce();
             throw new MockartyTestPlanException(
@@ -239,5 +250,15 @@ public class MockartyTestPlanFilter implements PostDiscoveryFilter {
     /** @return the plan being enforced, or null when filtering is inert. */
     public AllureTestPlan getPlan() {
         return plan;
+    }
+
+    /** @return the plan path a filter enforced during discovery, or null. */
+    static String activePlanPath() {
+        return ACTIVE_PLAN_PATH.get();
+    }
+
+    /** Clears the cross-instance discovery marker. Test-only. */
+    static void resetActivePlanPath() {
+        ACTIVE_PLAN_PATH.set(null);
     }
 }

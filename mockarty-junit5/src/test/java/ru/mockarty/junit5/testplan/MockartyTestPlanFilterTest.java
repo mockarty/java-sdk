@@ -176,6 +176,49 @@ class MockartyTestPlanFilterTest {
     }
 
     @Test
+    @DisplayName("a plan that matched nothing is announced by the listener")
+    void nothingMatchedIsAnnounced() {
+        MockartyTestPlanFilter.resetActivePlanPath();
+        AllureTestPlan p = plan("{\"version\":\"1.0\",\"tests\":[{\"id\":\"nope\"}]}");
+        java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream original = System.err;
+        try {
+            System.setErr(new java.io.PrintStream(captured, true));
+            assertTrue(run(new MockartyTestPlanFilter(p)).isEmpty());
+            new MockartyTestPlanListener().testPlanExecutionStarted(
+                    org.junit.platform.launcher.core.LauncherFactory.create().discover(
+                            LauncherDiscoveryRequestBuilder.request()
+                                    .selectors(selectClass(TestPlanFixtures.SelectorOnly.class))
+                                    .filters(new MockartyTestPlanFilter(p))
+                                    .build()));
+        } finally {
+            System.setErr(original);
+        }
+        String out = captured.toString();
+        assertTrue(out.contains("matched NONE"), out);
+        assertTrue(out.contains("NOT a pass"), out);
+    }
+
+    @Test
+    @DisplayName("the listener stays silent when no plan narrowed the run")
+    void listenerSilentWithoutAPlan() {
+        MockartyTestPlanFilter.resetActivePlanPath();
+        java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream original = System.err;
+        try {
+            System.setErr(new java.io.PrintStream(captured, true));
+            new MockartyTestPlanListener().testPlanExecutionStarted(
+                    org.junit.platform.launcher.core.LauncherFactory.create().discover(
+                            LauncherDiscoveryRequestBuilder.request()
+                                    .selectors(selectClass(TestPlanFixtures.SelectorOnly.class))
+                                    .build()));
+        } finally {
+            System.setErr(original);
+        }
+        assertEquals("", captured.toString());
+    }
+
+    @Test
     @DisplayName("a plan carrying no path is inert")
     void nullPlanIsInert() {
         MockartyTestPlanFilter filter = new MockartyTestPlanFilter((AllureTestPlan) null);

@@ -1,1 +1,2 @@
 ru.mockarty.junit5.discovery.MockartyDiscoveryListener
+ru.mockarty.junit5.testplan.MockartyTestPlanListener
