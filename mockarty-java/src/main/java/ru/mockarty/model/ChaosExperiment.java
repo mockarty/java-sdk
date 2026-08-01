@@ -34,6 +34,10 @@ public class ChaosExperiment {
     @JsonProperty("presetName")
     private String presetName;
 
+    /** Binds the experiment to a cluster; without it Run fails. */
+    @JsonProperty("infraProfileId")
+    private String infraProfileId;
+
     @JsonProperty("faults")
     private List<FaultConfig> faults;
 
@@ -185,6 +189,14 @@ public class ChaosExperiment {
 
     public String getPresetName() {
         return presetName;
+    }
+
+    public String getInfraProfileId() {
+        return infraProfileId;
+    }
+
+    public void setInfraProfileId(String infraProfileId) {
+        this.infraProfileId = infraProfileId;
     }
 
     public List<FaultConfig> getFaults() {

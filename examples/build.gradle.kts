@@ -28,3 +28,13 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.1")
     implementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
 }
+
+// The examples are COMPILED, never executed. They are documentation that has to
+// keep matching the API — including this module in the build is what makes a
+// drifting example fail at the moment it drifts instead of in a user's editor
+// six months later. Running them is a different thing entirely: several are
+// JUnit5 classes that expect a live Mockarty, so `gradle test` picked them up
+// and failed on a connection, turning the whole SDK build red for no defect.
+tasks.named<Test>("test") {
+    enabled = false
+}
