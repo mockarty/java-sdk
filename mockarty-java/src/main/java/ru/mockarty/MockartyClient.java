@@ -16,6 +16,7 @@ import ru.mockarty.api.CollectionApi;
 import ru.mockarty.api.ContractApi;
 import ru.mockarty.api.EntitySearchApi;
 import ru.mockarty.api.ExperienceApi;
+import ru.mockarty.api.EconomicsApi;
 import ru.mockarty.api.EnvironmentApi;
 import ru.mockarty.api.FolderApi;
 import ru.mockarty.api.FuzzingApi;
@@ -366,6 +367,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the reusable AutoTester run-experience API. */
     public ExperienceApi experience() {
         return new ExperienceApi(this);
+    }
+
+    /** Returns the administrator LLM usage and immutable price-book API. */
+    public EconomicsApi economics() {
+        return new EconomicsApi(this);
     }
 
     /**
