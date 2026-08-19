@@ -18,7 +18,11 @@ public class PerfSchedule {
     @JsonProperty("configId")
     private String configId;
 
-    @JsonProperty("cron")
+    // Server emits/accepts the schedule expression as "cronExpression" (see the
+    // admin PerfSchedule model). The accessor stays getCron()/cron() for source
+    // compatibility, but the wire field MUST be cronExpression or it silently
+    // never (de)serializes — the same drift fixed in the Go SDK.
+    @JsonProperty("cronExpression")
     private String cron;
 
     @JsonProperty("enabled")

@@ -96,7 +96,7 @@ class DiscoveryApiTest {
                 .addCase(new DiscoveryManifestCase("com.example.AuthTest#testLogout", "testLogout")
                         .suite("AuthTest"));
 
-        DiscoveryResult result = client.discovery().syncDiscovery("qa", manifest);
+        DiscoveryResult result = client.discovery().sync("qa", manifest);
 
         // Response round-trip.
         assertNotNull(result);
@@ -137,7 +137,7 @@ class DiscoveryApiTest {
             }
         });
 
-        client.discovery().syncDiscovery("qa", new DiscoveryManifest("junit5")
+        client.discovery().sync("qa", new DiscoveryManifest("junit5")
                 .addCase(new DiscoveryManifestCase("a#b", "b")));
 
         JsonNode req = captured.get();
@@ -150,20 +150,20 @@ class DiscoveryApiTest {
     void localValidation() {
         // Missing namespace.
         assertThrows(IllegalArgumentException.class, () ->
-                client.discovery().syncDiscovery("", new DiscoveryManifest("s")));
+                client.discovery().sync("", new DiscoveryManifest("s")));
         assertThrows(IllegalArgumentException.class, () ->
-                client.discovery().syncDiscovery(null, new DiscoveryManifest("s")));
+                client.discovery().sync(null, new DiscoveryManifest("s")));
         // Null manifest.
         assertThrows(IllegalArgumentException.class, () ->
-                client.discovery().syncDiscovery("qa", null));
+                client.discovery().sync("qa", null));
         // Missing source.
         assertThrows(IllegalArgumentException.class, () ->
-                client.discovery().syncDiscovery("qa", new DiscoveryManifest()));
+                client.discovery().sync("qa", new DiscoveryManifest()));
         assertThrows(IllegalArgumentException.class, () ->
-                client.discovery().syncDiscovery("qa", new DiscoveryManifest("")));
+                client.discovery().sync("qa", new DiscoveryManifest("")));
         // A case without fullName.
         assertThrows(IllegalArgumentException.class, () ->
-                client.discovery().syncDiscovery("qa", new DiscoveryManifest("s")
+                client.discovery().sync("qa", new DiscoveryManifest("s")
                         .addCase(new DiscoveryManifestCase().name("no-id"))));
     }
 
@@ -181,7 +181,7 @@ class DiscoveryApiTest {
         });
         // Source present locally, so we reach the server which 400s.
         assertThrows(MockartyValidationException.class, () ->
-                client.discovery().syncDiscovery("qa", new DiscoveryManifest("s")
+                client.discovery().sync("qa", new DiscoveryManifest("s")
                         .addCase(new DiscoveryManifestCase("a#b", "b"))));
     }
 
@@ -199,7 +199,7 @@ class DiscoveryApiTest {
             }
         });
         assertThrows(MockartyRateLimitException.class, () ->
-                client.discovery().syncDiscovery("qa", new DiscoveryManifest("s")
+                client.discovery().sync("qa", new DiscoveryManifest("s")
                         .addCase(new DiscoveryManifestCase("a#b", "b"))));
     }
 
@@ -215,7 +215,7 @@ class DiscoveryApiTest {
             }
         });
         assertThrows(MockartyException.class, () ->
-                client.discovery().syncDiscovery("qa", new DiscoveryManifest("s")
+                client.discovery().sync("qa", new DiscoveryManifest("s")
                         .addCase(new DiscoveryManifestCase("a#b", "b"))));
     }
 
@@ -233,7 +233,7 @@ class DiscoveryApiTest {
                 os.write(body);
             }
         });
-        DiscoveryResult res = client.discovery().syncDiscovery("qa", new DiscoveryManifest("s"));
+        DiscoveryResult res = client.discovery().sync("qa", new DiscoveryManifest("s"));
         assertEquals(0, res.getTotal());
         assertEquals("s", captured.get().get("source").asText());
     }

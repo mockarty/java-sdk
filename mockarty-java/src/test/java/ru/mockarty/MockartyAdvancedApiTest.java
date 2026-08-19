@@ -223,7 +223,7 @@ class MockartyAdvancedApiTest {
                 }
             });
 
-            FuzzingRun result = client.fuzzing().start("cfg-1");
+            FuzzingRun result = client.fuzzing().startFromConfig("cfg-1");
             assertEquals("run-1", result.getId());
             assertEquals("running", result.getStatus());
         }
@@ -382,7 +382,7 @@ class MockartyAdvancedApiTest {
             Contract config = new Contract()
                     .name("User API")
                     .protocol("http");
-            Contract result = client.contracts().createConfig(config);
+            Contract result = client.contracts().saveConfig(config);
             assertEquals("ct-1", result.getId());
             assertEquals("User API", result.getName());
         }
@@ -453,7 +453,7 @@ class MockartyAdvancedApiTest {
                 }
             });
 
-            RecorderSession session = client.recorder().start(Map.of(
+            RecorderSession session = client.recorder().startRecording(Map.of(
                     "name", "My Session",
                     "targetUrl", "http://example.com",
                     "namespace", "test-namespace"

@@ -6,9 +6,9 @@
  * image. Drop-in replacement for {@code WireMockContainer} /
  * {@code MockServerContainer} in user integration tests.
  *
- * <p>The package is the Java side of Mockarty's Wave 4 SDK strategy
+ * <p>The package is the Java side of Mockarty's SDK protocol-client strategy
  * (see {@code docs/research/SDK_FRAMEWORK_PLAN.md} rev 3 §6.4). Like
- * the other Wave 3/4 modules it is intentionally thin:
+ * the other protocol-client modules it is intentionally thin:
  *
  * <ul>
  *   <li>It does NOT embed a mock engine — the container itself runs the

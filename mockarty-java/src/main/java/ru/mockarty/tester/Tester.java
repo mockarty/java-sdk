@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * Fluent test builder. Mirrors {@code sdk/go-sdk/tester} and
@@ -217,6 +219,165 @@ public final class Tester implements AutoCloseable {
             }
         }
         return this;
+    }
+
+    /**
+     * Retries {@code attempt} until it returns {@code true} or {@code within}
+     * elapses, sleeping {@code interval} between tries (defaults to 100ms when
+     * non-positive). Only the successful — or, on timeout, the final — attempt's
+     * steps remain in the report; intermediate failures are rolled back so the
+     * report stays readable. Mirrors {@code Tester.Eventually} (Go) and
+     * {@code tester.eventually()} (Python).
+     *
+     * <p>Use it to tolerate eventual consistency, e.g.:
+     * <pre>
+     * boolean ok = t.eventually(Duration.ofSeconds(5), Duration.ofMillis(200),
+     *     () -&gt; t.http().get("/orders/42").expectStatus(200).ok());
+     * </pre>
+     *
+     * @param within   total budget before giving up.
+     * @param interval sleep between attempts (≤0 → 100ms).
+     * @param attempt  one or more chains; returns true when the assertions held.
+     * @return true if an attempt succeeded, false on timeout.
+     */
+    public boolean eventually(Duration within, Duration interval, BooleanSupplier attempt) {
+        long intervalMs = (interval == null || interval.toMillis() <= 0) ? 100 : interval.toMillis();
+        long deadline = System.nanoTime() + (within == null ? 0 : within.toNanos());
+        while (true) {
+            flushPending();
+            int stepBookmark;
+            int errBookmark;
+            lock.lock();
+            try {
+                stepBookmark = steps.size();
+                errBookmark = errs.size();
+            } finally {
+                lock.unlock();
+            }
+
+            boolean passed = attempt != null && attempt.getAsBoolean();
+            flushPending();
+            if (passed) {
+                // Drop any failures recorded while converging to success.
+                lock.lock();
+                try {
+                    truncate(errs, errBookmark);
+                } finally {
+                    lock.unlock();
+                }
+                return true;
+            }
+            // Roll back this failed attempt so the next one starts clean.
+            lock.lock();
+            try {
+                truncate(steps, stepBookmark);
+                truncate(errs, errBookmark);
+            } finally {
+                lock.unlock();
+            }
+
+            if (System.nanoTime() >= deadline) {
+                // Final failure: re-run once so the report shows what broke.
+                if (attempt != null) {
+                    attempt.getAsBoolean();
+                }
+                flushPending();
+                return false;
+            }
+            try {
+                Thread.sleep(intervalMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Runs each branch concurrently, each with its own branch-local Tester that
+     * shares the parent's HTTP client / base URL / default headers and a
+     * <em>snapshot</em> of the parent's variables, but an isolated pending-step
+     * slot. After all branches finish, their steps and errors merge back into
+     * the parent in the order the branches were given (deterministic report,
+     * regardless of which branch finished first). Variable writes inside a
+     * branch do not propagate back to the parent or siblings. Mirrors
+     * {@code Tester.Parallel} (Go) and {@code tester.parallel()} (Python).
+     *
+     * <pre>
+     * t.parallel(
+     *     b -&gt; b.http().get("/a").expectStatus(200),
+     *     b -&gt; b.http().get("/b").expectStatus(200));
+     * </pre>
+     *
+     * @param branches the fan-out branches (null entries are skipped).
+     * @return this Tester for fluent chaining.
+     */
+    @SafeVarargs
+    public final Tester parallel(Consumer<Tester>... branches) {
+        if (branches == null || branches.length == 0) {
+            return this;
+        }
+        flushPending();
+        List<List<StepRecord>> branchSteps = new ArrayList<>(Collections.nCopies(branches.length, null));
+        List<List<String>> branchErrs = new ArrayList<>(Collections.nCopies(branches.length, null));
+        Thread[] threads = new Thread[branches.length];
+        for (int i = 0; i < branches.length; i++) {
+            final int idx = i;
+            final Consumer<Tester> fn = branches[i];
+            threads[i] = new Thread(() -> {
+                if (fn == null) {
+                    branchSteps.set(idx, List.of());
+                    branchErrs.set(idx, List.of());
+                    return;
+                }
+                Tester branch = spawnBranch();
+                fn.accept(branch);
+                branch.flushPending();
+                branch.lock.lock();
+                try {
+                    branchSteps.set(idx, new ArrayList<>(branch.steps));
+                    branchErrs.set(idx, new ArrayList<>(branch.errs));
+                } finally {
+                    branch.lock.unlock();
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread th : threads) {
+            try {
+                th.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        lock.lock();
+        try {
+            for (List<StepRecord> r : branchSteps) {
+                if (r != null) {
+                    steps.addAll(r);
+                }
+            }
+            for (List<String> e : branchErrs) {
+                if (e != null) {
+                    errs.addAll(e);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+        return this;
+    }
+
+    private Tester spawnBranch() {
+        Tester branch = new Tester(baseUrl, http, defaultHeaders, failFast);
+        branch.vars.putAll(snapshotVars());
+        return branch;
+    }
+
+    private static <T> void truncate(List<T> list, int to) {
+        if (to < list.size()) {
+            list.subList(to, list.size()).clear();
+        }
     }
 
     // ── package-private chain machinery ───────────────────────────────

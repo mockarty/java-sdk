@@ -8,15 +8,20 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mockarty.api.AgentTaskApi;
+import ru.mockarty.api.McpApi;
+import ru.mockarty.api.IssueTrackerApi;
+import ru.mockarty.api.TcmApi;
 import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CollectionApi;
 import ru.mockarty.api.ContractApi;
 import ru.mockarty.api.EntitySearchApi;
+import ru.mockarty.api.ExperienceApi;
 import ru.mockarty.api.EnvironmentApi;
 import ru.mockarty.api.FolderApi;
 import ru.mockarty.api.FuzzingApi;
 import ru.mockarty.api.GeneratorApi;
 import ru.mockarty.api.HealthApi;
+import ru.mockarty.api.MeApi;
 import ru.mockarty.api.ImportApi;
 import ru.mockarty.api.MockApi;
 import ru.mockarty.api.NamespaceApi;
@@ -176,6 +181,14 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the Me API for per-caller endpoints ({@code /api/v1/me/*}),
+     * e.g. the manual-action queue. Parity with Go {@code Me()} / Python {@code me}.
+     */
+    public MeApi me() {
+        return new MeApi(this);
+    }
+
+    /**
      * Returns the Generator API for generating mocks from API specifications.
      */
     public GeneratorApi generator() {
@@ -240,6 +253,20 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the recorded-UI-test API (save / run / poll / export).
+     */
+    public ru.mockarty.api.UITestApi uiTests() {
+        return new ru.mockarty.api.UITestApi(this);
+    }
+
+    /**
+     * Returns the git-sync API — bind a repo, pull/push autotest collections.
+     */
+    public ru.mockarty.api.GitSyncApi gitSync() {
+        return new ru.mockarty.api.GitSyncApi(this);
+    }
+
+    /**
      * Returns the Folder API for mock folder management.
      */
     public FolderApi folders() {
@@ -265,6 +292,28 @@ public class MockartyClient implements AutoCloseable {
      */
     public AgentTaskApi agentTasks() {
         return new AgentTaskApi(this);
+    }
+
+    /**
+     * Returns the MCP client — list/call the server's agent-facing tool surface
+     * over the streamable-HTTP {@code /mcp} endpoint.
+     */
+    public McpApi mcp() {
+        return new McpApi(this);
+    }
+
+    /**
+     * Returns the issue-tracker task-automation API (issues/comments/projects/sprints).
+     */
+    public IssueTrackerApi issueTracker() {
+        return new IssueTrackerApi(this);
+    }
+
+    /**
+     * Returns the Test Case Management automation API (cases/case-runs/defects).
+     */
+    public TcmApi tcm() {
+        return new TcmApi(this);
     }
 
     /**
@@ -296,7 +345,7 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
-     * Returns the Phase 4 CI Triggers API — list saved triggers and
+     * Returns the CI Triggers API — list saved triggers and
      * poll the linked CI run state. CRUD is intentionally NOT in the
      * SDK (admin UI concern); use {@code list()} to find an id to pass
      * as {@code ciTriggerId} on perf/fuzz launches.
@@ -312,6 +361,11 @@ public class MockartyClient implements AutoCloseable {
      */
     public EntitySearchApi entitySearch() {
         return new EntitySearchApi(this);
+    }
+
+    /** Returns the reusable AutoTester run-experience API. */
+    public ExperienceApi experience() {
+        return new ExperienceApi(this);
     }
 
     /**
@@ -387,6 +441,15 @@ public class MockartyClient implements AutoCloseable {
         return objectMapper;
     }
 
+    /**
+     * Returns the underlying HTTP client. Used by the MCP client, which needs
+     * low-level control over the request (streaming Accept header, session id)
+     * that the typed {@code get}/{@code post} helpers do not expose.
+     */
+    public HttpClient getHttpClient() {
+        return httpClient;
+    }
+
     // Internal HTTP methods used by API classes
 
     /**
@@ -427,6 +490,20 @@ public class MockartyClient implements AutoCloseable {
         HttpRequest request = buildRequest(path)
                 .POST(jsonBody(body))
                 .header("Content-Type", "application/json")
+                .build();
+        return execute(request, responseType);
+    }
+
+    /**
+     * Performs a POST with a raw byte body and an explicit Content-Type (e.g.
+     * multipart/form-data), deserializing the response. Used for attachment
+     * uploads where the body is not JSON.
+     */
+    public <T> T postRaw(String path, byte[] body, String contentType, Class<T> responseType)
+            throws MockartyException {
+        HttpRequest request = buildRequest(path)
+                .header("Content-Type", contentType)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body == null ? new byte[0] : body))
                 .build();
         return execute(request, responseType);
     }

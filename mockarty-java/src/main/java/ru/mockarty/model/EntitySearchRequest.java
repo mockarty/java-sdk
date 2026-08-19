@@ -22,6 +22,13 @@ public class EntitySearchRequest {
     public static final String TYPE_FUZZ_CONFIG = "fuzz_config";
     public static final String TYPE_CHAOS_EXPERIMENT = "chaos_experiment";
     public static final String TYPE_CONTRACT_PACT = "contract_pact";
+    public static final String TYPE_REQUEST = "request";
+    public static final String TYPE_COLLECTION = "collection";
+    public static final String TYPE_UI_TEST = "ui_test";
+    public static final String TYPE_WIKI_PAGE = "wiki_page";
+    public static final String TYPE_WHITEBOARD = "whiteboard";
+    public static final String TYPE_TEST_CASE = "test_case";
+    public static final String TYPE_ISSUE = "issue";
 
     /** Server default — applied when {@link #limit} is not set. */
     public static final int DEFAULT_LIMIT = 50;

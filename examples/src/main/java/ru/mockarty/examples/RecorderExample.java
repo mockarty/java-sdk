@@ -52,7 +52,7 @@ public class RecorderExample {
     static void recordAndCreateMocks(MockartyClient client) {
         // Start a recording session
         // All traffic proxied through Mockarty to the target URL will be captured
-        RecorderSession session = client.recorder().start(Map.of(
+        RecorderSession session = client.recorder().startRecording(Map.of(
                 "name", "User Service Recording",
                 "targetUrl", "https://api.production.com",
                 "namespace", "sandbox",
@@ -89,7 +89,7 @@ public class RecorderExample {
         System.out.println("Recording stopped: " + stopped.getStatus());
 
         // Convert recorded entries into mocks
-        ImportResult mockResult = client.recorder().createMocks(session.getId(), Map.of(
+        ImportResult mockResult = client.recorder().createMocksFromSession(session.getId(), Map.of(
                 "namespace", "sandbox",
                 "generateIds", true,
                 "includeHeaders", false,

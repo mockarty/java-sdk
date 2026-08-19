@@ -108,6 +108,14 @@ public class ExternalRunRequest {
     @JsonProperty("labels")
     private Map<String, String> labels;
 
+    /**
+     * Data-driven/parametrised test inputs (Allure {@code parameters}) as
+     * name→value. Mapped onto custom fields server-side like {@link #labels}
+     * (labels win on key collision). Optional.
+     */
+    @JsonProperty("parameters")
+    private Map<String, String> parameters;
+
     @JsonProperty("metadata")
     private Map<String, Object> metadata;
 
@@ -151,6 +159,7 @@ public class ExternalRunRequest {
     public ExternalRunRequest startedAt(String s) { this.startedAt = s; return this; }
     public ExternalRunRequest finishedAt(String s) { this.finishedAt = s; return this; }
     public ExternalRunRequest labels(Map<String, String> v) { this.labels = v; return this; }
+    public ExternalRunRequest parameters(Map<String, String> v) { this.parameters = v; return this; }
     public ExternalRunRequest metadata(Map<String, Object> v) { this.metadata = v; return this; }
     public ExternalRunRequest steps(List<ExternalStep> v) { this.steps = v; return this; }
     public ExternalRunRequest attachments(List<ExternalAttachment> v) { this.attachments = v; return this; }
@@ -180,6 +189,7 @@ public class ExternalRunRequest {
     public String getStartedAt() { return startedAt; }
     public String getFinishedAt() { return finishedAt; }
     public Map<String, String> getLabels() { return labels; }
+    public Map<String, String> getParameters() { return parameters; }
     public Map<String, Object> getMetadata() { return metadata; }
     public List<ExternalStep> getSteps() { return steps; }
     public List<ExternalAttachment> getAttachments() { return attachments; }

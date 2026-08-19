@@ -86,7 +86,7 @@ public class DiscoveryExample {
                             .suite("AuthTest")
                             .sourceRef("AuthTest.java"));
 
-            DiscoveryResult result = client.discovery().syncDiscovery(namespace, manifest);
+            DiscoveryResult result = client.discovery().sync(namespace, manifest);
 
             System.out.println("Discovery synced for source: " + result.getSource());
             System.out.println("  created:  " + result.getCreated());

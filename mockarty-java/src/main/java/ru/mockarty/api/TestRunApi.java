@@ -80,6 +80,17 @@ public class TestRunApi {
         return client.get(path.toString(), listType);
     }
 
+    /** Lists test runs for a collection (client-side filter). Parity: Python list_by_collection / Go ListByCollection. */
+    public List<TestRun> listByCollection(String collectionId) throws MockartyException {
+        List<TestRun> out = new java.util.ArrayList<>();
+        for (TestRun r : list()) {
+            if (collectionId != null && collectionId.equals(r.getCollectionId())) {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
     /**
      * Gets a specific test run by ID.
      *

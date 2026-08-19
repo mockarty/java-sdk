@@ -239,7 +239,7 @@ public class MockartyExtension implements
             frame.caseName = emptyToNull(tc.name());
             frame.planId = emptyToNull(tc.plan());
             frame.autoCreate = tc.autoCreate();
-            // Phase 2.6 Mockarty extensions — see SDK_MOCKARTY_
+            // Mockarty extensions — see SDK_MOCKARTY_
             // EXTENSIONS_AUDIT.md. These ride the matching server-
             // side ExternalRunRequest fields landed in 1067beba.
             frame.description = emptyToNull(tc.description());
@@ -259,9 +259,9 @@ public class MockartyExtension implements
                 if (parts.length == 2) cf.put("value", "");
                 frame.customFields.add(cf);
             }
-            // Phase 2.6: emit annotation values as `mockarty:case:*`
+            // Emit annotation values as `mockarty:case:*`
             // labels so the CLI harvester (which mines Allure-result
-            // labels for the Phase 2.6 fields) carries them through
+            // labels for the Mockarty extension fields) carries them through
             // to /tcm/external-runs. Without this Java tests can set
             // @TestCase(description=...) but the server never sees
             // those values — caught by SDK + CLI live smoke 2026-05-18.

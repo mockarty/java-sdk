@@ -3,13 +3,14 @@
 
 package ru.mockarty.api;
 
-import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.TemplateFile;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,10 +31,22 @@ public class TemplateApi {
      * @return list of template files
      */
     public List<TemplateFile> list() throws MockartyException {
-        JavaType listType = client.getObjectMapper().getTypeFactory()
-                .constructCollectionType(List.class, TemplateFile.class);
         String namespace = client.getConfig().getNamespace();
-        return client.get("/api/v1/templates?namespace=" + encode(namespace), listType);
+        // The server wraps the result as {"templates":["a.txt","b.txt"],...}
+        // where each entry is a bare file name (not a TemplateFile object).
+        JsonNode root = client.get("/api/v1/templates?namespace=" + encode(namespace), JsonNode.class);
+        JsonNode arr = root != null && root.isObject() ? root.path("templates") : root;
+        List<TemplateFile> out = new ArrayList<>();
+        if (arr != null && arr.isArray()) {
+            for (JsonNode n : arr) {
+                if (n.isTextual()) {
+                    out.add(new TemplateFile().name(n.asText()).namespace(namespace));
+                } else if (n.isObject()) {
+                    out.add(client.getObjectMapper().convertValue(n, TemplateFile.class));
+                }
+            }
+        }
+        return out;
     }
 
     /**

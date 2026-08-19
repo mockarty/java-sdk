@@ -25,7 +25,7 @@ import ru.mockarty.model.DiscoveryResult;
  *
  * <p>Example:</p>
  * <pre>{@code
- * DiscoveryResult res = client.discovery().syncDiscovery("qa",
+ * DiscoveryResult res = client.discovery().sync("qa",
  *     new DiscoveryManifest("junit5:auth-suite")
  *         .framework("junit5")
  *         .pruneMissing(true)
@@ -59,7 +59,7 @@ public class DiscoveryApi {
      *                  and a non-empty {@code fullName} on every case.
      * @return the per-sync summary (created / updated / orphaned / total).
      */
-    public DiscoveryResult syncDiscovery(String namespace, DiscoveryManifest manifest)
+    public DiscoveryResult sync(String namespace, DiscoveryManifest manifest)
             throws MockartyException {
         if (namespace == null || namespace.isEmpty()) {
             throw new IllegalArgumentException("namespace is required");

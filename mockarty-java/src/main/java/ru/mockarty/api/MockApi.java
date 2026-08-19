@@ -59,6 +59,25 @@ public class MockApi {
     }
 
     /**
+     * Creates or overwrites the mock with the given ID — parity with the Go SDK
+     * ({@code MockAPI.Update(id, mock)}) and Python ({@code mocks.update(id, mock)}),
+     * which the Java SDK was missing (3-language parity gap found via cross-SDK
+     * audit). Mockarty updates a mock by POSTing it with the same ID, so this
+     * stamps the ID onto the payload and saves.
+     *
+     * @param id   the mock ID to update
+     * @param mock the new mock state
+     * @return the saved mock
+     */
+    public Mock update(String id, Mock mock) throws MockartyException {
+        if (id != null && !id.isEmpty()) {
+            mock.id(id);
+        }
+        SaveMockResponse resp = client.post("/api/v1/mocks", mock, SaveMockResponse.class);
+        return resp.getMock();
+    }
+
+    /**
      * Retrieves a mock by its ID.
      *
      * @param id the mock ID
@@ -251,7 +270,7 @@ public class MockApi {
      * @param patch the fields to update
      * @return the updated mock
      */
-    public Mock patchMock(String id, Map<String, Object> patch) throws MockartyException {
+    public Mock patch(String id, Map<String, Object> patch) throws MockartyException {
         return client.patch("/api/v1/mocks/" + encode(id), patch, Mock.class);
     }
 

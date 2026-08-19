@@ -122,6 +122,31 @@ public class ImportApi {
         return doImport("/api/v1/api-tester/import/mockarty", content, namespace);
     }
 
+    /** Imports requests from cURL commands. Parity: Go Curl / Python curl. */
+    public ImportResult curl(java.util.List<String> commands) throws MockartyException {
+        return client.post("/api/v1/api-tester/import/curl",
+                Map.of("commands", commands), ImportResult.class);
+    }
+
+    /** Imports an Insomnia collection (raw export). Parity: Go Insomnia / Python insomnia. */
+    public ImportResult insomnia(Map<String, Object> collection) throws MockartyException {
+        return client.post("/api/v1/api-tester/import/insomnia", collection, ImportResult.class);
+    }
+
+    /**
+     * Imports a Postman collection with tuning options for CI/CD (collectionName,
+     * mode, seedMocks, seedMocksNamespace, seedMocksMatchHeaders, seedMocksPriority).
+     * Parity: Go PostmanWithOptions / Python postman_with_options.
+     */
+    public ImportResult postmanWithOptions(Map<String, Object> collection, Map<String, Object> options) throws MockartyException {
+        java.util.Map<String, Object> body = new java.util.HashMap<>();
+        body.put("collectionJson", collection);
+        if (options != null) {
+            body.putAll(options);
+        }
+        return client.post("/api/v1/api-tester/import/postman", body, ImportResult.class);
+    }
+
     private ImportResult doImport(String path, String content, String namespace) throws MockartyException {
         String ns = namespace != null ? namespace : client.getConfig().getNamespace();
         Map<String, Object> body = Map.of(

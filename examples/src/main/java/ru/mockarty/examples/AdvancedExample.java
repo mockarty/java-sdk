@@ -488,7 +488,7 @@ public class AdvancedExample {
         System.out.println("Mocks with 'production' + 'v2' tags: " + taggedMocks.getTotal());
 
         // Partial update: use patch to update just tags on a single mock
-        client.mocks().patchMock("batch-tag-0", Map.of(
+        client.mocks().patch("batch-tag-0", Map.of(
                 "tags", List.of("production", "v2", "validated", "critical-path", "hot-fix")
         ));
         System.out.println("Patched mock 'batch-tag-0' with additional 'hot-fix' tag");

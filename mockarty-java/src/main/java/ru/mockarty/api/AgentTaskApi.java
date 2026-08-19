@@ -11,6 +11,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.time.Duration;
 
 /**
  * API for AI agent task management.
@@ -136,6 +137,66 @@ public class AgentTaskApi {
      */
     public byte[] export(String id) throws MockartyException {
         return client.getBytes("/api/v1/agent/tasks/" + encode(id) + "/export");
+    }
+
+    /**
+     * Polls a task until it reaches a terminal state, returning the finished
+     * task (with its result). Throws {@link MockartyException} on a
+     * {@code failed} / {@code cancelled} terminal state. Automation counterpart
+     * to {@link #submit(Map)} — dispatch into the agent network and block for a
+     * result without hand-rolling a poll loop.
+     *
+     * @param id           the task ID to poll
+     * @param pollInterval interval between polls; {@code null} or non-positive → 2s
+     * @return the completed task
+     * @throws MockartyException if the task fails, is cancelled, or the wait is interrupted
+     */
+    public AgentTask waitForResult(String id, Duration pollInterval) throws MockartyException {
+        long millis = (pollInterval == null || pollInterval.toMillis() <= 0)
+                ? 2000L : pollInterval.toMillis();
+        while (true) {
+            AgentTask task = get(id);
+            String status = task == null || task.getStatus() == null
+                    ? "" : task.getStatus().toLowerCase();
+            switch (status) {
+                case "completed":
+                case "done":
+                case "succeeded":
+                    return task;
+                case "failed":
+                case "error":
+                    throw new MockartyException("agent task " + id + " failed");
+                case "cancelled":
+                case "canceled":
+                    throw new MockartyException("agent task " + id + " cancelled");
+                default:
+                    break;
+            }
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new MockartyException("interrupted while waiting for agent task " + id, e);
+            }
+        }
+    }
+
+    /**
+     * Submits a task and blocks until it reaches a terminal state — the
+     * one-call entry point for "run this in the agent network, give me the
+     * result".
+     *
+     * @param task         the task parameters ({@code title} + {@code prompt} required)
+     * @param pollInterval interval between polls; {@code null} or non-positive → 2s
+     * @return the completed task
+     * @throws MockartyException if submission fails or the task ends unsuccessfully
+     */
+    public AgentTask submitAndWait(Map<String, Object> task, Duration pollInterval) throws MockartyException {
+        AgentTask submitted = submit(task);
+        if (submitted == null || submitted.getId() == null || submitted.getId().isEmpty()) {
+            throw new MockartyException("agent task submitted without an id");
+        }
+        return waitForResult(submitted.getId(), pollInterval);
     }
 
     private static String encode(String value) {

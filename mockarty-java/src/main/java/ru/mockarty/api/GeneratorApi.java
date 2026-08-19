@@ -149,4 +149,11 @@ public class GeneratorApi {
     public GeneratorResponse fromSocket(GeneratorRequest request) throws MockartyException {
         return client.post("/api/v1/generators/socket", request, GeneratorResponse.class);
     }
+
+    /** Introspects a live GraphQL endpoint's schema via its URL. Parity: Go LoadGraphQLSchemaFromURL / Python load_graphql_schema_from_url. */
+    @SuppressWarnings("unchecked")
+    public java.util.Map<String, Object> loadGraphQLSchemaFromURL(String graphqlUrl) throws MockartyException {
+        return client.post("/api/v1/generators/graphql/schema",
+                java.util.Map.of("graphqlUrl", graphqlUrl), java.util.Map.class);
+    }
 }

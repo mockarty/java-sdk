@@ -16,10 +16,10 @@ public class Pact {
     private String id;
 
     @JsonProperty("consumer")
-    private String consumer;
+    private PactParty consumer;
 
     @JsonProperty("provider")
-    private String provider;
+    private PactParty provider;
 
     @JsonProperty("version")
     private String version;
@@ -46,12 +46,12 @@ public class Pact {
         return this;
     }
 
-    public Pact consumer(String consumer) {
+    public Pact consumer(PactParty consumer) {
         this.consumer = consumer;
         return this;
     }
 
-    public Pact provider(String provider) {
+    public Pact provider(PactParty provider) {
         this.provider = provider;
         return this;
     }
@@ -82,11 +82,11 @@ public class Pact {
         return id;
     }
 
-    public String getConsumer() {
+    public PactParty getConsumer() {
         return consumer;
     }
 
-    public String getProvider() {
+    public PactParty getProvider() {
         return provider;
     }
 

@@ -378,7 +378,7 @@ public class CiCdPipelineExample {
         System.out.println("Created test collection: " + collectionId);
 
         // Run the collection
-        Map<String, Object> runResult = client.collections().run(collectionId);
+        Map<String, Object> runResult = client.collections().execute(collectionId);
         System.out.println("Test run completed:");
         System.out.println("  Total: " + runResult.get("total"));
         System.out.println("  Passed: " + runResult.get("passed"));

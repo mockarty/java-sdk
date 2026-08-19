@@ -104,6 +104,25 @@ public class HttpMocksExample {
     }
 
     /**
+     * Scripted response: compute the body from the request with JavaScript. The
+     * script receives {@code request} and fills {@code response}. See the Scripted
+     * Responses guide. Use respondWithScript(code, true) to allow outbound calls.
+     */
+    static void createScriptedResponseMock(MockartyClient client) {
+        Mock mock = MockBuilder.http("/api/calc/:op", "POST")
+                .id("calc")
+                .respondWithScript(
+                        "const d = request.json();"
+                                + " const out = request.params.op === 'double' ? d.v * 2 : d.v / 2;"
+                                + " response.status = 201;"
+                                + " response.json({ op: request.params.op, in: d.v, out: out });")
+                .build();
+
+        client.mocks().create(mock);
+        System.out.println("Created POST /api/calc/:op with a scripted response");
+    }
+
+    /**
      * PUT with header-based conditions.
      * Matches only with a valid Authorization header.
      */

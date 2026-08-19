@@ -1000,11 +1000,45 @@ public class TestPlanApi {
         caseRunAction(namespace, caseRunId, "rerun");
     }
 
-    /** Response shape for {@code GET /api/v1/me/awaiting-manual}. */
-    public Map<String, Object> awaitingManual() throws MockartyException {
+    // awaitingManual() lives on me() (GET /api/v1/me/awaiting-manual) — it is a
+    // user-scoped query, not a test-plan operation. Removed the duplicate here
+    // to match Python/Go, which expose it only via the Me API.
+
+    // ── Plan notification subscriptions (parity: Go / Python) ──
+
+    /** Creates a notification subscription on a test plan. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createNotification(String planId, Map<String, Object> notification) throws MockartyException {
+        return client.post(BASE + "/" + encode(planId) + "/notifications", notification, Map.class);
+    }
+
+    /** Lists notification subscriptions for a test plan. */
+    @SuppressWarnings("unchecked")
+    public java.util.List<Map<String, Object>> listNotifications(String planId) throws MockartyException {
         JavaType mapType = client.getObjectMapper().getTypeFactory()
                 .constructMapType(Map.class, String.class, Object.class);
-        return client.get("/api/v1/me/awaiting-manual", mapType);
+        Map<String, Object> env = client.get(BASE + "/" + encode(planId) + "/notifications", mapType);
+        if (env != null && env.get("notifications") instanceof java.util.List) {
+            return (java.util.List<Map<String, Object>>) env.get("notifications");
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    /** Gets a single notification subscription by ID. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getNotification(String planId, String notificationId) throws MockartyException {
+        return client.get(BASE + "/" + encode(planId) + "/notifications/" + encode(notificationId), Map.class);
+    }
+
+    /** Updates a notification subscription. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> updateNotification(String planId, String notificationId, Map<String, Object> notification) throws MockartyException {
+        return client.put(BASE + "/" + encode(planId) + "/notifications/" + encode(notificationId), notification, Map.class);
+    }
+
+    /** Deletes a notification subscription. */
+    public void deleteNotification(String planId, String notificationId) throws MockartyException {
+        client.delete(BASE + "/" + encode(planId) + "/notifications/" + encode(notificationId));
     }
 
 }

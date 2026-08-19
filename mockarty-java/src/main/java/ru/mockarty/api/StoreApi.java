@@ -164,6 +164,34 @@ public class StoreApi {
         client.delete("/api/v1/stores/chain/" + encode(chainId) + "/" + encode(key) + "?namespace=" + encode(namespace));
     }
 
+    /** Sets multiple global-store entries (one request per key). Parity: Python global_set_many / Go GlobalSetMany. */
+    public void globalSetMany(Map<String, Object> entries) throws MockartyException {
+        for (Map.Entry<String, Object> e : entries.entrySet()) {
+            globalSet(e.getKey(), e.getValue());
+        }
+    }
+
+    /** Deletes multiple global-store keys. Parity: Python global_delete_many / Go GlobalDeleteMany. */
+    public void globalDeleteMany(java.util.List<String> keys) throws MockartyException {
+        for (String key : keys) {
+            globalDelete(key);
+        }
+    }
+
+    /** Sets multiple chain-store entries (one request per key). Parity: Python chain_set_many / Go ChainSetMany. */
+    public void chainSetMany(String chainId, Map<String, Object> entries) throws MockartyException {
+        for (Map.Entry<String, Object> e : entries.entrySet()) {
+            chainSet(chainId, e.getKey(), e.getValue());
+        }
+    }
+
+    /** Deletes multiple chain-store keys. Parity: Python chain_delete_many / Go ChainDeleteMany. */
+    public void chainDeleteMany(String chainId, java.util.List<String> keys) throws MockartyException {
+        for (String key : keys) {
+            chainDelete(chainId, key);
+        }
+    }
+
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }

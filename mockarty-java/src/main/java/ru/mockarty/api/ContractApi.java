@@ -125,7 +125,7 @@ public class ContractApi {
      * @param config the contract config to create
      * @return the created config
      */
-    public Contract createConfig(Contract config) throws MockartyException {
+    public Contract saveConfig(Contract config) throws MockartyException {
         return client.post("/api/v1/contract/configs", config, Contract.class);
     }
 
@@ -590,7 +590,7 @@ public class ContractApi {
      * Get unique consumer/provider names from pacts.
      */
     @SuppressWarnings("unchecked")
-    public List<String> getParticipants() throws MockartyException {
+    public List<String> listParticipants() throws MockartyException {
         return client.get("/api/v1/contract/pacts/participants", List.class);
     }
 

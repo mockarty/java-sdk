@@ -39,6 +39,16 @@ public class PerfApi {
     }
 
     /**
+     * Starts a perf run with runner-targeting options for CI/CD (configId, script,
+     * runnerId, requiredRunnerLabels, runnerLabelExpr, ciTriggerId, isDebug).
+     * Parity: Go RunWithOptions / Python run_with_options.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> runWithOptions(Map<String, Object> options) throws MockartyException {
+        return client.post("/api/v1/perf/run", options, Map.class);
+    }
+
+    /**
      * Stops a running performance test.
      *
      * @param taskId the task ID to stop

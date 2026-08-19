@@ -54,6 +54,9 @@ public final class LoadTestBuilder {
         final String path;
         final Object body;
         final Map<String, String> headers;
+        // (name, expr) per-request k6 checks. When non-empty they replace the
+        // default `status < 400` assertion.
+        final List<String[]> checks = new ArrayList<>();
 
         Req(String method, String path, Object body, Map<String, String> headers) {
             this.method = method.toUpperCase();
@@ -133,6 +136,26 @@ public final class LoadTestBuilder {
 
     public LoadTestBuilder delete(String path) {
         return request("DELETE", path, null, null);
+    }
+
+    /**
+     * Attaches a named assertion to the MOST RECENTLY added request. {@code name}
+     * is the check label; {@code expr} is a JavaScript boolean expression that
+     * may reference the response as {@code res} (e.g.
+     * {@code res.json().id !== undefined}). When a request has one or more checks
+     * they REPLACE the default {@code status < 400} check. No-op if no request
+     * has been added yet.
+     */
+    public LoadTestBuilder check(String name, String expr) {
+        if (!requests.isEmpty()) {
+            requests.get(requests.size() - 1).checks.add(new String[]{name, expr});
+        }
+        return this;
+    }
+
+    /** Shorthand for {@link #check} asserting the response status code. */
+    public LoadTestBuilder expectStatus(int code) {
+        return check("status is " + code, "res.status === " + code);
     }
 
     // -- load profile --------------------------------------------------------
@@ -215,7 +238,14 @@ public final class LoadTestBuilder {
         sb.append("import http from 'k6/http';\n");
         sb.append("import { check, sleep } from 'k6';\n\n");
         sb.append("export const options = ").append(optionsJson()).append(";\n\n");
+        // Bake the target() base URL as a runnable default so the exported
+        // script works out of the box (matching the perf engine's own builder
+        // pattern), while staying overridable via `-e BASE_URL=...` / __ENV.
+        if (baseUrl != null) {
+            sb.append("const BASE_URL = __ENV.BASE_URL || ").append(jsStr(baseUrl)).append(";\n\n");
+        }
         sb.append("export default function () {\n");
+        sb.append("  let r;\n");
         for (Req req : resolvedRequests()) {
             sb.append(requestJs(req));
         }
@@ -287,7 +317,7 @@ public final class LoadTestBuilder {
             if (!path.isEmpty() && !path.startsWith("/")) {
                 path = "/" + path;
             }
-            url = "`${__ENV.BASE_URL}" + path + "`";
+            url = "`${BASE_URL}" + path + "`";
         } else {
             url = jsStr(req.path);
         }
@@ -333,21 +363,44 @@ public final class LoadTestBuilder {
         StringBuilder sb = new StringBuilder();
         if (req.body == null) {
             if (params != null) {
-                sb.append("  let r = http.").append(method).append("(").append(url)
+                sb.append("  r = http.").append(method).append("(").append(url)
                         .append(", null, ").append(params).append(");\n");
             } else {
-                sb.append("  let r = http.").append(method).append("(").append(url).append(");\n");
+                sb.append("  r = http.").append(method).append("(").append(url).append(");\n");
             }
         } else {
             if (params != null) {
-                sb.append("  let r = http.").append(method).append("(").append(url)
+                sb.append("  r = http.").append(method).append("(").append(url)
                         .append(", ").append(bodyLit).append(", ").append(params).append(");\n");
             } else {
-                sb.append("  let r = http.").append(method).append("(").append(url)
+                sb.append("  r = http.").append(method).append("(").append(url)
                         .append(", ").append(bodyLit).append(");\n");
             }
         }
-        sb.append("  check(r, { 'status < 400': (res) => res.status < 400 });\n");
+        sb.append(checkJs(req.checks));
+        return sb.toString();
+    }
+
+    /**
+     * Emit the k6 {@code check(r, { ... })} line for a request. With no custom
+     * checks it emits the default {@code status < 400} assertion (backward
+     * compatible); otherwise every custom check in insertion order. Kept
+     * byte-identical across the Go/Python/Java SDKs.
+     */
+    private static String checkJs(List<String[]> checks) {
+        if (checks.isEmpty()) {
+            return "  check(r, { 'status < 400': (res) => res.status < 400 });\n";
+        }
+        StringBuilder sb = new StringBuilder("  check(r, { ");
+        boolean first = true;
+        for (String[] c : checks) {
+            if (!first) {
+                sb.append(", ");
+            }
+            sb.append(jsStr(c[0])).append(": (res) => ").append(c[1]);
+            first = false;
+        }
+        sb.append(" });\n");
         return sb.toString();
     }
 

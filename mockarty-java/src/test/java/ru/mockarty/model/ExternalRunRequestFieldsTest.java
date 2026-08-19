@@ -37,6 +37,7 @@ class ExternalRunRequestFieldsTest {
                 .caseDescription("desc")
                 .caseExpectedResult("200 OK")
                 .claimCaseOwnership(true)
+                .parameters(java.util.Map.of("browser", "firefox"))
                 .customFields(List.of(new CustomField("team", "auth").type("string")));
 
         JsonNode node = mapper.readTree(mapper.writeValueAsString(req));
@@ -46,6 +47,7 @@ class ExternalRunRequestFieldsTest {
         assertEquals("desc", node.get("caseDescription").asText());
         assertEquals("200 OK", node.get("caseExpectedResult").asText());
         assertTrue(node.get("claimCaseOwnership").asBoolean());
+        assertEquals("firefox", node.get("parameters").get("browser").asText());
         assertEquals("team", node.get("customFields").get(0).get("name").asText());
         assertEquals("auth", node.get("customFields").get(0).get("value").asText());
         assertEquals("string", node.get("customFields").get(0).get("type").asText());

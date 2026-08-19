@@ -105,7 +105,7 @@ public final class MockartyDiscoveryListener implements TestExecutionListener {
             if (namespace == null || namespace.isEmpty()) {
                 namespace = DEFAULT_NAMESPACE;
             }
-            DiscoveryResult result = client.discovery().syncDiscovery(namespace, manifest);
+            DiscoveryResult result = client.discovery().sync(namespace, manifest);
             log.info("Mockarty discovery synced: source={} created={} updated={} orphaned={} total={}",
                     result.getSource(), result.getCreated(), result.getUpdated(),
                     result.getOrphaned(), result.getTotal());
