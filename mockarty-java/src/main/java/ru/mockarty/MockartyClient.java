@@ -12,6 +12,7 @@ import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CollectionApi;
 import ru.mockarty.api.ContractApi;
 import ru.mockarty.api.EntitySearchApi;
+import ru.mockarty.api.EconomicsApi;
 import ru.mockarty.api.EnvironmentApi;
 import ru.mockarty.api.FolderApi;
 import ru.mockarty.api.FuzzingApi;
@@ -335,6 +336,11 @@ public class MockartyClient implements AutoCloseable {
      */
     public EntitySearchApi entitySearch() {
         return new EntitySearchApi(this);
+    }
+
+    /** Returns the administrator LLM usage and immutable price-book API. */
+    public EconomicsApi economics() {
+        return new EconomicsApi(this);
     }
 
     /**
