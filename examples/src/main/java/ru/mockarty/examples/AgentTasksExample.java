@@ -35,6 +35,7 @@ public class AgentTasksExample {
             trackTaskProgress(client);
             rerunAndExport(client);
             manageTasks(client);
+            listRecoverableSessions(client);
         }
     }
 
@@ -165,6 +166,14 @@ public class AgentTasksExample {
 
         tasks = client.agentTasks().list();
         System.out.println("Tasks after cleanup: " + tasks.size());
+    }
+
+    /** Lists metadata before an operator explicitly exports or claims history. */
+    static void listRecoverableSessions(MockartyClient client) {
+        Map<String, Object> page = client.agentTasks().listLegacySessions(20, null);
+        Object sessions = page == null ? null : page.get("sessions");
+        int count = sessions instanceof List ? ((List<?>) sessions).size() : 0;
+        System.out.println("Recoverable pre-namespace sessions: " + count);
     }
 
     private static String truncate(String s, int maxLen) {

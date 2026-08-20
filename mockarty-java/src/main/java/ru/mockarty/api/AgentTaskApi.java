@@ -138,6 +138,82 @@ public class AgentTaskApi {
         return client.getBytes("/api/v1/agent/tasks/" + encode(id) + "/export");
     }
 
+    /**
+     * Lists an owner-scoped page of recoverable pre-namespace sessions.
+     *
+     * @param limit bounded page size from 1 through 100
+     * @param cursor opaque cursor from the previous response, or null
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listLegacySessions(int limit, String cursor) throws MockartyException {
+        if (limit < 1 || limit > 100) {
+            throw new IllegalArgumentException("limit must be between 1 and 100");
+        }
+        StringBuilder path = new StringBuilder("/api/v1/agent/sessions/legacy?limit=")
+                .append(limit);
+        if (cursor != null && !cursor.isEmpty()) {
+            path.append("&cursor=").append(encode(cursor));
+        }
+        return client.get(path.toString(), Map.class);
+    }
+
+    /** Returns one bounded page of a recoverable transcript. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> exportLegacySession(String id, int limit, long afterEventId)
+            throws MockartyException {
+        requireLegacySessionId(id);
+        if (limit < 1 || limit > 2000) {
+            throw new IllegalArgumentException("limit must be between 1 and 2000");
+        }
+        if (afterEventId < 0) {
+            throw new IllegalArgumentException("afterEventId must be non-negative");
+        }
+        String path = "/api/v1/agent/sessions/legacy/" + encode(id)
+                + "/export?limit=" + limit + "&afterEventId=" + afterEventId;
+        return client.get(path, Map.class);
+    }
+
+    /**
+     * Claims a recoverable transcript into a write-authorized workspace.
+     * acknowledgeUnknownOrigin must be true; sessionKey may be null to reuse
+     * the legacy public key.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> claimLegacySession(
+            String id,
+            String namespace,
+            String sessionKey,
+            boolean acknowledgeUnknownOrigin
+    ) throws MockartyException {
+        requireLegacySessionId(id);
+        if (namespace == null || namespace.trim().isEmpty()) {
+            throw new IllegalArgumentException("namespace is required");
+        }
+        if (!acknowledgeUnknownOrigin) {
+            throw new IllegalArgumentException("acknowledgeUnknownOrigin must be true");
+        }
+        Map<String, Object> request = new java.util.LinkedHashMap<>();
+        request.put("namespace", namespace);
+        request.put("acknowledgeUnknownOrigin", acknowledgeUnknownOrigin);
+        if (sessionKey != null && !sessionKey.isEmpty()) {
+            request.put("sessionKey", sessionKey);
+        }
+        Map<String, Object> envelope = client.post(
+                "/api/v1/agent/sessions/legacy/" + encode(id) + "/claim",
+                request,
+                Map.class);
+        if (envelope == null || !(envelope.get("session") instanceof Map)) {
+            return java.util.Collections.emptyMap();
+        }
+        return (Map<String, Object>) envelope.get("session");
+    }
+
+    private static void requireLegacySessionId(String id) {
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException("legacy session id is required");
+        }
+    }
+
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
