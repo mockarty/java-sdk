@@ -14,8 +14,9 @@ public class LLMSecurityEvent {
     private String category;
     private String decision;
     private String surface;
-    private String trustClass;
-    private String fingerprint;
+	private String trustClass;
+	private String fingerprint;
+	private String correlationId;
     private long id;
     private long latencyUs;
     private long policyRevision;
@@ -33,7 +34,8 @@ public class LLMSecurityEvent {
     public String getDecision() { return decision; }
     public String getSurface() { return surface; }
     public String getTrustClass() { return trustClass; }
-    public String getFingerprint() { return fingerprint; }
+	public String getFingerprint() { return fingerprint; }
+	public String getCorrelationId() { return correlationId; }
     public long getId() { return id; }
     public long getLatencyUs() { return latencyUs; }
     public long getPolicyRevision() { return policyRevision; }
