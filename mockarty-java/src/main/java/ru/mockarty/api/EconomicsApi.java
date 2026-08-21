@@ -11,12 +11,14 @@ import ru.mockarty.model.LLMBudget;
 import ru.mockarty.model.LLMBudgetList;
 import ru.mockarty.model.LLMUsageReport;
 import ru.mockarty.model.LLMUsageRefund;
+import ru.mockarty.model.ResourcePrice;
+import ru.mockarty.model.ResourcePriceList;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-/** Administrator LLM usage and immutable price-book operations. */
+/** Administrator AI/workflow usage and immutable price-book operations. */
 public class EconomicsApi {
     private final MockartyClient client;
 
@@ -43,6 +45,29 @@ public class EconomicsApi {
             throw new IllegalArgumentException("provider, model, currency and effective time are required");
         }
         return client.post("/api/v1/admin/llm-prices", price, LLMPrice.class);
+    }
+
+    public ResourcePriceList listResourcePrices(String eventKind, String provider, String resource,
+                                                String unit, int limit) throws MockartyException {
+        validateResourceKindUnit(eventKind, unit, false);
+        StringBuilder path = new StringBuilder("/api/v1/admin/llm-prices?eventKind=")
+                .append(enc(eventKind.trim()));
+        if (!blank(provider)) path.append("&provider=").append(enc(provider.trim()));
+        if (!blank(resource)) path.append("&resource=").append(enc(resource.trim()));
+        if (!blank(unit)) path.append("&unit=").append(enc(unit.trim()));
+        if (limit > 0) path.append("&limit=").append(limit);
+        return client.get(path.toString(), ResourcePriceList.class);
+    }
+
+    public ResourcePrice appendResourcePrice(ResourcePrice price) throws MockartyException {
+        if (price == null || blank(price.getProvider()) || blank(price.getResource()) ||
+                blank(price.getCurrency()) || blank(price.getEffectiveFrom()) ||
+                price.getProviderMicrosPerUnit() < 0 || price.getCustomerMicrosPerUnit() < 0) {
+            throw new IllegalArgumentException(
+                    "provider, resource, currency, effective time and non-negative prices are required");
+        }
+        validateResourceKindUnit(price.getEventKind(), price.getUnit(), true);
+        return client.post("/api/v1/admin/llm-prices", price, ResourcePrice.class);
     }
 
     public LLMUsageReport getUsage() throws MockartyException {
@@ -105,6 +130,19 @@ public class EconomicsApi {
                 blank(budget.getCurrency()) || blank(budget.getPeriodStart()) || blank(budget.getPeriodEnd()) ||
                 (requireId && blank(budget.getId()))) {
             throw new IllegalArgumentException("budget namespace, scope, currency, period and id for updates are required");
+        }
+    }
+
+    private static void validateResourceKindUnit(String eventKind, String unit, boolean requireUnit) {
+        String kindValue = eventKind == null ? "" : eventKind.trim();
+        String unitValue = unit == null ? "" : unit.trim();
+        boolean valid = (!requireUnit || !unitValue.isEmpty()) &&
+                (("tool_call".equals(kindValue) && (unitValue.isEmpty() || "calls".equals(unitValue))) ||
+                        ("runner_seconds".equals(kindValue) &&
+                                (unitValue.isEmpty() || "seconds".equals(unitValue))));
+        if (!valid) {
+            throw new IllegalArgumentException(
+                    "event kind must be tool_call or runner_seconds and unit must match");
         }
     }
 

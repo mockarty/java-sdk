@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.model.LLMPrice;
 import ru.mockarty.model.LLMBudget;
+import ru.mockarty.model.ResourcePrice;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -28,7 +29,15 @@ class EconomicsApiTest {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/v1/admin/llm-prices", exchange -> {
             if ("POST".equals(exchange.getRequestMethod())) {
-                reply(exchange, "{\"id\":\"p1\",\"provider\":\"openai\",\"model\":\"gpt\",\"currency\":\"USD\",\"effectiveFrom\":\"2026-01-01T00:00:00Z\"}");
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                if (body.contains("\"eventKind\"")) {
+                    reply(exchange, resourcePriceJSON());
+                } else {
+                    reply(exchange, "{\"id\":\"p1\",\"provider\":\"openai\",\"model\":\"gpt\",\"currency\":\"USD\",\"effectiveFrom\":\"2026-01-01T00:00:00Z\"}");
+                }
+            } else if (exchange.getRequestURI().getRawQuery() != null &&
+                    exchange.getRequestURI().getRawQuery().contains("eventKind=")) {
+                reply(exchange, "{\"resourcePrices\":[" + resourcePriceJSON() + "]}");
             } else {
                 reply(exchange, "{\"prices\":[]}");
             }
@@ -40,7 +49,7 @@ class EconomicsApiTest {
             } else if (path.endsWith("/e1/refund")) {
                 reply(exchange, "{\"id\":\"r1\",\"createdAt\":\"2026-08-19T00:00:00Z\",\"originalEventId\":\"e1\",\"refundEventId\":\"e2\",\"reason\":\"invalid response\"}");
             } else {
-                reply(exchange, "{\"totals\":{\"calls\":2,\"totalTokens\":10},\"rows\":[],\"costs\":[],\"unpricedCalls\":1}");
+                reply(exchange, "{\"totals\":{\"calls\":2,\"totalTokens\":10},\"rows\":[],\"costs\":[],\"resourceTotals\":[{\"eventKind\":\"runner_seconds\",\"unit\":\"seconds\",\"events\":1,\"quantity\":12}],\"unpricedCalls\":1,\"unpricedEvents\":1}");
             }
         });
         server.createContext("/api/v1/admin/llm-budgets", exchange -> {
@@ -60,10 +69,27 @@ class EconomicsApiTest {
         assertEquals("p1", client.economics().appendPrice(price).getId());
         assertEquals(0, client.economics().listPrices("openai", null, 20).getPrices().size());
         assertEquals(1, client.economics().getUsage("module", 30).getUnpricedCalls());
+        assertEquals(1, client.economics().getUsage("module", 30).getUnpricedEvents());
+        assertEquals(12, client.economics().getUsage("module", 30).getResourceTotals().get(0).getQuantity());
+    }
+
+    @Test void resourcePriceBook() throws Exception {
+        ResourcePrice price = new ResourcePrice().eventKind("tool_call").provider("mockarty-agent")
+                .resource("web_search").unit("calls").currency("USD")
+                .providerMicrosPerUnit(200).customerMicrosPerUnit(300)
+                .effectiveFrom("2026-08-20T00:00:00Z");
+        assertEquals("rp1", client.economics().appendResourcePrice(price).getId());
+        assertEquals(1, client.economics().listResourcePrices(
+                "tool_call", "mockarty-agent", "web_search", "calls", 20).getResourcePrices().size());
     }
 
     @Test void validatesRequiredFields() {
         assertThrows(IllegalArgumentException.class, () -> client.economics().appendPrice(new LLMPrice()));
+        assertThrows(IllegalArgumentException.class, () -> client.economics().appendResourcePrice(
+                new ResourcePrice().eventKind("tool_call").provider("mockarty").resource("tool")
+                        .unit("seconds").currency("USD").effectiveFrom("2026-08-20T00:00:00Z")));
+        assertThrows(IllegalArgumentException.class, () -> client.economics().listResourcePrices(
+                "runner_seconds", null, null, "calls", 20));
     }
 
     @Test void budgets() throws Exception {
@@ -82,5 +108,12 @@ class EconomicsApiTest {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(200, bytes.length);
         try (OutputStream out = exchange.getResponseBody()) { out.write(bytes); }
+    }
+
+    private static String resourcePriceJSON() {
+        return "{\"id\":\"rp1\",\"eventKind\":\"tool_call\",\"provider\":\"mockarty-agent\"," +
+                "\"resource\":\"web_search\",\"unit\":\"calls\",\"currency\":\"USD\"," +
+                "\"providerMicrosPerUnit\":200,\"customerMicrosPerUnit\":300," +
+                "\"effectiveFrom\":\"2026-08-20T00:00:00Z\"}";
     }
 }

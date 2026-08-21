@@ -7,11 +7,15 @@ public class LLMUsageOutcomeCost {
     private long providerCostMicros;
     private long customerCostMicros;
     private long calls;
+    private long resourceEvents;
+    private long resourceQuantity;
     private String outcome;
     private String currency;
     public long getProviderCostMicros() { return providerCostMicros; }
     public long getCustomerCostMicros() { return customerCostMicros; }
     public long getCalls() { return calls; }
+    public long getResourceEvents() { return resourceEvents; }
+    public long getResourceQuantity() { return resourceQuantity; }
     public String getOutcome() { return outcome; }
     public String getCurrency() { return currency; }
 }

@@ -16,6 +16,8 @@ public class LLMUsageCost {
     private long overageMicros;
     private long calls;
     private long byokCalls;
+    private long resourceEvents;
+    private long resourceQuantity;
     private String currency;
     public long getProviderCostMicros() { return providerCostMicros; }
     public long getPlatformFeeMicros() { return platformFeeMicros; }
@@ -29,5 +31,7 @@ public class LLMUsageCost {
     public long getOverageMicros() { return overageMicros; }
     public long getCalls() { return calls; }
     public long getByokCalls() { return byokCalls; }
+    public long getResourceEvents() { return resourceEvents; }
+    public long getResourceQuantity() { return resourceQuantity; }
     public String getCurrency() { return currency; }
 }

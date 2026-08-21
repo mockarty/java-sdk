@@ -13,6 +13,9 @@ public final class EconomicsExample {
                     report.getTotals().getCalls(), report.getTotals().getTotalTokens(), report.getUnpricedCalls());
             byte[] statement = client.economics().downloadUsageStatement(null, null, null, null, 100);
             System.out.printf("statement_bytes=%d%n", statement.length);
+            int toolPrices = client.economics().listResourcePrices(
+                    "tool_call", null, null, "calls", 100).getResourcePrices().size();
+            System.out.printf("tool_price_entries=%d%n", toolPrices);
         }
     }
 }
