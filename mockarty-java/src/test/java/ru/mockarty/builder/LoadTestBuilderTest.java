@@ -41,6 +41,22 @@ class LoadTestBuilderTest {
     }
 
     @Test
+    void maxVUsUsesCanonicalWireSpelling() {
+        LoadTestBuilder profile = LoadTestBuilder.named("arrival")
+                .target("http://127.0.0.1:8080")
+                .get("/")
+                .rps(100)
+                .maxVus(50);
+
+        String script = profile.toK6Script();
+        assertTrue(script.contains("\"maxVUs\":50"), script);
+        assertFalse(script.contains("\"maxVus\""), script);
+        Map<String, Object> config = profile.toPerfConfig();
+        assertEquals(50, config.get("maxVUs"));
+        assertFalse(config.containsKey("maxVus"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void stagesWinOverConstantVus() {
         Map<String, Object> cfg = LoadTestBuilder.named("ramp")

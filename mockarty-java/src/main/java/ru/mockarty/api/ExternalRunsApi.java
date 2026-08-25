@@ -375,6 +375,70 @@ public class ExternalRunsApi {
         }
     }
 
+    // -- streaming lifecycle -------------------------------------------------
+
+    private String lifecycleBase(String namespace) {
+        String ns = (namespace == null || namespace.isEmpty())
+                ? client.getConfig().getNamespace() : namespace;
+        if (ns == null || ns.isEmpty()) {
+            throw new IllegalArgumentException("namespace is required");
+        }
+        return "/api/v1/namespaces/" + ns + "/tcm/external-runs/lifecycle";
+    }
+
+    /**
+     * Opens a streaming external run and returns its server view (with the run
+     * {@code id} to feed {@link #appendSteps} / {@link #finishRun}). Unlike
+     * {@link #report} (one-shot upload of a finished run), the lifecycle API
+     * reports incrementally: startRun → appendSteps (repeatedly) → finishRun.
+     *
+     * @param namespace target namespace ({@code null}/empty → client default)
+     * @param run       run fields: {@code name}, {@code full_name}, {@code framework},
+     *                  {@code suite_id}, {@code external_id}, {@code test_case_id},
+     *                  {@code tags}, {@code environment}
+     */
+    public JsonNode startRun(String namespace, Map<String, Object> run) throws MockartyException {
+        return client.post(lifecycleBase(namespace), run, JsonNode.class);
+    }
+
+    /** Streams one or more steps into an open run. */
+    public JsonNode appendSteps(String namespace, String runId, List<Map<String, Object>> steps)
+            throws MockartyException {
+        return client.post(lifecycleBase(namespace) + "/" + runId + "/steps",
+                Map.of("steps", steps), JsonNode.class);
+    }
+
+    /**
+     * Closes an open run; the returned view carries the resolved TCM case/run
+     * ids the ingest matched or created.
+     */
+    public JsonNode finishRun(String namespace, String runId, String status, String summary)
+            throws MockartyException {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", status);
+        if (summary != null && !summary.isEmpty()) {
+            body.put("summary", summary);
+        }
+        return client.post(lifecycleBase(namespace) + "/" + runId + "/finish", body, JsonNode.class);
+    }
+
+    /** Fetches the current view of a streaming run. */
+    public JsonNode getRun(String namespace, String runId) throws MockartyException {
+        return client.get(lifecycleBase(namespace) + "/" + runId, JsonNode.class);
+    }
+
+    /** Lists streaming runs in the namespace. */
+    public List<JsonNode> listRuns(String namespace) throws MockartyException {
+        JsonNode data = client.get(lifecycleBase(namespace), JsonNode.class);
+        List<JsonNode> out = new ArrayList<>();
+        if (data != null && data.path("runs").isArray()) {
+            for (JsonNode r : data.path("runs")) {
+                out.add(r);
+            }
+        }
+        return out;
+    }
+
     /**
      * Flatten nested Allure step trees into ExternalStep records keyed by
      * a slash-joined path so the TCM report shows the structure. Order of

@@ -54,6 +54,9 @@ public final class LoadTestBuilder {
         final String path;
         final Object body;
         final Map<String, String> headers;
+        // (name, expr) per-request k6 checks. When non-empty they replace the
+        // default `status < 400` assertion.
+        final List<String[]> checks = new ArrayList<>();
 
         Req(String method, String path, Object body, Map<String, String> headers) {
             this.method = method.toUpperCase();
@@ -133,6 +136,26 @@ public final class LoadTestBuilder {
 
     public LoadTestBuilder delete(String path) {
         return request("DELETE", path, null, null);
+    }
+
+    /**
+     * Attaches a named assertion to the MOST RECENTLY added request. {@code name}
+     * is the check label; {@code expr} is a JavaScript boolean expression that
+     * may reference the response as {@code res} (e.g.
+     * {@code res.json().id !== undefined}). When a request has one or more checks
+     * they REPLACE the default {@code status < 400} check. No-op if no request
+     * has been added yet.
+     */
+    public LoadTestBuilder check(String name, String expr) {
+        if (!requests.isEmpty()) {
+            requests.get(requests.size() - 1).checks.add(new String[]{name, expr});
+        }
+        return this;
+    }
+
+    /** Shorthand for {@link #check} asserting the response status code. */
+    public LoadTestBuilder expectStatus(int code) {
+        return check("status is " + code, "res.status === " + code);
     }
 
     // -- load profile --------------------------------------------------------
@@ -256,7 +279,7 @@ public final class LoadTestBuilder {
             opts.put("rps", rps);
         }
         if (maxVus != null) {
-            opts.put("maxVus", maxVus);
+            opts.put("maxVUs", maxVus);
         }
         if (!thresholds.isEmpty()) {
             opts.put("thresholds", thresholds);
@@ -354,7 +377,30 @@ public final class LoadTestBuilder {
                         .append(", ").append(bodyLit).append(");\n");
             }
         }
-        sb.append("  check(r, { 'status < 400': (res) => res.status < 400 });\n");
+        sb.append(checkJs(req.checks));
+        return sb.toString();
+    }
+
+    /**
+     * Emit the k6 {@code check(r, { ... })} line for a request. With no custom
+     * checks it emits the default {@code status < 400} assertion (backward
+     * compatible); otherwise every custom check in insertion order. Kept
+     * byte-identical across the Go/Python/Java SDKs.
+     */
+    private static String checkJs(List<String[]> checks) {
+        if (checks.isEmpty()) {
+            return "  check(r, { 'status < 400': (res) => res.status < 400 });\n";
+        }
+        StringBuilder sb = new StringBuilder("  check(r, { ");
+        boolean first = true;
+        for (String[] c : checks) {
+            if (!first) {
+                sb.append(", ");
+            }
+            sb.append(jsStr(c[0])).append(": (res) => ").append(c[1]);
+            first = false;
+        }
+        sb.append(" });\n");
         return sb.toString();
     }
 
@@ -381,7 +427,7 @@ public final class LoadTestBuilder {
             cfg.put("rps", rps);
         }
         if (maxVus != null) {
-            cfg.put("maxVus", maxVus);
+            cfg.put("maxVUs", maxVus);
         }
         if (!thresholds.isEmpty()) {
             cfg.put("thresholds", thresholds);

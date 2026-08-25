@@ -33,9 +33,9 @@ public class AgentTasksExample {
 
             submitTask(client);
             trackTaskProgress(client);
+            listRecoverableSessions(client);
             rerunAndExport(client);
             manageTasks(client);
-            listRecoverableSessions(client);
         }
     }
 
@@ -47,6 +47,7 @@ public class AgentTasksExample {
 
         // Task 1: Generate mocks from natural language
         AgentTask mockGenTask = client.agentTasks().submit(Map.of(
+                "title", "Generate pet-store mocks",
                 "type", "generate_mocks",
                 "prompt", "Create a REST API for a pet store with CRUD operations " +
                         "for pets, owners, and appointments. Include realistic Faker data " +
@@ -63,6 +64,7 @@ public class AgentTasksExample {
 
         // Task 2: Analyze an API specification
         AgentTask analysisTask = client.agentTasks().submit(Map.of(
+                "title", "Analyze an OpenAPI specification",
                 "type", "analyze_spec",
                 "prompt", "Analyze the following OpenAPI spec and suggest improvements " +
                         "for better test coverage, edge cases, and security testing.",
@@ -74,6 +76,7 @@ public class AgentTasksExample {
 
         // Task 3: Generate test scenarios
         AgentTask testGenTask = client.agentTasks().submit(Map.of(
+                "title", "Generate authentication tests",
                 "type", "generate_tests",
                 "prompt", "Generate comprehensive test scenarios for the user " +
                         "authentication flow including login, token refresh, " +
@@ -101,6 +104,14 @@ public class AgentTasksExample {
 
             // Get detailed task info
             AgentTask detail = client.agentTasks().get(task.getId());
+            detail.getToolReceipts().stream()
+                    .filter(receipt -> "awaiting_reconcile".equals(receipt.getStatus()))
+                    .forEach(receipt -> System.out.printf(
+                            "  External action %s needs review (version %d); inspect the downstream system first.%n",
+                            receipt.getToolName(), receipt.getVersion()));
+            if (!detail.isCanReconcileToolReceipts()) {
+                System.out.println("  A user with Coder Deploy permission must record the decision.");
+            }
             System.out.println("    Result preview: " + truncate(String.valueOf(detail.getResult()), 100));
         }
 

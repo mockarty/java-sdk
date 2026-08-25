@@ -7,6 +7,8 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 
 import java.util.Map;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * API for retrieving system statistics and status.
@@ -57,5 +59,11 @@ public class StatsApi {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getFeatures() throws MockartyException {
         return client.get("/api/v1/features", Map.class);
+    }
+
+    /** Returns canonical capability descriptors available to this namespace. */
+    public CapabilityCatalog listCapabilities() throws MockartyException {
+        String namespace = URLEncoder.encode(client.getConfig().getNamespace(), StandardCharsets.UTF_8);
+        return client.get("/api/v1/capabilities?namespace=" + namespace, CapabilityCatalog.class);
     }
 }

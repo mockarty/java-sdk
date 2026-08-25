@@ -299,7 +299,11 @@ MockBuilder.grpc("UserService", "GetUser")
     .build();
 ```
 
-### MCP (Model Context Protocol)
+### MCP (Model Context Protocol) — mocking an MCP tool
+
+This section is about **mocking** a third-party MCP tool endpoint (making
+Mockarty impersonate an MCP server). To **call** Mockarty's own MCP tool
+surface as a client, see [MCP Client](#mcp-client) below.
 
 ```java
 MockBuilder.mcp("search_documents")
@@ -324,6 +328,65 @@ MockBuilder.graphql("query", "user")
 MockBuilder.soap("PaymentService", "ProcessPayment")
     .respond(200, "<PaymentResult><status>OK</status></PaymentResult>")
     .build();
+```
+
+## MCP Client
+
+Drive Mockarty's agent-facing tool surface programmatically over the admin
+node's Model Context Protocol endpoint — list the tools the server exposes and
+call them with typed arguments. Reuses the client's server URL + API key; tool
+licensing is enforced server-side. Handshake, session, and JSON/SSE framing are
+handled for you.
+
+```java
+McpApi mcp = client.mcp();
+for (McpApi.McpTool tool : mcp.listTools()) {      // discover available tools
+    System.out.println(tool.name + " — " + tool.description);
+}
+McpApi.McpToolResult result = mcp.callTool("list_mocks", Map.of());
+System.out.println(result.text());                  // JSON result text
+```
+
+See [`McpClientExample.java`](./examples/src/main/java/ru/mockarty/examples/McpClientExample.java).
+
+## Agent Tasks (submit-and-wait)
+
+Dispatch a free-form task into Mockarty's autonomous agent network and block
+for its result:
+
+```java
+AgentTask task = client.agentTasks().submitAndWait(
+    Map.of("title", "audit", "prompt", "Fuzz the /users API and summarise"),
+    Duration.ofSeconds(2));
+System.out.println(task.getResult());   // throws MockartyException if it fails/cancels
+```
+
+## Issue Tracker (task automation)
+
+Create/read/update/transition issues, comment, search, claim the next issue,
+and manage projects/sprints (loosely-typed `JsonNode`/`Map` I/O):
+
+```java
+IssueTrackerApi it = client.issueTracker();
+JsonNode issue = it.createIssue(null, Map.of("projectId", pid, "type", "bug", "title", "500 on /pay"));
+it.addComment(null, issue.get("id").asText(), "repro attached");
+it.moveIssue(null, issue.get("id").asText(), "in_progress", null);
+JsonNode next = it.nextIssue(null, Map.of("assigneeId", me));
+```
+
+## Test Case Management (TCM)
+
+Author cases, run them, poll case-runs, file defects, manage folders +
+attachments:
+
+```java
+TcmApi tcm = client.tcm();
+JsonNode c = tcm.createCase(null, Map.of("folderId", fid, "title", "Checkout smoke"));
+JsonNode run = tcm.runCase(null, c.get("id").asText(), null);
+JsonNode cr = tcm.getCaseRun(null, run.get("runId").asText());
+if ("failed".equals(cr.path("status").asText())) {
+    tcm.createDefect(null, Map.of("title", "checkout broke", "caseRunId", run.get("runId").asText()));
+}
 ```
 
 ## Features

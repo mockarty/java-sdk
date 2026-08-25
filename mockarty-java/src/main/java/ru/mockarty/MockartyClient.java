@@ -8,10 +8,20 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.mockarty.api.AgentTaskApi;
+import ru.mockarty.api.AutonomousMissionsApi;
+import ru.mockarty.api.McpApi;
+import ru.mockarty.api.IssueTrackerApi;
+import ru.mockarty.api.TcmApi;
 import ru.mockarty.api.ChaosApi;
+import ru.mockarty.api.CloudWebhooksApi;
+import ru.mockarty.api.CloudSpacesApi;
+import ru.mockarty.api.CloudEntitlementsApi;
+import ru.mockarty.api.DeliveryPolicyApi;
+import ru.mockarty.api.CoderDeliveryApi;
 import ru.mockarty.api.CollectionApi;
 import ru.mockarty.api.ContractApi;
 import ru.mockarty.api.EntitySearchApi;
+import ru.mockarty.api.ExperienceApi;
 import ru.mockarty.api.EconomicsApi;
 import ru.mockarty.api.LLMSecurityApi;
 import ru.mockarty.api.EnvironmentApi;
@@ -39,6 +49,7 @@ import ru.mockarty.api.TemplateApi;
 import ru.mockarty.api.TestPlanApi;
 import ru.mockarty.api.TestRunApi;
 import ru.mockarty.api.UndefinedApi;
+import ru.mockarty.api.WorkflowDefinitionsApi;
 import ru.mockarty.exception.MockartyApiException;
 import ru.mockarty.exception.MockartyConflictException;
 import ru.mockarty.exception.MockartyConnectionException;
@@ -141,6 +152,16 @@ public class MockartyClient implements AutoCloseable {
      */
     public MockApi mocks() {
         return new MockApi(this);
+    }
+
+    /** Returns autonomous mission intake and supervision operations. */
+    public AutonomousMissionsApi autonomousMissions() {
+        return new AutonomousMissionsApi(this);
+    }
+
+    /** Returns admitted coder repositories, delivery targets, and deploy missions. */
+    public CoderDeliveryApi coderDelivery() {
+        return new CoderDeliveryApi(this);
     }
 
     /**
@@ -293,6 +314,28 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Returns the MCP client — list/call the server's agent-facing tool surface
+     * over the streamable-HTTP {@code /mcp} endpoint.
+     */
+    public McpApi mcp() {
+        return new McpApi(this);
+    }
+
+    /**
+     * Returns the issue-tracker task-automation API (issues/comments/projects/sprints).
+     */
+    public IssueTrackerApi issueTracker() {
+        return new IssueTrackerApi(this);
+    }
+
+    /**
+     * Returns the Test Case Management automation API (cases/case-runs/defects).
+     */
+    public TcmApi tcm() {
+        return new TcmApi(this);
+    }
+
+    /**
      * Returns the Namespace Settings API for namespace-level settings.
      */
     public NamespaceSettingsApi namespaceSettings() {
@@ -339,6 +382,11 @@ public class MockartyClient implements AutoCloseable {
         return new EntitySearchApi(this);
     }
 
+    /** Returns the reusable AutoTester run-experience API. */
+    public ExperienceApi experience() {
+        return new ExperienceApi(this);
+    }
+
     /** Returns the administrator LLM usage and immutable price-book API. */
     public EconomicsApi economics() {
         return new EconomicsApi(this);
@@ -347,6 +395,31 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the layered prompt-security management API. */
     public LLMSecurityApi llmSecurity() {
         return new LLMSecurityApi(this);
+    }
+
+    /** Returns the versioned workflow draft, dry-run and publish API. */
+    public WorkflowDefinitionsApi workflowDefinitions() {
+        return new WorkflowDefinitionsApi(this);
+    }
+
+    /** Returns the workspace webhook automation API for Mockarty Cloud. */
+    public CloudWebhooksApi cloudWebhooks() {
+        return new CloudWebhooksApi(this);
+    }
+
+    /** Returns the canonical explicit-Space collaboration API. */
+    public CloudSpacesApi cloudSpaces() {
+        return new CloudSpacesApi(this);
+    }
+
+    /** Returns administrator delivery-policy environment management. */
+    public DeliveryPolicyApi deliveryPolicy() {
+        return new DeliveryPolicyApi(this);
+    }
+
+    /** Returns the committed unsigned Cloud entitlement projection API. */
+    public CloudEntitlementsApi cloudEntitlements() {
+        return new CloudEntitlementsApi(this);
     }
 
     /**
@@ -422,6 +495,15 @@ public class MockartyClient implements AutoCloseable {
         return objectMapper;
     }
 
+    /**
+     * Returns the underlying HTTP client. Used by the MCP client, which needs
+     * low-level control over the request (streaming Accept header, session id)
+     * that the typed {@code get}/{@code post} helpers do not expose.
+     */
+    public HttpClient getHttpClient() {
+        return httpClient;
+    }
+
     // Internal HTTP methods used by API classes
 
     /**
@@ -462,6 +544,73 @@ public class MockartyClient implements AutoCloseable {
         HttpRequest request = buildRequest(path)
                 .POST(jsonBody(body))
                 .header("Content-Type", "application/json")
+                .build();
+        return execute(request, responseType);
+    }
+
+    /** Performs a POST with narrow caller-supplied idempotency or conditional headers. */
+    public <T> T postWithHeaders(String path, Object body, Class<T> responseType,
+                                 Map<String, String> headers) throws MockartyException {
+        HttpRequest.Builder builder = buildRequest(path)
+                .POST(jsonBody(body))
+                .header("Content-Type", "application/json");
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) {
+                    builder.header(name, value);
+                }
+            });
+        }
+        return execute(builder.build(), responseType);
+    }
+
+    /** Performs a PATCH with narrow caller-supplied conditional headers. */
+    public <T> T patchWithHeaders(String path, Object body, Class<T> responseType,
+                                  Map<String, String> headers) throws MockartyException {
+        HttpRequest.Builder builder = buildRequest(path)
+                .method("PATCH", jsonBody(body))
+                .header("Content-Type", "application/json");
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) builder.header(name, value);
+            });
+        }
+        return execute(builder.build(), responseType);
+    }
+
+    /** Performs a DELETE with narrow caller-supplied conditional headers. */
+    public <T> T deleteWithHeaders(String path, Class<T> responseType,
+                                   Map<String, String> headers) throws MockartyException {
+        HttpRequest.Builder builder = buildRequest(path).DELETE();
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) builder.header(name, value);
+            });
+        }
+        return execute(builder.build(), responseType);
+    }
+
+    /** Performs a conditional DELETE without expecting a response body. */
+    public void deleteWithHeaders(String path, Map<String, String> headers) throws MockartyException {
+        HttpRequest.Builder builder = buildRequest(path).DELETE();
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) builder.header(name, value);
+            });
+        }
+        executeVoid(builder.build());
+    }
+
+    /**
+     * Performs a POST with a raw byte body and an explicit Content-Type (e.g.
+     * multipart/form-data), deserializing the response. Used for attachment
+     * uploads where the body is not JSON.
+     */
+    public <T> T postRaw(String path, byte[] body, String contentType, Class<T> responseType)
+            throws MockartyException {
+        HttpRequest request = buildRequest(path)
+                .header("Content-Type", contentType)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body == null ? new byte[0] : body))
                 .build();
         return execute(request, responseType);
     }
@@ -515,6 +664,22 @@ public class MockartyClient implements AutoCloseable {
                 .header("Content-Type", "application/json")
                 .build();
         return execute(request, responseType);
+    }
+
+    /** Performs a PUT with narrow caller-supplied conditional/idempotency headers. */
+    public <T> T putWithHeaders(String path, Object body, Class<T> responseType,
+                                 Map<String, String> headers) throws MockartyException {
+        HttpRequest.Builder builder = buildRequest(path)
+                .PUT(jsonBody(body))
+                .header("Content-Type", "application/json");
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) {
+                    builder.header(name, value);
+                }
+            });
+        }
+        return execute(builder.build(), responseType);
     }
 
     /**
