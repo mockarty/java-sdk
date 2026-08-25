@@ -12,6 +12,9 @@ public final class ExperienceExample {
         try (MockartyClient client = MockartyClient.create()) {
             client.experience().search("payment retry").getResults()
                     .forEach(item -> System.out.println(item.getKind() + ": " + item.getText()));
+            client.experience().listReview("candidate", 20, null).getItems()
+                    .forEach(item -> System.out.println("review " + item.getState() + " " + item.getId()
+                            + " v" + item.getVersion() + ": " + item.getSource()));
         }
     }
 }

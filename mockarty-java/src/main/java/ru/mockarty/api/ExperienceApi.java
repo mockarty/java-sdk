@@ -8,6 +8,10 @@ import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.ExperienceRecordRequest;
 import ru.mockarty.model.ExperienceRecordResponse;
 import ru.mockarty.model.ExperienceSearchResponse;
+import ru.mockarty.model.ExperienceReviewDetail;
+import ru.mockarty.model.ExperienceReviewPage;
+import ru.mockarty.model.ExperienceReviewRequest;
+import ru.mockarty.model.ExperienceReviewResponse;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +52,46 @@ public class ExperienceApi {
             throw new IllegalArgumentException("source is required");
         }
         return client.post("/api/v1/autotester/context/knowledge", request, ExperienceRecordResponse.class);
+    }
+
+    public ExperienceReviewPage listReview(int limit, String cursor) throws MockartyException {
+		return listReview("candidate", limit, cursor);
+	}
+
+	public ExperienceReviewPage listReview(String state, int limit, String cursor) throws MockartyException {
+		String effectiveState = state == null || state.isBlank() ? "candidate" : state.trim();
+		StringBuilder path = new StringBuilder("/api/v1/autotester/context/knowledge/review?state=")
+				.append(enc(effectiveState));
+        if (limit > 0) path.append("&limit=").append(limit);
+        if (cursor != null && !cursor.isBlank()) path.append("&cursor=").append(enc(cursor));
+        return client.get(path.toString(), ExperienceReviewPage.class);
+    }
+
+    public ExperienceReviewDetail getReview(String id) throws MockartyException {
+        return client.get(reviewPath(id), ExperienceReviewDetail.class);
+    }
+
+    public ExperienceReviewResponse review(String id, ExperienceReviewRequest request) throws MockartyException {
+        if (request == null) throw new IllegalArgumentException("request is required");
+        String decision = request.getDecision() == null ? "" : request.getDecision().trim();
+        if (!decision.equals("publish") && !decision.equals("reject")) {
+            throw new IllegalArgumentException("decision must be publish or reject");
+        }
+        if (request.getExpectedVersion() <= 0 || request.getReason() == null || request.getReason().isBlank()
+                || request.getIdempotencyKey() == null || request.getIdempotencyKey().isBlank()) {
+            throw new IllegalArgumentException("expected version, reason, and idempotency key are required");
+        }
+		if (decision.equals("reject") && (request.getExpiresAt() != null
+				|| (request.getSupersedesId() != null && !request.getSupersedesId().isBlank())
+                || (request.getContradictsIds() != null && !request.getContradictsIds().isEmpty()))) {
+            throw new IllegalArgumentException("publish relations and expiry are not valid for reject");
+        }
+        return client.post(reviewPath(id), request, ExperienceReviewResponse.class);
+    }
+
+    private static String reviewPath(String id) {
+        if (id == null || id.isBlank()) throw new IllegalArgumentException("id is required");
+        return "/api/v1/autotester/context/knowledge/review/" + enc(id.trim()).replace("+", "%20");
     }
 
     private static String enc(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }

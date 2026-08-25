@@ -6,6 +6,7 @@ package ru.mockarty.api;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.AgentTask;
+import ru.mockarty.model.ToolReceipt;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -63,7 +64,57 @@ public class AgentTaskApi {
         if (env == null) return null;
         Object raw = env.get("task");
         if (raw == null) return null;
-        return client.getObjectMapper().convertValue(raw, AgentTask.class);
+        AgentTask task = client.getObjectMapper().convertValue(raw, AgentTask.class);
+        Object receipts = env.get("toolReceipts");
+        if (receipts != null) {
+            task.toolReceipts(client.getObjectMapper().convertValue(receipts,
+                    client.getObjectMapper().getTypeFactory()
+                            .constructCollectionType(List.class, ToolReceipt.class)));
+        }
+        Object canReconcile = env.get("canReconcileToolReceipts");
+        if (canReconcile instanceof Boolean) {
+            task.canReconcileToolReceipts((Boolean) canReconcile);
+        }
+        Object retryAllowed = env.get("toolReceiptRetryAllowed");
+        if (retryAllowed instanceof Boolean) {
+            task.toolReceiptRetryAllowed((Boolean) retryAllowed);
+        }
+        Object blockedReason = env.get("toolReceiptReconcileBlockedReason");
+        if (blockedReason instanceof String) {
+            task.toolReceiptReconcileBlockedReason((String) blockedReason);
+        }
+        return task;
+    }
+
+    /**
+     * Resolves one uncertain external action after inspecting the real target.
+     * Decision is {@code already_applied}, {@code retry_once}, or
+     * {@code mark_failed}. Reuse the same idempotency key when retrying this
+     * request. Reason is limited to 2000 encoded UTF-8 bytes and result to
+     * 65536 encoded UTF-8 bytes; retry_once authorizes exactly one new physical
+     * dispatch.
+     */
+    @SuppressWarnings("unchecked")
+    public ToolReceipt reconcileToolReceipt(
+            String taskId,
+            String receiptKey,
+            long expectedVersion,
+            String idempotencyKey,
+            String decision,
+            String reason,
+            String result) throws MockartyException {
+        Map<String, Object> request = new java.util.LinkedHashMap<>();
+        request.put("expectedVersion", expectedVersion);
+        request.put("idempotencyKey", idempotencyKey);
+        request.put("decision", decision);
+        request.put("reason", reason);
+        request.put("result", result == null ? "" : result);
+        Map<String, Object> envelope = client.post(
+                "/api/v1/agent/tasks/" + encode(taskId) + "/tool-receipts/" +
+                        encode(receiptKey) + "/reconcile",
+                request, Map.class);
+        if (envelope == null || envelope.get("receipt") == null) return null;
+        return client.getObjectMapper().convertValue(envelope.get("receipt"), ToolReceipt.class);
     }
 
     /**
@@ -137,6 +188,38 @@ public class AgentTaskApi {
      */
     public byte[] export(String id) throws MockartyException {
         return client.getBytes("/api/v1/agent/tasks/" + encode(id) + "/export");
+    }
+
+    /** Lists owner-only metadata for recoverable pre-namespace sessions. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> listLegacySessions(int limit, String cursor) throws MockartyException {
+        String path = "/api/v1/agent/sessions/legacy?limit=" + limit;
+        if (cursor != null && !cursor.isEmpty()) {
+            path += "&cursor=" + encode(cursor);
+        }
+        return client.get(path, Map.class);
+    }
+
+    /** Moves one recoverable session into a writable workspace. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> claimLegacySession(
+            String legacyId,
+            String namespace,
+            String sessionKey,
+            boolean acknowledgeUnknownOrigin) throws MockartyException {
+        Map<String, Object> request = new java.util.LinkedHashMap<>();
+        request.put("namespace", namespace);
+        request.put("acknowledgeUnknownOrigin", acknowledgeUnknownOrigin);
+        if (sessionKey != null && !sessionKey.isEmpty()) {
+            request.put("sessionKey", sessionKey);
+        }
+        Map<String, Object> envelope = client.post(
+                "/api/v1/agent/sessions/legacy/" + encode(legacyId) + "/claim",
+                request, Map.class);
+        if (envelope == null || !(envelope.get("session") instanceof Map)) {
+            return java.util.Collections.emptyMap();
+        }
+        return (Map<String, Object>) envelope.get("session");
     }
 
     /**

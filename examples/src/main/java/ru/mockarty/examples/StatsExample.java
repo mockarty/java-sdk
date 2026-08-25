@@ -4,6 +4,7 @@
 package ru.mockarty.examples;
 
 import ru.mockarty.MockartyClient;
+import ru.mockarty.api.CapabilityCatalog;
 
 import java.util.Map;
 
@@ -32,6 +33,7 @@ public class StatsExample {
             resourceCounts(client);
             systemStatus(client);
             featureDetection(client);
+            capabilityCatalogue(client);
         }
     }
 
@@ -135,6 +137,15 @@ public class StatsExample {
 
         if (Boolean.TRUE.equals(features.get("recorder"))) {
             System.out.println("Recorder is available - can capture live traffic");
+        }
+    }
+
+    static void capabilityCatalogue(MockartyClient client) {
+        CapabilityCatalog catalog = client.stats().listCapabilities();
+        System.out.println("Canonical capabilities: " + catalog.getCount());
+        for (CapabilityCatalog.Descriptor capability : catalog.getCapabilities()) {
+            System.out.println("  " + capability.getKey() + "@" + capability.getVersion()
+                    + " sideEffect=" + capability.getPolicy().getSideEffect());
         }
     }
 }

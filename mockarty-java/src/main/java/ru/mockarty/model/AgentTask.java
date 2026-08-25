@@ -5,6 +5,8 @@ package ru.mockarty.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Represents an AI agent task.
@@ -34,6 +36,18 @@ public class AgentTask {
 
     @JsonProperty("createdAt")
     private String createdAt;
+
+    @JsonProperty("toolReceipts")
+    private List<ToolReceipt> toolReceipts;
+
+    @JsonProperty("canReconcileToolReceipts")
+    private boolean canReconcileToolReceipts;
+
+    @JsonProperty("toolReceiptRetryAllowed")
+    private boolean toolReceiptRetryAllowed;
+
+    @JsonProperty("toolReceiptReconcileBlockedReason")
+    private String toolReceiptReconcileBlockedReason;
 
     public AgentTask() {
     }
@@ -65,6 +79,26 @@ public class AgentTask {
         return this;
     }
 
+    public AgentTask toolReceipts(List<ToolReceipt> toolReceipts) {
+        this.toolReceipts = toolReceipts;
+        return this;
+    }
+
+    public AgentTask canReconcileToolReceipts(boolean canReconcileToolReceipts) {
+        this.canReconcileToolReceipts = canReconcileToolReceipts;
+        return this;
+    }
+
+    public AgentTask toolReceiptRetryAllowed(boolean toolReceiptRetryAllowed) {
+        this.toolReceiptRetryAllowed = toolReceiptRetryAllowed;
+        return this;
+    }
+
+    public AgentTask toolReceiptReconcileBlockedReason(String reason) {
+        this.toolReceiptReconcileBlockedReason = reason;
+        return this;
+    }
+
     // Getters
 
     public String getId() {
@@ -89,6 +123,22 @@ public class AgentTask {
 
     public String getCreatedAt() {
         return createdAt;
+    }
+
+    public List<ToolReceipt> getToolReceipts() {
+        return toolReceipts == null ? Collections.emptyList() : Collections.unmodifiableList(toolReceipts);
+    }
+
+    public boolean isCanReconcileToolReceipts() {
+        return canReconcileToolReceipts;
+    }
+
+    public boolean isToolReceiptRetryAllowed() {
+        return toolReceiptRetryAllowed;
+    }
+
+    public String getToolReceiptReconcileBlockedReason() {
+        return toolReceiptReconcileBlockedReason;
     }
 
     @Override

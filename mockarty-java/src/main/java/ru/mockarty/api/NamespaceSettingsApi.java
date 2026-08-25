@@ -6,6 +6,7 @@ package ru.mockarty.api;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.CleanupPolicy;
+import ru.mockarty.model.AutonomyNamespaceSettings;
 import ru.mockarty.model.NamespaceUser;
 
 import java.net.URLEncoder;
@@ -13,6 +14,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.UUID;
 
 /**
  * API for namespace-level settings including users, cleanup, and webhooks.
@@ -23,6 +26,101 @@ public class NamespaceSettingsApi {
 
     public NamespaceSettingsApi(MockartyClient client) {
         this.client = client;
+    }
+
+    /** Returns autonomous-mission defaults for the client's namespace. */
+    public AutonomyNamespaceSettings getAutonomySettings() throws MockartyException {
+        return client.get("/api/v1/autotester/settings", AutonomyNamespaceSettings.class);
+    }
+
+    /**
+     * Replaces autonomous-mission defaults. Null run-window and retention values
+     * are omitted and preserve current overrides; use
+     * {@link #clearAutonomyRunWindow} or {@link #clearAutonomyRetention} for
+     * explicit inheritance.
+     */
+    public AutonomyNamespaceSettings saveAutonomySettings(AutonomyNamespaceSettings settings) throws MockartyException {
+        return saveAutonomySettings(settings, null);
+    }
+
+    /**
+     * Retry-safe save variant. Reuse {@code requestId} after a timeout or lost
+     * response so the server returns the original receipt without reapplying.
+     */
+    public AutonomyNamespaceSettings saveAutonomySettings(
+            AutonomyNamespaceSettings settings, String requestId) throws MockartyException {
+        if (settings == null) {
+            throw new IllegalArgumentException("autonomy settings are required");
+        }
+        AutonomyNamespaceSettings current = getAutonomySettings();
+        if (settings.getDefaultAutonomy() != null) {
+            current.defaultAutonomy(settings.getDefaultAutonomy());
+        }
+        if (settings.getDefaultBudget() != null) {
+            current.defaultBudget(settings.getDefaultBudget());
+        }
+        if (settings.getDefaultContextRefs() != null) {
+            current.defaultContextRefs(settings.getDefaultContextRefs());
+        }
+        if (settings.getJournalEventRetentionDays() != null) {
+            current.journalEventRetentionDays(settings.getJournalEventRetentionDays());
+        }
+        if (settings.getJournalPayloadRetentionDays() != null) {
+            current.journalPayloadRetentionDays(settings.getJournalPayloadRetentionDays());
+        }
+        if (settings.getRunWindowMinutes() != null) {
+            current.runWindowMinutes(settings.getRunWindowMinutes());
+        }
+        return putAutonomySettings(current, current.getEtag(), requestId);
+    }
+
+    /** Clears the namespace run-wall override so the effective lower layer applies. */
+    @SuppressWarnings("unchecked")
+    public AutonomyNamespaceSettings clearAutonomyRunWindow(String requestId) throws MockartyException {
+        AutonomyNamespaceSettings current = getAutonomySettings();
+        Map<String, Object> body = client.getObjectMapper().convertValue(current, Map.class);
+        body.put("runWindowMinutes", null);
+        return putAutonomySettings(body, current.getEtag(), requestId);
+    }
+
+    /**
+     * Clears selected namespace retention overrides while preserving all other
+     * autonomy settings and unselected retention values.
+     */
+    @SuppressWarnings("unchecked")
+    public AutonomyNamespaceSettings clearAutonomyRetention(boolean clearEvent, boolean clearPayload)
+            throws MockartyException {
+        return clearAutonomyRetention(clearEvent, clearPayload, null);
+    }
+
+    /** Retry-safe clear variant using a caller-stable request identity. */
+    @SuppressWarnings("unchecked")
+    public AutonomyNamespaceSettings clearAutonomyRetention(
+            boolean clearEvent, boolean clearPayload, String requestId) throws MockartyException {
+        if (!clearEvent && !clearPayload) {
+            throw new IllegalArgumentException("at least one retention override must be selected");
+        }
+        AutonomyNamespaceSettings current = getAutonomySettings();
+        Map<String, Object> body = client.getObjectMapper().convertValue(current, Map.class);
+        if (clearEvent) {
+            body.put("journalEventRetentionDays", null);
+        }
+        if (clearPayload) {
+            body.put("journalPayloadRetentionDays", null);
+        }
+        return putAutonomySettings(body, current.getEtag(), requestId);
+    }
+
+    private AutonomyNamespaceSettings putAutonomySettings(Object body, String etag, String requestId)
+            throws MockartyException {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Idempotency-Key", requestId == null || requestId.isBlank()
+                ? UUID.randomUUID().toString() : requestId);
+        if (etag != null && !etag.isBlank()) {
+            headers.put("If-Match", etag);
+        }
+        return client.putWithHeaders("/api/v1/autotester/settings", body,
+                AutonomyNamespaceSettings.class, headers);
     }
 
     // ---- Users ----

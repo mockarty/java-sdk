@@ -279,7 +279,7 @@ public final class LoadTestBuilder {
             opts.put("rps", rps);
         }
         if (maxVus != null) {
-            opts.put("maxVus", maxVus);
+            opts.put("maxVUs", maxVus);
         }
         if (!thresholds.isEmpty()) {
             opts.put("thresholds", thresholds);
@@ -427,7 +427,7 @@ public final class LoadTestBuilder {
             cfg.put("rps", rps);
         }
         if (maxVus != null) {
-            cfg.put("maxVus", maxVus);
+            cfg.put("maxVUs", maxVus);
         }
         if (!thresholds.isEmpty()) {
             cfg.put("thresholds", thresholds);

@@ -4,7 +4,11 @@
 package ru.mockarty.examples;
 
 import ru.mockarty.builder.LoadTestBuilder;
+import ru.mockarty.model.PerfConfig;
+import ru.mockarty.model.PerfOptions;
+import ru.mockarty.model.PerfStage;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,6 +48,19 @@ public final class LoadTestExample {
         System.out.println("wrote checkout.json — run it with:");
         System.out.println("  mockarty-cli perf run --from-config checkout.json");
 
-        // 3) (Optional) submit the same config to a Mockarty server via the SDK.
+        // 3) A saved profile uses the typed options envelope. This keeps
+        // reusable run controls, including an opt-in metrics sink, together.
+        PerfConfig saved = new PerfConfig()
+                .name("checkout soak")
+                .script(profile.toK6Script())
+                .options(new PerfOptions()
+                        .stages(List.of(
+                                new PerfStage().duration("30s").target(50),
+                                new PerfStage().duration("1m").target(50),
+                                new PerfStage().duration("10s").target(0)))
+                        .metricsPush(List.of("prometheus:https://metrics.example.test/push"))
+                        .metricsPushInterval("10s"));
+        System.out.println("Saved config metrics targets: " + saved.getOptions().getMetricsPush());
+        // client.perf().createConfig(saved);
     }
 }
