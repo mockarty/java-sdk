@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 
-/** Request accepted by POST /api/v1/missions. */
+/** Goal-first request accepted by POST /api/v1/missions; kind/chain are compatibility overrides. */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class MissionStartRequest {
     private Map<String, Object> data;

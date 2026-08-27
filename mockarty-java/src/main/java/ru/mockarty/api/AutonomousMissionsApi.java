@@ -18,7 +18,7 @@ import ru.mockarty.model.MissionStartResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
-/** Submit and supervise durable autonomous testing missions. */
+/** Submit and supervise durable goal-first autonomous missions. */
 public class AutonomousMissionsApi {
     private static final String MISSIONS = "/api/v1/autotester/missions";
     private final MockartyClient client;

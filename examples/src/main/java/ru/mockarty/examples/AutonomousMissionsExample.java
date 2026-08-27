@@ -20,9 +20,8 @@ public final class AutonomousMissionsExample {
             var settings = client.autonomousMissions().getEffectiveSettings(
                     new MissionEffectiveSettingsOptions().productId(productId));
             var started = client.autonomousMissions().start(new MissionStartRequest()
-                    .goal("Verify the checkout API and fuzz the payment endpoint")
+                    .goal("Take the checkout release to production quality and provide evidence")
                     .productId(productId)
-                    .kind("testing")
                     .autonomy("auto")
                     .budget(100000, 0, 0)
                     .expectedSettingsDigest(settings.getSettingsDigest()));

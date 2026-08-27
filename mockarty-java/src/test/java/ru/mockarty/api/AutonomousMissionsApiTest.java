@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,7 +95,7 @@ class AutonomousMissionsApiTest {
         assertTrue(settings.getSettings().get(0).isRuntimeApplied());
 
         var started = client.autonomousMissions().start(new MissionStartRequest()
-                .goal(" ship checkout ").productId("product/checkout").kind("testing")
+                .goal(" ship checkout ").productId("product/checkout")
                 .expectedSettingsDigest(digest));
         assertTrue(started.isCreated());
         assertEquals("m-unified", started.getMission().getId());
@@ -103,6 +104,8 @@ class AutonomousMissionsApiTest {
         assertEquals("productId=product%2Fcheckout&runWindowMinutes=90", requests.get(0).query);
         JsonNode body = client.getObjectMapper().readTree(requests.get(1).body);
         assertEquals(digest, body.path("expectedSettingsDigest").asText());
+        assertFalse(body.has("kind"));
+        assertFalse(body.has("chain"));
     }
 
     @Test
