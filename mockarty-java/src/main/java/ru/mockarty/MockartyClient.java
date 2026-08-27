@@ -4,9 +4,13 @@
 package ru.mockarty;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import ru.mockarty.api.AgentTaskApi;
 import ru.mockarty.api.AutonomousMissionsApi;
 import ru.mockarty.api.McpApi;
@@ -71,6 +75,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -1041,6 +1046,20 @@ public class MockartyClient implements AutoCloseable {
     private static ObjectMapper createObjectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        SimpleModule timeModule = new SimpleModule();
+        timeModule.addDeserializer(Instant.class, new JsonDeserializer<>() {
+            @Override
+            public Instant deserialize(JsonParser parser, DeserializationContext context) throws IOException {
+                String value = parser.getValueAsString();
+                try {
+                    return Instant.parse(value);
+                } catch (RuntimeException ex) {
+                    return (Instant) context.handleWeirdStringValue(Instant.class, value,
+                            "expected an RFC 3339 timestamp");
+                }
+            }
+        });
+        mapper.registerModule(timeModule);
         return mapper;
     }
 

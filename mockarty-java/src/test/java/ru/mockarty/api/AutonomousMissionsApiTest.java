@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.model.AutonomousMissionSubmitRequest;
 import ru.mockarty.model.MissionEffectiveSettingsOptions;
+import ru.mockarty.model.MissionCancelRequest;
 import ru.mockarty.model.MissionStartRequest;
 
 import java.io.IOException;
@@ -99,6 +100,7 @@ class AutonomousMissionsApiTest {
                 .expectedSettingsDigest(digest));
         assertTrue(started.isCreated());
         assertEquals("m-unified", started.getMission().getId());
+        assertEquals("2026-08-27T00:00:00Z", started.getMission().getCreatedAt().toString());
 
         assertEquals("/api/v1/missions/settings/effective", requests.get(0).path);
         assertEquals("productId=product%2Fcheckout&runWindowMinutes=90", requests.get(0).query);
@@ -106,6 +108,15 @@ class AutonomousMissionsApiTest {
         assertEquals(digest, body.path("expectedSettingsDigest").asText());
         assertFalse(body.has("kind"));
         assertFalse(body.has("chain"));
+
+        var cancelled = client.autonomousMissions().cancel("m-unified", new MissionCancelRequest()
+                .reason(" release withdrawn ").idempotencyKey(" cancel-1 "));
+        assertEquals("release withdrawn", cancelled.getControl().getReason());
+        assertEquals("cancel-1", cancelled.getControl().getIdempotencyKey());
+        assertEquals("canceled", cancelled.getMission().getStatus());
+        JsonNode cancelBody = client.getObjectMapper().readTree(requests.get(2).body);
+        assertEquals("release withdrawn", cancelBody.path("reason").asText());
+        assertEquals("cancel-1", cancelBody.path("idempotencyKey").asText());
     }
 
     @Test
@@ -117,6 +128,8 @@ class AutonomousMissionsApiTest {
         assertThrows(IllegalArgumentException.class, () ->
                 client.autonomousMissions().start(new MissionStartRequest().goal("x").expectedSettingsDigest("sha256:bad")));
         assertThrows(IllegalArgumentException.class, () -> new MissionStartRequest().budget(-1, 0, 0));
+        assertThrows(IllegalArgumentException.class, () ->
+                client.autonomousMissions().cancel(" ", new MissionCancelRequest()));
         assertEquals(0, requests.size());
     }
 
@@ -131,7 +144,9 @@ class AutonomousMissionsApiTest {
             response = "{\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"settingsDigest\":\"sha256:" + "a".repeat(64) + "\",\"count\":1,\"settings\":[{\"key\":\"mission_run_window_minutes\",\"value\":\"90\",\"layer\":\"mission\",\"builtin\":\"480\",\"runtimeApplied\":true}]}";
         } else if (path.equals("/api/v1/missions")) {
             status = 201;
-            response = "{\"created\":true,\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"chain\":[]}}";
+            response = "{\"created\":true,\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"chain\":[]}}";
+        } else if (path.equals("/api/v1/missions/m-unified/cancel")) {
+            response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"canceled\",\"chain\":[]},\"control\":{\"id\":\"control-1\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"cancel-1\",\"action\":\"cancel\",\"phase\":\"committed\",\"outcome\":\"applied\",\"reason\":\"release withdrawn\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"updatedAt\":\"2026-08-27T00:00:01Z\"}}";
         } else if (path.endsWith("/intents")) {
             status = 202;
             response = "{\"missionId\":\"m-1\",\"status\":\"accepted\"}";

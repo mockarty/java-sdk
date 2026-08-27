@@ -12,6 +12,8 @@ import ru.mockarty.model.AutonomousMissionSubmitRequest;
 import ru.mockarty.model.AutonomousMissionSubmitResponse;
 import ru.mockarty.model.MissionEffectiveSettings;
 import ru.mockarty.model.MissionEffectiveSettingsOptions;
+import ru.mockarty.model.MissionCancelRequest;
+import ru.mockarty.model.MissionControlResponse;
 import ru.mockarty.model.MissionStartRequest;
 import ru.mockarty.model.MissionStartResponse;
 
@@ -88,6 +90,16 @@ public class AutonomousMissionsApi {
             throw new IllegalArgumentException("expected settings digest must be canonical sha256");
         }
         return client.post("/api/v1/missions", request, MissionStartResponse.class);
+    }
+
+    /** Durably stop a unified mission and every unfinished component. */
+    public MissionControlResponse cancel(String missionId, MissionCancelRequest request) throws MockartyException {
+        if (missionId == null || missionId.isBlank()) {
+            throw new IllegalArgumentException("mission id is required");
+        }
+        MissionCancelRequest body = request == null ? new MissionCancelRequest() : request;
+        String path = "/api/v1/missions/" + enc(missionId.trim()).replace("+", "%20") + "/cancel";
+        return client.post(path, body, MissionControlResponse.class);
     }
 
     private static String missionPath(String missionId) {
