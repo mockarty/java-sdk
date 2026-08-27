@@ -21,6 +21,7 @@ import ru.mockarty.api.CloudWebhooksApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.DeliveryPolicyApi;
+import ru.mockarty.api.PageAnalyzerApi;
 import ru.mockarty.api.CoderDeliveryApi;
 import ru.mockarty.api.CollectionApi;
 import ru.mockarty.api.ContractApi;
@@ -420,6 +421,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns administrator delivery-policy environment management. */
     public DeliveryPolicyApi deliveryPolicy() {
         return new DeliveryPolicyApi(this);
+    }
+
+    /** Returns the HTTP-level Page Analyzer lifecycle API. */
+    public PageAnalyzerApi pageAnalyzer() {
+        return new PageAnalyzerApi(this);
     }
 
     /** Returns the committed unsigned Cloud entitlement projection API. */
