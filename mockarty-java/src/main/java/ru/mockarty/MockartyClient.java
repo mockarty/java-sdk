@@ -20,6 +20,7 @@ import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CloudWebhooksApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
+import ru.mockarty.api.CloudSharedProjectsApi;
 import ru.mockarty.api.DeliveryPolicyApi;
 import ru.mockarty.api.PageAnalyzerApi;
 import ru.mockarty.api.CoderDeliveryApi;
@@ -431,6 +432,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the committed unsigned Cloud entitlement projection API. */
     public CloudEntitlementsApi cloudEntitlements() {
         return new CloudEntitlementsApi(this);
+    }
+
+    /** Returns Shared SaaS project CRUD through the public Cloud proxy. */
+    public CloudSharedProjectsApi cloudSharedProjects() {
+        return new CloudSharedProjectsApi(this);
     }
 
     /**
