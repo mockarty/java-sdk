@@ -20,6 +20,7 @@ class CloudRiskApiTest {
     private HttpServer server;
     private MockartyClient client;
     private volatile String releaseBody;
+    private volatile String releaseIdempotency;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -43,6 +44,7 @@ class CloudRiskApiTest {
         assertEquals("released", client.cloudRisk().releaseEnforcement("case-1", "enf-1", 2, "customer verified")
                 .path("enforcement").path("status").asText());
         assertTrue(releaseBody.contains("\"revision\":2"));
+        assertTrue(releaseIdempotency.startsWith("risk-release:"));
     }
 
     private void handle(HttpExchange exchange) throws IOException {
@@ -50,6 +52,7 @@ class CloudRiskApiTest {
         String body;
         if (path.endsWith("/enforcements/enf-1/release")) {
             releaseBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            releaseIdempotency = exchange.getRequestHeaders().getFirst("Idempotency-Key");
             body = "{\"enforcement\":{\"id\":\"enf-1\",\"status\":\"released\",\"revision\":3}}";
         } else if (path.endsWith("/case-1")) {
             body = "{\"case\":{\"id\":\"case-1\"},\"events\":[],\"enforcements\":[]}";

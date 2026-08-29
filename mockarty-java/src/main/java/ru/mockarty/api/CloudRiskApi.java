@@ -6,8 +6,11 @@ import ru.mockarty.exception.MockartyException;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +45,18 @@ public class CloudRiskApi {
         if (reasonLength < 3 || reasonLength > 512) throw new IllegalArgumentException("release reason must be 3-512 characters");
         String path = BASE + "/" + encode(require("case id", caseId)) + "/enforcements/"
                 + encode(require("enforcement id", enforcementId)) + "/release";
-        return client.post(path, Map.of("revision", revision, "reason", trimmedReason), JsonNode.class);
+        return client.postWithHeaders(path, Map.of("revision", revision, "reason", trimmedReason), JsonNode.class,
+                Map.of("Idempotency-Key", releaseIdempotencyKey(caseId, enforcementId, revision, trimmedReason)));
+    }
+
+    private static String releaseIdempotencyKey(String caseId, String enforcementId, long revision, String reason) {
+        String canonical = caseId + "\0" + enforcementId + "\0" + revision + "\0" + reason;
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8));
+            return "risk-release:" + HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
     }
 
     private static String require(String label, String value) {
