@@ -21,6 +21,8 @@ public class MissionStartRequest {
     private String autonomy;
     @JsonProperty("originRef") private String originRef;
     @JsonProperty("expectedSettingsDigest") private String expectedSettingsDigest;
+    private List<MissionRevisionReference> targets;
+    private List<MissionRevisionReference> artifacts;
     private List<String> chain;
     @JsonProperty("budgetTokensTotal") private long budgetTokensTotal;
     @JsonProperty("budgetTokensPerDay") private long budgetTokensPerDay;
@@ -38,6 +40,8 @@ public class MissionStartRequest {
         this.expectedSettingsDigest = value == null ? null : value.trim();
         return this;
     }
+    public MissionStartRequest targets(List<MissionRevisionReference> value) { this.targets = value; return this; }
+    public MissionStartRequest artifacts(List<MissionRevisionReference> value) { this.artifacts = value; return this; }
     public MissionStartRequest chain(List<String> value) { this.chain = value; return this; }
     public MissionStartRequest budget(long tokensTotal, long tokensPerDay, double usdCap) {
         if (tokensTotal < 0 || tokensPerDay < 0 || usdCap < 0 || !Double.isFinite(usdCap)) {
@@ -58,6 +62,8 @@ public class MissionStartRequest {
     public String getAutonomy() { return autonomy; }
     public String getOriginRef() { return originRef; }
     public String getExpectedSettingsDigest() { return expectedSettingsDigest; }
+    public List<MissionRevisionReference> getTargets() { return targets; }
+    public List<MissionRevisionReference> getArtifacts() { return artifacts; }
     public List<String> getChain() { return chain; }
     public long getBudgetTokensTotal() { return budgetTokensTotal; }
     public long getBudgetTokensPerDay() { return budgetTokensPerDay; }

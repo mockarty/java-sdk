@@ -8,6 +8,9 @@ import ru.mockarty.model.MissionEffectiveSettingsOptions;
 import ru.mockarty.model.MissionStartRequest;
 import ru.mockarty.model.MissionCancelRequest;
 import ru.mockarty.model.MissionAnswerRequest;
+import ru.mockarty.model.MissionRevisionReference;
+
+import java.util.List;
 
 public final class AutonomousMissionsExample {
     private AutonomousMissionsExample() {}
@@ -21,12 +24,21 @@ public final class AutonomousMissionsExample {
             String productId = System.getenv().getOrDefault("MOCKARTY_PRODUCT_ID", "");
             var settings = client.autonomousMissions().getEffectiveSettings(
                     new MissionEffectiveSettingsOptions().productId(productId));
-            var started = client.autonomousMissions().start(new MissionStartRequest()
+            var request = new MissionStartRequest()
                     .goal("Take the checkout release to production quality and provide evidence")
                     .productId(productId)
                     .autonomy("auto")
                     .budget(100000, 0, 0)
-                    .expectedSettingsDigest(settings.getSettingsDigest()));
+                    .expectedSettingsDigest(settings.getSettingsDigest());
+            String targetDigest = System.getenv("MOCKARTY_TARGET_DIGEST");
+            if (targetDigest != null && !targetDigest.isBlank()) {
+                request.targets(List.of(new MissionRevisionReference()
+                        .kind("repo")
+                        .id(System.getenv("MOCKARTY_TARGET_ID"))
+                        .revision(Long.parseLong(System.getenv("MOCKARTY_TARGET_REVISION")))
+                        .digest(targetDigest)));
+            }
+            var started = client.autonomousMissions().start(request);
             System.out.printf("mission=%s status=%s created=%s%n",
                     started.getMission().getId(), started.getMission().getStatus(), started.isCreated());
             String exampleAnswer = System.getenv("MOCKARTY_EXAMPLE_ANSWER");

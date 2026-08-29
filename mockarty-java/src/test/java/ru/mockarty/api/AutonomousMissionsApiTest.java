@@ -15,6 +15,7 @@ import ru.mockarty.model.MissionEffectiveSettingsOptions;
 import ru.mockarty.model.MissionCancelRequest;
 import ru.mockarty.model.MissionAnswerRequest;
 import ru.mockarty.model.MissionStartRequest;
+import ru.mockarty.model.MissionRevisionReference;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -99,15 +100,19 @@ class AutonomousMissionsApiTest {
 
         var started = client.autonomousMissions().start(new MissionStartRequest()
                 .goal(" ship checkout ").productId("product/checkout")
+                .targets(List.of(new MissionRevisionReference().kind("repo").id("gitlab/mockarty")
+                        .revision(41).digest(digest)))
                 .expectedSettingsDigest(digest));
         assertTrue(started.isCreated());
         assertEquals("m-unified", started.getMission().getId());
         assertEquals("2026-08-27T00:00:00Z", started.getMission().getCreatedAt().toString());
+        assertEquals(41, started.getMission().getPins().get(0).getRevision());
 
         assertEquals("/api/v1/missions/settings/effective", requests.get(0).path);
         assertEquals("productId=product%2Fcheckout&runWindowMinutes=90", requests.get(0).query);
         JsonNode body = client.getObjectMapper().readTree(requests.get(1).body);
         assertEquals(digest, body.path("expectedSettingsDigest").asText());
+        assertEquals(41, body.path("targets").get(0).path("revision").asLong());
         assertFalse(body.has("kind"));
         assertFalse(body.has("chain"));
 
@@ -159,7 +164,7 @@ class AutonomousMissionsApiTest {
             response = "{\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"settingsDigest\":\"sha256:" + "a".repeat(64) + "\",\"count\":1,\"settings\":[{\"key\":\"mission_run_window_minutes\",\"value\":\"90\",\"layer\":\"mission\",\"builtin\":\"480\",\"runtimeApplied\":true}]}";
         } else if (path.equals("/api/v1/missions")) {
             status = 201;
-            response = "{\"created\":true,\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"chain\":[]}}";
+            response = "{\"created\":true,\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"pins\":[{\"kind\":\"repo\",\"id\":\"gitlab/mockarty\",\"revision\":41,\"digest\":\"sha256:" + "a".repeat(64) + "\"}],\"chain\":[]}}";
         } else if (path.equals("/api/v1/missions/m-unified/cancel")) {
             response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"canceled\",\"chain\":[]},\"control\":{\"id\":\"control-1\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"cancel-1\",\"action\":\"cancel\",\"phase\":\"committed\",\"outcome\":\"applied\",\"reason\":\"release withdrawn\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"updatedAt\":\"2026-08-27T00:00:01Z\"},\"executionBindingsAvailable\":true,\"executionBindings\":[{\"id\":\"binding-1\",\"nodeId\":\"m-unified\",\"externalId\":\"runner-1\",\"kind\":\"runner_task\",\"state\":\"cancel_acknowledged\",\"graphRevision\":2,\"generation\":1,\"cancelEpoch\":3}]}";
         } else if (path.equals("/api/v1/missions/m-unified/answer")) {

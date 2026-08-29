@@ -30,6 +30,7 @@ public class UnifiedMission {
     private String origin;
     @JsonProperty("originRef") private String originRef;
     private String status;
+    private List<MissionRevisionReference> pins;
     private List<Map<String, Object>> chain;
     @JsonProperty("budgetTokensTotal") private long budgetTokensTotal;
     @JsonProperty("budgetTokensPerDay") private long budgetTokensPerDay;
@@ -54,6 +55,7 @@ public class UnifiedMission {
     public String getOrigin() { return origin; }
     public String getOriginRef() { return originRef; }
     public String getStatus() { return status; }
+    public List<MissionRevisionReference> getPins() { return pins == null ? List.of() : pins; }
     public List<Map<String, Object>> getChain() { return chain == null ? List.of() : chain; }
     public long getBudgetTokensTotal() { return budgetTokensTotal; }
     public long getBudgetTokensPerDay() { return budgetTokensPerDay; }
