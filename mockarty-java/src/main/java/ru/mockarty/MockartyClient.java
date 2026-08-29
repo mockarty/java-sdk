@@ -20,6 +20,7 @@ import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CloudWebhooksApi;
 import ru.mockarty.api.CloudInstancesApi;
 import ru.mockarty.api.CloudOAuthProvidersApi;
+import ru.mockarty.api.CloudIdentityApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.CloudSharedProjectsApi;
@@ -75,6 +76,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -116,9 +119,11 @@ public class MockartyClient implements AutoCloseable {
             this.httpClient = httpClient;
             this.ownsHttpClient = false;
         } else {
+            CookieManager cookies = new CookieManager(null, CookiePolicy.ACCEPT_ORIGINAL_SERVER);
             this.httpClient = HttpClient.newBuilder()
                     .connectTimeout(config.getTimeout())
                     .followRedirects(HttpClient.Redirect.NORMAL)
+                    .cookieHandler(cookies)
                     .build();
             this.ownsHttpClient = true;
         }
@@ -424,6 +429,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the operator-only Cloud cabinet sign-in provider registry. */
     public CloudOAuthProvidersApi cloudOAuthProviders() {
         return new CloudOAuthProvidersApi(this);
+    }
+
+    /** Returns the current Cloud account sign-in-method and step-up API. */
+    public CloudIdentityApi cloudIdentity() {
+        return new CloudIdentityApi(this);
     }
 
     /** Returns the canonical explicit-Space collaboration API. */
