@@ -22,6 +22,7 @@ import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.CloudSharedProjectsApi;
 import ru.mockarty.api.DeliveryPolicyApi;
+import ru.mockarty.api.MediaDeliveryApi;
 import ru.mockarty.api.PageAnalyzerApi;
 import ru.mockarty.api.CoderDeliveryApi;
 import ru.mockarty.api.CollectionApi;
@@ -422,6 +423,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns administrator delivery-policy environment management. */
     public DeliveryPolicyApi deliveryPolicy() {
         return new DeliveryPolicyApi(this);
+    }
+
+    /** Returns operator reconciliation for ambiguous media runner deliveries. */
+    public MediaDeliveryApi mediaDelivery() {
+        return new MediaDeliveryApi(this);
     }
 
     /** Returns the HTTP-level Page Analyzer lifecycle API. */
