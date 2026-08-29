@@ -20,6 +20,7 @@ import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CloudWebhooksApi;
 import ru.mockarty.api.CloudInstancesApi;
 import ru.mockarty.api.CloudOAuthProvidersApi;
+import ru.mockarty.api.CloudRiskApi;
 import ru.mockarty.api.CloudIdentityApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
@@ -429,6 +430,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the operator-only Cloud cabinet sign-in provider registry. */
     public CloudOAuthProvidersApi cloudOAuthProviders() {
         return new CloudOAuthProvidersApi(this);
+    }
+
+    /** Returns the operator-only Cloud risk case and enforcement API. */
+    public CloudRiskApi cloudRisk() {
+        return new CloudRiskApi(this);
     }
 
     /** Returns the current Cloud account sign-in-method and step-up API. */
