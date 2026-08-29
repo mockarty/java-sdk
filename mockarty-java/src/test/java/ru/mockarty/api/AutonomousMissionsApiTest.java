@@ -13,6 +13,7 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.model.AutonomousMissionSubmitRequest;
 import ru.mockarty.model.MissionEffectiveSettingsOptions;
 import ru.mockarty.model.MissionCancelRequest;
+import ru.mockarty.model.MissionAnswerRequest;
 import ru.mockarty.model.MissionStartRequest;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -119,6 +121,15 @@ class AutonomousMissionsApiTest {
         JsonNode cancelBody = client.getObjectMapper().readTree(requests.get(2).body);
         assertEquals("release withdrawn", cancelBody.path("reason").asText());
         assertEquals("cancel-1", cancelBody.path("idempotencyKey").asText());
+
+
+        var answered = client.autonomousMissions().answer("m-unified", new MissionAnswerRequest()
+                .answer(" use sandbox account ").idempotencyKey(" answer-1 "));
+        assertEquals("answer", answered.getControl().getAction());
+        assertNull(answered.getControl().getReason());
+        JsonNode answerBody = client.getObjectMapper().readTree(requests.get(3).body);
+        assertEquals("use sandbox account", answerBody.path("answer").asText());
+        assertEquals("answer-1", answerBody.path("idempotencyKey").asText());
     }
 
     @Test
@@ -132,6 +143,8 @@ class AutonomousMissionsApiTest {
         assertThrows(IllegalArgumentException.class, () -> new MissionStartRequest().budget(-1, 0, 0));
         assertThrows(IllegalArgumentException.class, () ->
                 client.autonomousMissions().cancel(" ", new MissionCancelRequest()));
+        assertThrows(IllegalArgumentException.class, () ->
+                client.autonomousMissions().answer("m-1", new MissionAnswerRequest().answer(" ")));
         assertEquals(0, requests.size());
     }
 
@@ -149,6 +162,8 @@ class AutonomousMissionsApiTest {
             response = "{\"created\":true,\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"chain\":[]}}";
         } else if (path.equals("/api/v1/missions/m-unified/cancel")) {
             response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"canceled\",\"chain\":[]},\"control\":{\"id\":\"control-1\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"cancel-1\",\"action\":\"cancel\",\"phase\":\"committed\",\"outcome\":\"applied\",\"reason\":\"release withdrawn\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"updatedAt\":\"2026-08-27T00:00:01Z\"},\"executionBindingsAvailable\":true,\"executionBindings\":[{\"id\":\"binding-1\",\"nodeId\":\"m-unified\",\"externalId\":\"runner-1\",\"kind\":\"runner_task\",\"state\":\"cancel_acknowledged\",\"graphRevision\":2,\"generation\":1,\"cancelEpoch\":3}]}";
+        } else if (path.equals("/api/v1/missions/m-unified/answer")) {
+            response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"chain\":[]},\"control\":{\"id\":\"control-2\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"answer-1\",\"action\":\"answer\",\"phase\":\"committed\",\"outcome\":\"applied\"}}";
         } else if (path.endsWith("/intents")) {
             status = 202;
             response = "{\"missionId\":\"m-1\",\"status\":\"accepted\"}";

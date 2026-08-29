@@ -7,6 +7,7 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.model.MissionEffectiveSettingsOptions;
 import ru.mockarty.model.MissionStartRequest;
 import ru.mockarty.model.MissionCancelRequest;
+import ru.mockarty.model.MissionAnswerRequest;
 
 public final class AutonomousMissionsExample {
     private AutonomousMissionsExample() {}
@@ -28,6 +29,14 @@ public final class AutonomousMissionsExample {
                     .expectedSettingsDigest(settings.getSettingsDigest()));
             System.out.printf("mission=%s status=%s created=%s%n",
                     started.getMission().getId(), started.getMission().getStatus(), started.isCreated());
+            String exampleAnswer = System.getenv("MOCKARTY_EXAMPLE_ANSWER");
+            if (exampleAnswer != null && !exampleAnswer.isBlank()) {
+                var answered = client.autonomousMissions().answer(started.getMission().getId(),
+                        new MissionAnswerRequest().answer(exampleAnswer)
+                                .idempotencyKey("autonomous-missions-example-answer"));
+                System.out.printf("answer receipt=%s outcome=%s%n",
+                        answered.getControl().getId(), answered.getControl().getOutcome());
+            }
             if ("1".equals(System.getenv("MOCKARTY_EXAMPLE_CANCEL"))) {
                 var cancelled = client.autonomousMissions().cancel(started.getMission().getId(),
                         new MissionCancelRequest().reason("example run no longer needed")

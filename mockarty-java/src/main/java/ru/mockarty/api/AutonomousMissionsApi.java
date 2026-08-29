@@ -12,6 +12,7 @@ import ru.mockarty.model.AutonomousMissionSubmitRequest;
 import ru.mockarty.model.AutonomousMissionSubmitResponse;
 import ru.mockarty.model.MissionEffectiveSettings;
 import ru.mockarty.model.MissionEffectiveSettingsOptions;
+import ru.mockarty.model.MissionAnswerRequest;
 import ru.mockarty.model.MissionCancelRequest;
 import ru.mockarty.model.MissionControlResponse;
 import ru.mockarty.model.MissionStartRequest;
@@ -100,6 +101,18 @@ public class AutonomousMissionsApi {
         MissionCancelRequest body = request == null ? new MissionCancelRequest() : request;
         String path = "/api/v1/missions/" + enc(missionId.trim()).replace("+", "%20") + "/cancel";
         return client.post(path, body, MissionControlResponse.class);
+    }
+
+    /** Durably supply the input requested by a unified mission. */
+    public MissionControlResponse answer(String missionId, MissionAnswerRequest request) throws MockartyException {
+        if (missionId == null || missionId.isBlank()) {
+            throw new IllegalArgumentException("mission id is required");
+        }
+        if (request == null || request.getAnswer() == null || request.getAnswer().isBlank()) {
+            throw new IllegalArgumentException("answer is required");
+        }
+        String path = "/api/v1/missions/" + enc(missionId.trim()).replace("+", "%20") + "/answer";
+        return client.post(path, request, MissionControlResponse.class);
     }
 
     private static String missionPath(String missionId) {
