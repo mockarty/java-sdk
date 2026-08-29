@@ -15,6 +15,7 @@ class CoderDeliveryApiTest {
             CoderDeliveryApi api = client.coderDelivery();
             assertThrows(IllegalArgumentException.class, () -> api.startMission(Map.of("goal", "ship")));
             assertThrows(IllegalArgumentException.class, () -> api.getMission(""));
+            assertThrows(IllegalArgumentException.class, () -> api.reconcileDeploy("m1", ""));
         }
     }
 
@@ -26,6 +27,7 @@ class CoderDeliveryApiTest {
             var method = CoderDeliveryApi.class.getDeclaredMethod("missionPath", String.class, String.class);
             method.setAccessible(true);
             assertEquals("/api/v1/coder/missions/m%2F1/approve?namespace=team%20a", method.invoke(api, "m/1", "/approve"));
+            assertEquals("/api/v1/coder/missions/m%2F1/deploy-outcome?namespace=team%20a", method.invoke(api, "m/1", "/deploy-outcome"));
         }
     }
 }

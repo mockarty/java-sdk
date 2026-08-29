@@ -47,6 +47,14 @@ public class CoderDeliveryApi {
         return client.post(missionPath(missionId, "/approve"), Map.of("approve", approve), Map.class);
     }
 
+    public Map<String, Object> reconcileDeploy(String missionId, String outcome) throws MockartyException {
+        String normalized = outcome == null ? "" : outcome.trim();
+        if (!normalized.equals("applied") && !normalized.equals("not_applied")) {
+            throw new IllegalArgumentException("outcome must be applied or not_applied");
+        }
+        return client.post(missionPath(missionId, "/deploy-outcome"), Map.of("outcome", normalized), Map.class);
+    }
+
     private String configPath(String productId) {
         String path = "/api/v1/coder/delivery-config?namespace=" + enc(client.getConfig().getNamespace());
         if (productId != null && !productId.isBlank()) path += "&productId=" + enc(productId.trim());

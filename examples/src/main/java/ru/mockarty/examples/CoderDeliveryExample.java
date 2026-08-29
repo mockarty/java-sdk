@@ -12,6 +12,11 @@ public final class CoderDeliveryExample {
                     "repoUrl", System.getenv("CODER_REPO_URL"),
                     "deployTarget", "staging"));
             System.out.println(mission.get("id") + " " + mission.get("status"));
+            String outcome = System.getenv("CODER_DEPLOY_RECONCILIATION");
+            if (outcome != null && !outcome.isBlank()) {
+                mission = client.coderDelivery().reconcileDeploy(mission.get("id").toString(), outcome);
+                System.out.println("reconciled " + mission.get("deployStopState"));
+            }
         }
     }
 
