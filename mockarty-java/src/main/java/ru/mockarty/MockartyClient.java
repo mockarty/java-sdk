@@ -19,6 +19,7 @@ import ru.mockarty.api.TcmApi;
 import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CloudWebhooksApi;
 import ru.mockarty.api.CloudInstancesApi;
+import ru.mockarty.api.CloudOAuthProvidersApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.CloudSharedProjectsApi;
@@ -418,6 +419,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the dedicated Cloud contour lifecycle API. */
     public CloudInstancesApi cloudInstances() {
         return new CloudInstancesApi(this);
+    }
+
+    /** Returns the operator-only Cloud cabinet sign-in provider registry. */
+    public CloudOAuthProvidersApi cloudOAuthProviders() {
+        return new CloudOAuthProvidersApi(this);
     }
 
     /** Returns the canonical explicit-Space collaboration API. */
