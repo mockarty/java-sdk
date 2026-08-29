@@ -114,6 +114,8 @@ class AutonomousMissionsApiTest {
         assertEquals("release withdrawn", cancelled.getControl().getReason());
         assertEquals("cancel-1", cancelled.getControl().getIdempotencyKey());
         assertEquals("canceled", cancelled.getMission().getStatus());
+        assertTrue(cancelled.isExecutionBindingsAvailable());
+        assertEquals("cancel_acknowledged", cancelled.getExecutionBindings().get(0).getState());
         JsonNode cancelBody = client.getObjectMapper().readTree(requests.get(2).body);
         assertEquals("release withdrawn", cancelBody.path("reason").asText());
         assertEquals("cancel-1", cancelBody.path("idempotencyKey").asText());
@@ -146,7 +148,7 @@ class AutonomousMissionsApiTest {
             status = 201;
             response = "{\"created\":true,\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"productId\":\"product/checkout\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"chain\":[]}}";
         } else if (path.equals("/api/v1/missions/m-unified/cancel")) {
-            response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"canceled\",\"chain\":[]},\"control\":{\"id\":\"control-1\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"cancel-1\",\"action\":\"cancel\",\"phase\":\"committed\",\"outcome\":\"applied\",\"reason\":\"release withdrawn\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"updatedAt\":\"2026-08-27T00:00:01Z\"}}";
+            response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"canceled\",\"chain\":[]},\"control\":{\"id\":\"control-1\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"cancel-1\",\"action\":\"cancel\",\"phase\":\"committed\",\"outcome\":\"applied\",\"reason\":\"release withdrawn\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"updatedAt\":\"2026-08-27T00:00:01Z\"},\"executionBindingsAvailable\":true,\"executionBindings\":[{\"id\":\"binding-1\",\"nodeId\":\"m-unified\",\"externalId\":\"runner-1\",\"kind\":\"runner_task\",\"state\":\"cancel_acknowledged\",\"graphRevision\":2,\"generation\":1,\"cancelEpoch\":3}]}";
         } else if (path.endsWith("/intents")) {
             status = 202;
             response = "{\"missionId\":\"m-1\",\"status\":\"accepted\"}";

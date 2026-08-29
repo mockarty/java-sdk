@@ -35,6 +35,9 @@ public final class AutonomousMissionsExample {
                 System.out.printf("cancel receipt=%s outcome=%s reason=%s%n",
                         cancelled.getControl().getId(), cancelled.getControl().getOutcome(),
                         cancelled.getControl().getReason());
+                cancelled.getExecutionBindings().forEach(binding ->
+                        System.out.printf("child=%s kind=%s state=%s%n",
+                                binding.getExternalId(), binding.getKind(), binding.getState()));
             }
         }
     }
