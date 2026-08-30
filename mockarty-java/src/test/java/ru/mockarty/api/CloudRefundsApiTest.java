@@ -31,7 +31,7 @@ class CloudRefundsApiTest {
     void setUp() throws IOException {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/v1/cloud/operator/refunds/", this::handle);
-        server.createContext("/api/v1/cloud/operator/payments", this::handleList);
+        server.createContext("/api/v1/cloud/operator/refunds", this::handleList);
         server.start();
         client = MockartyClient.create("http://127.0.0.1:" + server.getAddress().getPort(), "operator-token");
     }
@@ -53,7 +53,7 @@ class CloudRefundsApiTest {
         assertEquals(1500, refund.path("amount_minor").asLong());
         assertEquals("RUB", refund.path("currency").asText());
         assertEquals("yookassa", refund.path("provider").asText());
-        assertEquals("/api/v1/cloud/operator/payments", requestPath);
+        assertEquals("/api/v1/cloud/operator/refunds", requestPath);
     }
 
     @Test

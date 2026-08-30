@@ -24,7 +24,7 @@ public class CloudRefundsApi {
     private static final Pattern REASON_CODE = Pattern.compile("[a-z0-9._:-]{2,64}");
     private static final Pattern IDEMPOTENCY_KEY = Pattern.compile("[A-Za-z0-9._:/@-]{1,128}");
     private static final String BASE = "/api/v1/cloud/operator/refunds/";
-    private static final String PAYMENTS = "/api/v1/cloud/operator/payments";
+    private static final String REFUNDS = "/api/v1/cloud/operator/refunds";
     private final MockartyClient client;
 
     public CloudRefundsApi(MockartyClient client) {
@@ -34,18 +34,18 @@ public class CloudRefundsApi {
     /**
      * Lists the redacted actionable refund projection. The caller needs the
      * exact {@code operator:commerce:write} token scope or an interactive
-     * operator session. Payment records in the shared envelope are ignored.
+     * operator session. The endpoint omits the broader payment ledger.
      */
     public List<JsonNode> listRefunds() throws MockartyException {
-        JsonNode response = client.get(PAYMENTS, JsonNode.class);
+        JsonNode response = client.get(REFUNDS, JsonNode.class);
         JsonNode refunds = response == null ? null : response.get("refunds");
         if (refunds == null || !refunds.isArray()) {
-            throw new MockartyException("operator payments response is missing refunds");
+            throw new MockartyException("operator refunds response is missing refunds");
         }
         List<JsonNode> result = new ArrayList<>();
         for (JsonNode refund : refunds) {
             if (!validRefund(refund)) {
-                throw new MockartyException("operator payments response contains an invalid refund projection");
+                throw new MockartyException("operator refunds response contains an invalid refund projection");
             }
             result.add(refund);
         }
