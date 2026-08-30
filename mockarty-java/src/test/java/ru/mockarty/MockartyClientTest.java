@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -215,6 +216,33 @@ class MockartyClientTest {
             SaveMockResponse result = client.mocks().create(new Mock().id("new-mock"));
             assertFalse(result.isOverwritten());
             assertEquals("new-mock", result.getMock().getId());
+        }
+
+        @Test
+        @DisplayName("should send every mock catalogue filter")
+        void mockListFilters() throws Exception {
+            server.createContext("/api/v1/mocks", exchange -> {
+                String query = exchange.getRequestURI().getRawQuery();
+                assertTrue(query.contains("namespace=production"));
+                assertTrue(query.contains("tags=orders%2Cv2"));
+                assertTrue(query.contains("search=user"));
+                assertTrue(query.contains("folderId=folder-1"));
+                assertTrue(query.contains("protocol=grpc"));
+                assertTrue(query.contains("onlyActive=true"));
+                assertTrue(query.contains("offset=5"));
+                assertTrue(query.contains("limit=25"));
+
+                byte[] body = "{\"items\":[],\"total\":0,\"offset\":5,\"limit\":25}".getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            assertDoesNotThrow(() -> client.mocks().list(
+                    "production", List.of("orders", "v2"), "user",
+                    "folder-1", "grpc", true, 5, 25));
         }
 
         @Test

@@ -234,6 +234,9 @@ public class TagsAndFoldersExample {
                 "sandbox",
                 List.of("users"),       // Filter by tag
                 null,                    // No search text
+                null,                    // Any folder
+                "http",                 // HTTP mocks only
+                true,                    // Active mocks only
                 0,                       // Offset
                 50                       // Limit
         );

@@ -108,6 +108,25 @@ public class MockApi {
      * @return a page of mocks
      */
     public Page<Mock> list(String namespace, List<String> tags, String search, int offset, int limit) throws MockartyException {
+        return list(namespace, tags, search, null, null, null, offset, limit);
+    }
+
+    /**
+     * Lists mocks with every server-side catalogue filter.
+     *
+     * @param namespace  filter by namespace (null for default)
+     * @param tags       filter by tags (null for no filter)
+     * @param search     search text (null for no filter)
+     * @param folderId   folder UUID or {@code root} (null for no filter)
+     * @param protocol   protocol name (null for no filter)
+     * @param onlyActive whether to exclude soft-deleted mocks (null for server default)
+     * @param offset     pagination offset
+     * @param limit      pagination limit
+     * @return a page of mocks
+     */
+    public Page<Mock> list(String namespace, List<String> tags, String search,
+                           String folderId, String protocol, Boolean onlyActive,
+                           int offset, int limit) throws MockartyException {
         StringJoiner query = new StringJoiner("&", "?", "");
         query.add("offset=" + offset);
         query.add("limit=" + limit);
@@ -119,13 +138,23 @@ public class MockApi {
         }
 
         if (tags != null && !tags.isEmpty()) {
-            for (String tag : tags) {
-                query.add("tags=" + encode(tag));
-            }
+            query.add("tags=" + encode(String.join(",", tags)));
         }
 
         if (search != null && !search.isEmpty()) {
             query.add("search=" + encode(search));
+        }
+
+        if (folderId != null && !folderId.isEmpty()) {
+            query.add("folderId=" + encode(folderId));
+        }
+
+        if (protocol != null && !protocol.isEmpty()) {
+            query.add("protocol=" + encode(protocol));
+        }
+
+        if (onlyActive != null) {
+            query.add("onlyActive=" + onlyActive);
         }
 
         JavaType pageType = client.getObjectMapper().getTypeFactory()
