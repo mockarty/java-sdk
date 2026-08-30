@@ -41,7 +41,7 @@ class CloudOAuthProvidersApiTest {
 
     @Test
     void updateUsesWriteOnlySecretAndRetryIdentity() {
-        CloudOAuthProvider provider = client.cloudOAuthProviders().updateWithSecret("github", "client-id",
+        CloudOAuthProvider provider = client.cloudOAuthProviders().update("github", "client-id",
                 "write-only", false, 3, true, "oauth-provider-4");
         assertEquals("github", provider.getProvider());
         assertEquals(4, provider.getConfigRevision());
@@ -53,9 +53,9 @@ class CloudOAuthProvidersApiTest {
     @Test
     void invalidMutationFailsBeforeNetwork() {
         assertThrows(IllegalArgumentException.class, () -> client.cloudOAuthProviders()
-                .updateWithSecret("github", "client-id", "", false, -1, false, "key"));
+                .update("github", "client-id", "", false, -1, false, "key"));
         assertThrows(IllegalArgumentException.class, () -> client.cloudOAuthProviders()
-                .updateWithSecret("", "client-id", "", false, 1, false, "key"));
+                .update("", "client-id", "", false, 1, false, "key"));
     }
 
     private void handle(HttpExchange exchange) throws IOException {

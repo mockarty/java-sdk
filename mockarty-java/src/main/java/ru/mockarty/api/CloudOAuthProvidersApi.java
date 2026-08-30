@@ -37,13 +37,13 @@ public class CloudOAuthProvidersApi {
         if (clientSecret == null || clientSecret.isEmpty()) {
             throw new IllegalArgumentException("referenced client secret environment variable is empty or unset");
         }
-        return updateWithSecret(provider, clientId, clientSecret, false, expectedRevision, enabled, idempotencyKey);
+        return update(provider, clientId, clientSecret, false, expectedRevision, enabled, idempotencyKey);
     }
 
     /** Raw secret is accepted on write and intentionally absent from the response model. */
-    public CloudOAuthProvider updateWithSecret(String provider, String clientId, String clientSecret,
-                                               boolean clearSecret, long expectedRevision,
-                                               boolean enabled, String idempotencyKey) throws MockartyException {
+    public CloudOAuthProvider update(String provider, String clientId, String clientSecret,
+                                     boolean clearSecret, long expectedRevision,
+                                     boolean enabled, String idempotencyKey) throws MockartyException {
         if (expectedRevision < 1) throw new IllegalArgumentException("expected revision must be positive");
         if (clearSecret && clientSecret != null && !clientSecret.isEmpty()) {
             throw new IllegalArgumentException("client secret and clear secret are mutually exclusive");
