@@ -17,6 +17,8 @@ import ru.mockarty.model.MissionCancelRequest;
 import ru.mockarty.model.MissionControlResponse;
 import ru.mockarty.model.MissionStartRequest;
 import ru.mockarty.model.MissionStartResponse;
+import ru.mockarty.model.MissionArchiveEnvelope;
+import ru.mockarty.model.MissionArchiveRestoreResponse;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -113,6 +115,33 @@ public class AutonomousMissionsApi {
         }
         String path = "/api/v1/missions/" + enc(missionId.trim()).replace("+", "%20") + "/answer";
         return client.post(path, request, MissionControlResponse.class);
+    }
+
+    /** Export one at-rest mission with its immutable Brief and complete journal. */
+    public MissionArchiveEnvelope exportArchive(String missionId) throws MockartyException {
+        if (missionId == null || missionId.isBlank()) {
+            throw new IllegalArgumentException("mission id is required");
+        }
+        String path = "/api/v1/missions/" + enc(missionId.trim()).replace("+", "%20") + "/archive";
+        MissionArchiveEnvelope archive = client.get(path, MissionArchiveEnvelope.class);
+        validateArchive(archive);
+        return archive;
+    }
+
+    /** Atomically restore an archive into its original namespace. */
+    public MissionArchiveRestoreResponse restoreArchive(MissionArchiveEnvelope archive) throws MockartyException {
+        validateArchive(archive);
+        return client.post("/api/v1/missions/archive", archive, MissionArchiveRestoreResponse.class);
+    }
+
+    private static void validateArchive(MissionArchiveEnvelope archive) {
+        if (archive == null || archive.getDigest() == null
+                || !archive.getDigest().trim().matches("sha256:[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("archive digest must be canonical sha256");
+        }
+        if (archive.getPayload() == null || !archive.getPayload().isObject()) {
+            throw new IllegalArgumentException("archive payload must be a JSON object");
+        }
     }
 
     private static String missionPath(String missionId) {

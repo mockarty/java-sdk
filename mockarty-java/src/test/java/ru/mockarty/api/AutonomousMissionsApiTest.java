@@ -16,6 +16,7 @@ import ru.mockarty.model.MissionCancelRequest;
 import ru.mockarty.model.MissionAnswerRequest;
 import ru.mockarty.model.MissionStartRequest;
 import ru.mockarty.model.MissionRevisionReference;
+import ru.mockarty.model.MissionArchiveEnvelope;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -135,6 +136,14 @@ class AutonomousMissionsApiTest {
         JsonNode answerBody = client.getObjectMapper().readTree(requests.get(3).body);
         assertEquals("use sandbox account", answerBody.path("answer").asText());
         assertEquals("answer-1", answerBody.path("idempotencyKey").asText());
+
+        var archive = client.autonomousMissions().exportArchive("m-unified");
+        assertEquals(digest, archive.getDigest());
+        var restored = client.autonomousMissions().restoreArchive(archive);
+        assertTrue(restored.isCreated());
+        assertEquals("m-unified", restored.getId());
+        JsonNode restoreBody = client.getObjectMapper().readTree(requests.get(5).body);
+        assertEquals(digest, restoreBody.path("digest").asText());
     }
 
     @Test
@@ -150,6 +159,9 @@ class AutonomousMissionsApiTest {
                 client.autonomousMissions().cancel(" ", new MissionCancelRequest()));
         assertThrows(IllegalArgumentException.class, () ->
                 client.autonomousMissions().answer("m-1", new MissionAnswerRequest().answer(" ")));
+        assertThrows(IllegalArgumentException.class, () -> client.autonomousMissions().exportArchive(" "));
+        assertThrows(IllegalArgumentException.class, () ->
+                client.autonomousMissions().restoreArchive(new MissionArchiveEnvelope()));
         assertEquals(0, requests.size());
     }
 
@@ -169,6 +181,11 @@ class AutonomousMissionsApiTest {
             response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"canceled\",\"chain\":[]},\"control\":{\"id\":\"control-1\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"cancel-1\",\"action\":\"cancel\",\"phase\":\"committed\",\"outcome\":\"applied\",\"reason\":\"release withdrawn\",\"createdAt\":\"2026-08-27T00:00:00Z\",\"updatedAt\":\"2026-08-27T00:00:01Z\"},\"executionBindingsAvailable\":true,\"executionBindings\":[{\"id\":\"binding-1\",\"nodeId\":\"m-unified\",\"externalId\":\"runner-1\",\"kind\":\"runner_task\",\"state\":\"cancel_acknowledged\",\"graphRevision\":2,\"generation\":1,\"cancelEpoch\":3}]}";
         } else if (path.equals("/api/v1/missions/m-unified/answer")) {
             response = "{\"mission\":{\"id\":\"m-unified\",\"namespace\":\"team-a\",\"kind\":\"testing\",\"goal\":\"ship checkout\",\"origin\":\"ui\",\"status\":\"queued\",\"chain\":[]},\"control\":{\"id\":\"control-2\",\"missionId\":\"m-unified\",\"idempotencyKey\":\"answer-1\",\"action\":\"answer\",\"phase\":\"committed\",\"outcome\":\"applied\"}}";
+        } else if (path.equals("/api/v1/missions/m-unified/archive")) {
+            response = "{\"digest\":\"sha256:" + "a".repeat(64) + "\",\"payload\":{\"schema_version\":\"mockarty.mission-archive/v1\"}}";
+        } else if (path.equals("/api/v1/missions/archive")) {
+            status = 201;
+            response = "{\"id\":\"m-unified\",\"digest\":\"sha256:" + "a".repeat(64) + "\",\"created\":true}";
         } else if (path.endsWith("/intents")) {
             status = 202;
             response = "{\"missionId\":\"m-1\",\"status\":\"accepted\"}";

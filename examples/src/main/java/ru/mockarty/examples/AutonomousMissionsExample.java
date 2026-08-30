@@ -21,6 +21,13 @@ public final class AutonomousMissionsExample {
                 .apiKey(System.getenv("MOCKARTY_API_KEY"))
                 .namespace(System.getenv().getOrDefault("MOCKARTY_NAMESPACE", "sandbox"))
                 .build()) {
+            String archiveMissionId = System.getenv("MOCKARTY_ARCHIVE_MISSION_ID");
+            if (archiveMissionId != null && !archiveMissionId.isBlank()) {
+                var archive = client.autonomousMissions().exportArchive(archiveMissionId);
+                var restored = client.autonomousMissions().restoreArchive(archive);
+                System.out.printf("archive=%s mission=%s created=%s%n",
+                        archive.getDigest(), restored.getId(), restored.isCreated());
+            }
             String productId = System.getenv().getOrDefault("MOCKARTY_PRODUCT_ID", "");
             var settings = client.autonomousMissions().getEffectiveSettings(
                     new MissionEffectiveSettingsOptions().productId(productId));
