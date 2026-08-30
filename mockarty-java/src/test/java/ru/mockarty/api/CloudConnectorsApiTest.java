@@ -30,6 +30,7 @@ class CloudConnectorsApiTest {
     void setUp() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/cloud/operator/connectors", this::handle);
+        server.createContext("/api/v1/cloud/operator/connector-versions", this::handle);
         server.start();
         client = MockartyClient.builder().baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
                 .apiKey("operator-session").timeout(Duration.ofSeconds(5)).maxRetries(0).build();
@@ -62,11 +63,21 @@ class CloudConnectorsApiTest {
                 0, false, false, "key"));
     }
 
+    @Test
+    void revokeAcceptsEmptyNoContentResponse() {
+        client.cloudConnectors().revoke("8bb0c85e-508b-4d83-b7c7-b8b87c910ecd", "revoke-1");
+        assertEquals("revoke-1", idempotencyKey);
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         idempotencyKey = exchange.getRequestHeaders().getFirst("Idempotency-Key");
         requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        byte[] bytes = "{\"key\":\"oauth/github\",\"revision\":2,\"secret_configured\":true}"
-                .getBytes(StandardCharsets.UTF_8);
+        if (exchange.getRequestURI().getRawPath().endsWith("/revoke")) {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+            return;
+        }
+        byte[] bytes = "{\"key\":\"oauth/github\",\"revision\":2,\"secret_configured\":true}".getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, bytes.length);
         try (OutputStream output = exchange.getResponseBody()) { output.write(bytes); }

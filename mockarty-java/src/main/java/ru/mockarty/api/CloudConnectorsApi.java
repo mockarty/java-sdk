@@ -55,7 +55,7 @@ public class CloudConnectorsApi {
     public void revoke(String versionId, String idempotencyKey) throws MockartyException {
         client.postWithHeaders("/api/v1/cloud/operator/connector-versions/" +
                         encode(require("version id", versionId)) + "/revoke",
-                Collections.emptyMap(), Map.class, headers(idempotencyKey));
+                Collections.emptyMap(), Void.class, headers(idempotencyKey));
     }
 
     private static String path(String kind, String provider, String slot) {
