@@ -22,6 +22,7 @@ import ru.mockarty.api.CloudInstancesApi;
 import ru.mockarty.api.CloudConnectorsApi;
 import ru.mockarty.api.CloudOAuthProvidersApi;
 import ru.mockarty.api.CloudRiskApi;
+import ru.mockarty.api.CloudRefundsApi;
 import ru.mockarty.api.CloudIdentityApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
@@ -443,6 +444,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the operator-only Cloud risk case and enforcement API. */
     public CloudRiskApi cloudRisk() {
         return new CloudRiskApi(this);
+    }
+
+    /** Returns the operator-only durable Cloud refund recovery API. */
+    public CloudRefundsApi cloudRefunds() {
+        return new CloudRefundsApi(this);
     }
 
     /** Returns the current Cloud account sign-in-method and step-up API. */
