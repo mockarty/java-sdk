@@ -6,19 +6,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.mockarty.MockartyClient;
-import ru.mockarty.model.CloudOAuthProvider;
+import ru.mockarty.model.CloudConnector;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class CloudOAuthProvidersApiTest {
+class CloudConnectorsApiTest {
     private HttpServer server;
     private MockartyClient client;
     private volatile String idempotencyKey;
@@ -27,7 +29,7 @@ class CloudOAuthProvidersApiTest {
     @BeforeEach
     void setUp() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/api/v1/cloud/operator/oauth/providers", this::handle);
+        server.createContext("/api/v1/cloud/operator/connectors", this::handle);
         server.start();
         client = MockartyClient.builder().baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
                 .apiKey("operator-session").timeout(Duration.ofSeconds(5)).maxRetries(0).build();
@@ -40,31 +42,31 @@ class CloudOAuthProvidersApiTest {
     }
 
     @Test
-    void updateUsesWriteOnlySecretAndRetryIdentity() {
-        CloudOAuthProvider provider = client.cloudOAuthProviders().updateWithSecret("github", "client-id",
-                "write-only", false, 3, true, "oauth-provider-4");
-        assertEquals("github", provider.getProvider());
-        assertEquals(4, provider.getConfigRevision());
-        assertEquals("oauth-provider-4", idempotencyKey);
-        assertFalse(requestBody.contains("client_secret_ref"));
-        assertEquals(1, client.cloudOAuthProviders().list().size());
+    void updateUsesWriteOnlyClientSecretAndRetryIdentity() {
+        CloudConnector connector = client.cloudConnectors().update("oauth", "github", "",
+                Map.of("client_id", "client"), Map.of("client_secret", "write-only"),
+                Collections.emptyList(), 1, true, false, "connector-1");
+        assertEquals("oauth/github", connector.getKey());
+        assertEquals(2, connector.getRevision());
+        assertEquals("connector-1", idempotencyKey);
+        assertFalse(requestBody.contains("secret_configured\":\"write-only"));
     }
 
     @Test
     void invalidMutationFailsBeforeNetwork() {
-        assertThrows(IllegalArgumentException.class, () -> client.cloudOAuthProviders()
-                .updateWithSecret("github", "client-id", "", false, -1, false, "key"));
-        assertThrows(IllegalArgumentException.class, () -> client.cloudOAuthProviders()
-                .updateWithSecret("", "client-id", "", false, 1, false, "key"));
+        assertThrows(IllegalArgumentException.class, () -> client.cloudConnectors().update(
+                "payment", "stripe", "", Map.of(), Map.of(), Collections.emptyList(),
+                1, false, false, "key"));
+        assertThrows(IllegalArgumentException.class, () -> client.cloudConnectors().update(
+                "oauth", "github", "", Map.of(), Map.of(), Collections.emptyList(),
+                0, false, false, "key"));
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         idempotencyKey = exchange.getRequestHeaders().getFirst("Idempotency-Key");
         requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        String body = exchange.getRequestURI().getRawPath().endsWith("/github")
-                ? "{\"provider\":\"github\",\"client_id\":\"client-id\",\"source\":\"registry\",\"config_revision\":4,\"enabled\":true,\"secret_configured\":true}"
-                : "{\"providers\":[{\"provider\":\"github\",\"config_revision\":4,\"enabled\":true,\"secret_configured\":true}]}";
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = "{\"key\":\"oauth/github\",\"revision\":2,\"secret_configured\":true}"
+                .getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, bytes.length);
         try (OutputStream output = exchange.getResponseBody()) { output.write(bytes); }

@@ -24,13 +24,34 @@ public class CloudOAuthProvidersApi {
         return response == null || response.providers == null ? Collections.emptyList() : response.providers;
     }
 
-    /** clientSecretRef is accepted on write and is intentionally absent from the response model. */
+    /**
+     * Deprecated compatibility helper. Resolves env://NAME locally and sends
+     * the resulting write-only value; the reference is never sent to Cloud.
+     */
     public CloudOAuthProvider update(String provider, String clientId, String clientSecretRef,
                                      long expectedRevision, boolean enabled, String idempotencyKey) throws MockartyException {
-        if (expectedRevision < 0) throw new IllegalArgumentException("expected revision must be non-negative");
+        if (clientSecretRef == null || !clientSecretRef.startsWith("env://") || clientSecretRef.length() == "env://".length()) {
+            throw new IllegalArgumentException("client secret reference must use env://NAME");
+        }
+        String clientSecret = System.getenv(clientSecretRef.substring("env://".length()));
+        if (clientSecret == null || clientSecret.isEmpty()) {
+            throw new IllegalArgumentException("referenced client secret environment variable is empty or unset");
+        }
+        return updateWithSecret(provider, clientId, clientSecret, false, expectedRevision, enabled, idempotencyKey);
+    }
+
+    /** Raw secret is accepted on write and intentionally absent from the response model. */
+    public CloudOAuthProvider updateWithSecret(String provider, String clientId, String clientSecret,
+                                               boolean clearSecret, long expectedRevision,
+                                               boolean enabled, String idempotencyKey) throws MockartyException {
+        if (expectedRevision < 1) throw new IllegalArgumentException("expected revision must be positive");
+        if (clearSecret && clientSecret != null && !clientSecret.isEmpty()) {
+            throw new IllegalArgumentException("client secret and clear secret are mutually exclusive");
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("client_id", require("client id", clientId));
-        body.put("client_secret_ref", clientSecretRef == null ? "" : clientSecretRef);
+        body.put("client_secret", clientSecret == null ? "" : clientSecret);
+        body.put("clear_secret", clearSecret);
         body.put("expected_revision", expectedRevision);
         body.put("enabled", enabled);
         return client.putWithHeaders(BASE + "/" + encode(require("provider", provider)), body,
