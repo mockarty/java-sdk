@@ -622,6 +622,20 @@ public class MockartyClient implements AutoCloseable {
     }
 
     /**
+     * Performs a non-idempotent POST exactly once. Callers must reconcile with
+     * a subsequent GET after an ambiguous connection failure; automatically
+     * replaying a request that may already have committed can duplicate an
+     * effect or turn a successful revision-fenced mutation into a false 409.
+     */
+    public <T> T postNoRetry(String path, Object body, Class<T> responseType) throws MockartyException {
+        HttpRequest request = buildRequest(path)
+                .POST(jsonBody(body))
+                .header("Content-Type", "application/json")
+                .build();
+        return executeNoRetry(request, responseType);
+    }
+
+    /**
      * Performs a POST request with a JSON body and deserializes the response to a parameterized type.
      */
     public <T> T post(String path, Object body, JavaType responseType) throws MockartyException {
@@ -648,10 +662,39 @@ public class MockartyClient implements AutoCloseable {
         return execute(builder.build(), responseType);
     }
 
+    /** Performs a conditional non-idempotent POST exactly once. */
+    public <T> T postWithHeadersNoRetry(String path, Object body, Class<T> responseType,
+                                        Map<String, String> headers) throws MockartyException {
+        HttpRequest.Builder builder = buildRequest(path)
+                .POST(jsonBody(body))
+                .header("Content-Type", "application/json");
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) {
+                    builder.header(name, value);
+                }
+            });
+        }
+        return executeNoRetry(builder.build(), responseType);
+    }
+
     /** Performs an in-memory multipart file upload with conditional headers. */
     public <T> T postMultipartFileWithHeaders(String path, String fieldName, String fileName,
                                                byte[] data, Class<T> responseType,
                                                Map<String, String> headers) throws MockartyException {
+        return postMultipartFile(path, fieldName, fileName, data, responseType, headers, true);
+    }
+
+    /** Performs a non-idempotent multipart upload exactly once. */
+    public <T> T postMultipartFileWithHeadersNoRetry(String path, String fieldName, String fileName,
+                                                      byte[] data, Class<T> responseType,
+                                                      Map<String, String> headers) throws MockartyException {
+        return postMultipartFile(path, fieldName, fileName, data, responseType, headers, false);
+    }
+
+    private <T> T postMultipartFile(String path, String fieldName, String fileName,
+                                    byte[] data, Class<T> responseType,
+                                    Map<String, String> headers, boolean retryAllowed) throws MockartyException {
         if (fieldName == null || fieldName.isBlank()) {
             throw new IllegalArgumentException("multipart field name is required");
         }
@@ -687,7 +730,8 @@ public class MockartyClient implements AutoCloseable {
                 }
             });
         }
-        return execute(builder.build(), responseType);
+        HttpRequest request = builder.build();
+        return retryAllowed ? execute(request, responseType) : executeNoRetry(request, responseType);
     }
 
     /** Performs a PATCH with narrow caller-supplied conditional headers. */
@@ -979,6 +1023,15 @@ public class MockartyClient implements AutoCloseable {
 
     private <T> T execute(HttpRequest request, Class<T> responseType) throws MockartyException {
         String responseBody = executeRaw(request);
+		return decodeResponse(responseBody, responseType);
+	}
+
+    private <T> T executeNoRetry(HttpRequest request, Class<T> responseType) throws MockartyException {
+        String responseBody = executeRaw(request, false);
+		return decodeResponse(responseBody, responseType);
+	}
+
+	private <T> T decodeResponse(String responseBody, Class<T> responseType) {
         if (responseType == String.class) {
             @SuppressWarnings("unchecked")
             T result = (T) responseBody;
@@ -1008,10 +1061,15 @@ public class MockartyClient implements AutoCloseable {
     }
 
     private String executeRaw(HttpRequest request) throws MockartyException {
+		return executeRaw(request, true);
+	}
+
+	private String executeRaw(HttpRequest request, boolean retryAllowed) throws MockartyException {
         log.debug("{} {}", request.method(), request.uri());
         try {
-            HttpResponse<String> response = sendWithRetry(request,
-                    HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = retryAllowed
+                    ? sendWithRetry(request, HttpResponse.BodyHandlers.ofString())
+                    : httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             log.debug("Response: {} ({} chars)", response.statusCode(),
                     response.body() != null ? response.body().length() : 0);

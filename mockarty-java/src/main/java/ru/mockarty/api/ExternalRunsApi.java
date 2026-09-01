@@ -400,34 +400,34 @@ public class ExternalRunsApi {
      *                  {@code tags}, {@code environment}
      */
     public JsonNode startRun(String namespace, Map<String, Object> run) throws MockartyException {
-        return client.post(lifecycleBase(namespace), run, JsonNode.class);
+        return client.postNoRetry(lifecycleBase(namespace), run, JsonNode.class);
     }
 
     /** Streams one or more steps into an open run. */
     public JsonNode appendSteps(String namespace, String runId, List<Map<String, Object>> steps)
             throws MockartyException {
-        return client.post(lifecycleRunPath(namespace, runId) + "/steps",
+        return client.postNoRetry(lifecycleRunPath(namespace, runId) + "/steps",
                 Map.of("steps", steps), JsonNode.class);
     }
 
     /** Streams steps only while {@code revision} remains current. */
     public JsonNode appendStepsAtRevision(String namespace, String runId, long revision,
                                           List<Map<String, Object>> steps) throws MockartyException {
-        return client.postWithHeaders(lifecycleRunPath(namespace, runId) + "/steps",
+        return client.postWithHeadersNoRetry(lifecycleRunPath(namespace, runId) + "/steps",
                 Map.of("steps", steps), JsonNode.class, revisionHeaders(revision));
     }
 
     /** Uploads one attachment through the legacy unfenced lane. */
     public JsonNode uploadAttachment(String namespace, String runId, String fileName, byte[] data)
             throws MockartyException {
-        return client.postMultipartFileWithHeaders(lifecycleRunPath(namespace, runId) + "/attachments",
+        return client.postMultipartFileWithHeadersNoRetry(lifecycleRunPath(namespace, runId) + "/attachments",
                 "file", fileName, data, JsonNode.class, Collections.emptyMap());
     }
 
     /** Uploads one attachment only while {@code revision} remains current. */
     public JsonNode uploadAttachmentAtRevision(String namespace, String runId, long revision,
                                                 String fileName, byte[] data) throws MockartyException {
-        return client.postMultipartFileWithHeaders(lifecycleRunPath(namespace, runId) + "/attachments",
+        return client.postMultipartFileWithHeadersNoRetry(lifecycleRunPath(namespace, runId) + "/attachments",
                 "file", fileName, data, JsonNode.class, revisionHeaders(revision));
     }
 
@@ -442,7 +442,7 @@ public class ExternalRunsApi {
         if (summary != null && !summary.isEmpty()) {
             body.put("summary", summary);
         }
-        return client.post(lifecycleRunPath(namespace, runId) + "/finish", body, JsonNode.class);
+        return client.postNoRetry(lifecycleRunPath(namespace, runId) + "/finish", body, JsonNode.class);
     }
 
     /** Finishes only the accumulated projection identified by {@code revision}. */
@@ -453,7 +453,7 @@ public class ExternalRunsApi {
         if (summary != null && !summary.isEmpty()) {
             body.put("summary", summary);
         }
-        return client.postWithHeaders(lifecycleRunPath(namespace, runId) + "/finish",
+        return client.postWithHeadersNoRetry(lifecycleRunPath(namespace, runId) + "/finish",
                 body, JsonNode.class, revisionHeaders(revision));
     }
 

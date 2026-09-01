@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -28,6 +29,8 @@ class ExternalRunsLifecycleRevisionTest {
     private volatile String finishIfMatch;
     private volatile String attachmentContentType;
     private volatile byte[] attachmentBody;
+    private final AtomicInteger requests = new AtomicInteger();
+    private volatile boolean failWithServiceUnavailable;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -35,7 +38,7 @@ class ExternalRunsLifecycleRevisionTest {
         server.createContext("/api/v1/namespaces/sandbox/tcm/external-runs/lifecycle", this::handle);
         server.start();
         client = MockartyClient.builder().baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
-                .apiKey("test-token").namespace("sandbox").timeout(Duration.ofSeconds(5)).maxRetries(0).build();
+                .apiKey("test-token").namespace("sandbox").timeout(Duration.ofSeconds(5)).maxRetries(2).build();
     }
 
     @AfterEach
@@ -73,7 +76,36 @@ class ExternalRunsLifecycleRevisionTest {
                 () -> api.uploadAttachment("sandbox", "run-1", "evidence\r\nX-Injected: true", new byte[0]));
     }
 
+    @Test
+    void lifecycleMutationsAreNeverAutomaticallyReplayed() {
+        ExternalRunsApi api = client.externalRuns();
+        failWithServiceUnavailable = true;
+
+        assertThrows(RuntimeException.class,
+                () -> api.startRun("sandbox", Map.of("name", "run")));
+        assertThrows(RuntimeException.class,
+                () -> api.appendStepsAtRevision("sandbox", "run-1", 7,
+                        List.of(Map.of("step_key", "s1", "status", "passed"))));
+        assertThrows(RuntimeException.class,
+                () -> api.uploadAttachmentAtRevision("sandbox", "run-1", 7,
+                        "evidence.txt", "measured".getBytes(StandardCharsets.UTF_8)));
+        assertThrows(RuntimeException.class,
+                () -> api.finishRunAtRevision("sandbox", "run-1", 7, "passed", "ok"));
+
+        assertEquals(4, requests.get(),
+                "each non-idempotent lifecycle mutation must make exactly one HTTP attempt");
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
+        requests.incrementAndGet();
+        if (failWithServiceUnavailable) {
+            byte[] unavailable = "temporarily unavailable".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(503, unavailable.length);
+            try (OutputStream output = exchange.getResponseBody()) {
+                output.write(unavailable);
+            }
+            return;
+        }
         String path = exchange.getRequestURI().getRawPath();
         int revision;
         String status = "running";

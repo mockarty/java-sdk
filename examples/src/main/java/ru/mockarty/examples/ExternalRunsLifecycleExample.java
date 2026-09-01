@@ -15,7 +15,10 @@ import java.util.Map;
  *
  * <p>Unlike {@code report} (one-shot upload of a finished run), the lifecycle
  * API reports as the suite runs: startRun → appendSteps (repeatedly) →
- * finishRun. The finished view carries the resolved TCM case/run ids.
+ * finishRun. The finished view carries the resolved TCM case/run ids. These
+ * mutations are sent exactly once by the SDK; after an ambiguous connection
+ * failure, fetch the run and reconcile its revision before deciding whether
+ * to issue a new mutation.
  */
 public class ExternalRunsLifecycleExample {
 
