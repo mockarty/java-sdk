@@ -27,6 +27,8 @@ import ru.mockarty.api.CloudIdentityApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.CloudSharedProjectsApi;
+import ru.mockarty.api.CloudCustomerApi;
+import ru.mockarty.api.CloudOperationsApi;
 import ru.mockarty.api.DeliveryPolicyApi;
 import ru.mockarty.api.MediaDeliveryApi;
 import ru.mockarty.api.EffectReconciliationApi;
@@ -459,6 +461,16 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the canonical explicit-Space collaboration API. */
     public CloudSpacesApi cloudSpaces() {
         return new CloudSpacesApi(this);
+    }
+
+    /** Returns customer-authorized Cloud loyalty, support and risk-appeal APIs. */
+    public CloudCustomerApi cloudCustomer() {
+        return new CloudCustomerApi(this);
+    }
+
+    /** Returns least-privilege operator support and product analytics APIs. */
+    public CloudOperationsApi cloudOperations() {
+        return new CloudOperationsApi(this);
     }
 
     /** Returns administrator delivery-policy environment management. */

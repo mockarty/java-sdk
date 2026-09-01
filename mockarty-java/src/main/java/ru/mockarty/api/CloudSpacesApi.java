@@ -25,6 +25,13 @@ public class CloudSpacesApi {
         return map(client.get(spacePath(spaceId), Map.class));
     }
 
+    public Map<String, Object> rename(String spaceId, String name, String etag,
+                                       String idempotencyKey) throws MockartyException {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Space name is required");
+        return map(client.patchWithHeaders(spacePath(spaceId), Map.of("name", name), Map.class,
+                mutationHeaders(etag, idempotencyKey)));
+    }
+
     public Map<String, Object> listMembers(String spaceId, String cursor, int limit) throws MockartyException {
         return map(client.get(spacePath(spaceId) + "/members" + pageQuery(cursor, limit), Map.class));
     }
