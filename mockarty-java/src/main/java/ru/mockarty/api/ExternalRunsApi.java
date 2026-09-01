@@ -17,9 +17,11 @@ import ru.mockarty.model.ExternalStep;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -404,8 +406,29 @@ public class ExternalRunsApi {
     /** Streams one or more steps into an open run. */
     public JsonNode appendSteps(String namespace, String runId, List<Map<String, Object>> steps)
             throws MockartyException {
-        return client.post(lifecycleBase(namespace) + "/" + runId + "/steps",
+        return client.post(lifecycleRunPath(namespace, runId) + "/steps",
                 Map.of("steps", steps), JsonNode.class);
+    }
+
+    /** Streams steps only while {@code revision} remains current. */
+    public JsonNode appendStepsAtRevision(String namespace, String runId, long revision,
+                                          List<Map<String, Object>> steps) throws MockartyException {
+        return client.postWithHeaders(lifecycleRunPath(namespace, runId) + "/steps",
+                Map.of("steps", steps), JsonNode.class, revisionHeaders(revision));
+    }
+
+    /** Uploads one attachment through the legacy unfenced lane. */
+    public JsonNode uploadAttachment(String namespace, String runId, String fileName, byte[] data)
+            throws MockartyException {
+        return client.postMultipartFileWithHeaders(lifecycleRunPath(namespace, runId) + "/attachments",
+                "file", fileName, data, JsonNode.class, Collections.emptyMap());
+    }
+
+    /** Uploads one attachment only while {@code revision} remains current. */
+    public JsonNode uploadAttachmentAtRevision(String namespace, String runId, long revision,
+                                                String fileName, byte[] data) throws MockartyException {
+        return client.postMultipartFileWithHeaders(lifecycleRunPath(namespace, runId) + "/attachments",
+                "file", fileName, data, JsonNode.class, revisionHeaders(revision));
     }
 
     /**
@@ -419,12 +442,24 @@ public class ExternalRunsApi {
         if (summary != null && !summary.isEmpty()) {
             body.put("summary", summary);
         }
-        return client.post(lifecycleBase(namespace) + "/" + runId + "/finish", body, JsonNode.class);
+        return client.post(lifecycleRunPath(namespace, runId) + "/finish", body, JsonNode.class);
+    }
+
+    /** Finishes only the accumulated projection identified by {@code revision}. */
+    public JsonNode finishRunAtRevision(String namespace, String runId, long revision,
+                                        String status, String summary) throws MockartyException {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", status);
+        if (summary != null && !summary.isEmpty()) {
+            body.put("summary", summary);
+        }
+        return client.postWithHeaders(lifecycleRunPath(namespace, runId) + "/finish",
+                body, JsonNode.class, revisionHeaders(revision));
     }
 
     /** Fetches the current view of a streaming run. */
     public JsonNode getRun(String namespace, String runId) throws MockartyException {
-        return client.get(lifecycleBase(namespace) + "/" + runId, JsonNode.class);
+        return client.get(lifecycleRunPath(namespace, runId), JsonNode.class);
     }
 
     /** Lists streaming runs in the namespace. */
@@ -437,6 +472,24 @@ public class ExternalRunsApi {
             }
         }
         return out;
+    }
+
+    private String lifecycleRunPath(String namespace, String runId) {
+        if (runId == null || runId.isBlank()) {
+            throw new IllegalArgumentException("runId is required");
+        }
+        return lifecycleBase(namespace) + "/" + encode(runId);
+    }
+
+    private static Map<String, String> revisionHeaders(long revision) {
+        if (revision < 1) {
+            throw new IllegalArgumentException("revision must be positive");
+        }
+        return Map.of("If-Match", "\"" + revision + "\"");
+    }
+
+    private static String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
     /**

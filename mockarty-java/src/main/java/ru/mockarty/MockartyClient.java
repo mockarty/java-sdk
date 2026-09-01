@@ -81,6 +81,7 @@ import ru.mockarty.exception.MockartyValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.CookieManager;
@@ -88,9 +89,11 @@ import java.net.CookiePolicy;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Main entry point for interacting with Mockarty server.
@@ -635,6 +638,48 @@ public class MockartyClient implements AutoCloseable {
         HttpRequest.Builder builder = buildRequest(path)
                 .POST(jsonBody(body))
                 .header("Content-Type", "application/json");
+        if (headers != null) {
+            headers.forEach((name, value) -> {
+                if (value != null && !value.isBlank()) {
+                    builder.header(name, value);
+                }
+            });
+        }
+        return execute(builder.build(), responseType);
+    }
+
+    /** Performs an in-memory multipart file upload with conditional headers. */
+    public <T> T postMultipartFileWithHeaders(String path, String fieldName, String fileName,
+                                               byte[] data, Class<T> responseType,
+                                               Map<String, String> headers) throws MockartyException {
+        if (fieldName == null || fieldName.isBlank()) {
+            throw new IllegalArgumentException("multipart field name is required");
+        }
+        if (fileName == null || fileName.isBlank() || fileName.indexOf('\r') >= 0 || fileName.indexOf('\n') >= 0) {
+            throw new IllegalArgumentException("multipart file name must be non-empty and single-line");
+        }
+        if (data == null) {
+            throw new IllegalArgumentException("multipart file data is required");
+        }
+        String boundary = "mockarty-" + UUID.randomUUID().toString().replace("-", "");
+        String escapedName = fileName.replace("\\", "\\\\").replace("\"", "\\\"");
+        String prefix = "--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + escapedName + "\"\r\n"
+                + "Content-Type: application/octet-stream\r\n\r\n";
+        String suffix = "\r\n--" + boundary + "--\r\n";
+        byte[] multipartBody;
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream(prefix.length() + data.length + suffix.length());
+            out.write(prefix.getBytes(StandardCharsets.UTF_8));
+            out.write(data);
+            out.write(suffix.getBytes(StandardCharsets.US_ASCII));
+            multipartBody = out.toByteArray();
+        } catch (IOException e) {
+            throw new MockartyException("encode multipart request", e);
+        }
+        HttpRequest.Builder builder = buildRequest(path)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary);
         if (headers != null) {
             headers.forEach((name, value) -> {
                 if (value != null && !value.isBlank()) {

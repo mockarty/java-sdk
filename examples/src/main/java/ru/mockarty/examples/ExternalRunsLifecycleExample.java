@@ -37,10 +37,11 @@ public class ExternalRunsLifecycleExample {
                     Map.of("step_key", "cart", "name", "add to cart", "status", "passed", "duration_ms", 80),
                     Map.of("step_key", "pay", "name", "pay", "status", "failed", "message", "gateway 500", "duration_ms", 210));
             for (Map<String, Object> step : steps) {
-                er.appendSteps(ns, runId, List.of(step));
+                run = er.appendStepsAtRevision(ns, runId, run.path("revision").asLong(), List.of(step));
             }
 
-            JsonNode fin = er.finishRun(ns, runId, "failed", "payment gateway returned 500");
+            JsonNode fin = er.finishRunAtRevision(ns, runId, run.path("revision").asLong(),
+                    "failed", "payment gateway returned 500");
             System.out.printf("finished: status=%s case=%s run=%s%n",
                     fin.path("status").asText(),
                     fin.path("resolved_case_id").asText(),
