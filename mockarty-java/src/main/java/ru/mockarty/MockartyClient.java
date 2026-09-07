@@ -30,6 +30,7 @@ import ru.mockarty.api.CloudSharedProjectsApi;
 import ru.mockarty.api.CloudCustomerApi;
 import ru.mockarty.api.CloudOperationsApi;
 import ru.mockarty.api.DeliveryPolicyApi;
+import ru.mockarty.api.ConnectionAuthorityApi;
 import ru.mockarty.api.MediaDeliveryApi;
 import ru.mockarty.api.EffectReconciliationApi;
 import ru.mockarty.api.PageAnalyzerApi;
@@ -424,6 +425,11 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the versioned workflow draft, dry-run and publish API. */
     public WorkflowDefinitionsApi workflowDefinitions() {
         return new WorkflowDefinitionsApi(this);
+    }
+
+    /** Returns the namespace-scoped immutable Connection Authority API. */
+    public ConnectionAuthorityApi connections() {
+        return new ConnectionAuthorityApi(this);
     }
 
     /** Returns the workspace webhook automation API for Mockarty Cloud. */
