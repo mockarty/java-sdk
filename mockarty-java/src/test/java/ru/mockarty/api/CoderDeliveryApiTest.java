@@ -16,6 +16,7 @@ class CoderDeliveryApiTest {
             assertThrows(IllegalArgumentException.class, () -> api.startMission(Map.of("goal", "ship")));
             assertThrows(IllegalArgumentException.class, () -> api.getMission(""));
             assertThrows(IllegalArgumentException.class, () -> api.reconcileDeploy("m1", ""));
+            assertThrows(IllegalArgumentException.class, () -> api.addToMission("m1", Map.of()));
         }
     }
 
@@ -28,6 +29,7 @@ class CoderDeliveryApiTest {
             method.setAccessible(true);
             assertEquals("/api/v1/coder/missions/m%2F1/approve?namespace=team%20a", method.invoke(api, "m/1", "/approve"));
             assertEquals("/api/v1/coder/missions/m%2F1/deploy-outcome?namespace=team%20a", method.invoke(api, "m/1", "/deploy-outcome"));
+            assertEquals("/api/v1/coder/missions/m%2F1/add?namespace=team%20a", method.invoke(api, "m/1", "/add"));
         }
     }
 }

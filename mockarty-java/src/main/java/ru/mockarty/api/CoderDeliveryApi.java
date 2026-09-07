@@ -8,6 +8,7 @@ import ru.mockarty.exception.MockartyException;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Map;
 
 /** Admitted repositories, delivery targets, and deployment-bearing coder missions. */
@@ -47,6 +48,13 @@ public class CoderDeliveryApi {
         return client.post(missionPath(missionId, "/approve"), Map.of("approve", approve), Map.class);
     }
 
+    public Map<String, Object> addToMission(String missionId, Map<String, Object> request) throws MockartyException {
+        if (request == null || (!nonEmptyCollection(request.get("tasks")) && !nonEmptyCollection(request.get("prompts")))) {
+            throw new IllegalArgumentException("at least one task or prompt is required");
+        }
+        return client.post(missionPath(missionId, "/add"), request, Map.class);
+    }
+
     public Map<String, Object> reconcileDeploy(String missionId, String outcome) throws MockartyException {
         String normalized = outcome == null ? "" : outcome.trim();
         if (!normalized.equals("applied") && !normalized.equals("not_applied")) {
@@ -75,5 +83,6 @@ public class CoderDeliveryApi {
     }
 
     private static boolean blank(Object value) { return value == null || value.toString().isBlank(); }
+    private static boolean nonEmptyCollection(Object value) { return value instanceof Collection<?> items && !items.isEmpty(); }
     private static String enc(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20"); }
 }
