@@ -63,6 +63,7 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.builder.MockBuilder;
 import ru.mockarty.model.AssertAction;
 import ru.mockarty.model.Mock;
+import ru.mockarty.model.PluginProtocolCatalogue;
 
 try (MockartyClient client = MockartyClient.builder()
         .baseUrl("http://localhost:5770")
@@ -83,6 +84,9 @@ try (MockartyClient client = MockartyClient.builder()
         .build();
 
     client.mocks().create(mock);
+
+    // Discover active plugin wire codecs and their Socket routing name.
+    PluginProtocolCatalogue protocols = client.mocks().listPluginProtocols();
 
     // Check health
     boolean healthy = client.health().ready();

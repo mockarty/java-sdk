@@ -9,6 +9,7 @@ import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.Mock;
 import ru.mockarty.model.MockVersion;
 import ru.mockarty.model.Page;
+import ru.mockarty.model.PluginProtocolCatalogue;
 import ru.mockarty.model.SaveMockResponse;
 
 import java.net.URLEncoder;
@@ -160,6 +161,29 @@ public class MockApi {
         JavaType pageType = client.getObjectMapper().getTypeFactory()
                 .constructParametricType(Page.class, Mock.class);
         return client.get("/api/v1/mocks" + query.toString(), pageType);
+    }
+
+    /**
+     * Lists plugin-supplied protocol codecs active in a namespace.
+     *
+     * @param namespace namespace override, or null to use the client default
+     * @return active protocol catalogue
+     */
+    public PluginProtocolCatalogue listPluginProtocols(String namespace) throws MockartyException {
+        String effective = namespace;
+        if (effective == null || effective.isEmpty()) {
+            effective = client.getConfig().getNamespace();
+        }
+        String path = "/api/v1/plugin-protocols";
+        if (effective != null && !effective.isEmpty()) {
+            path += "?namespace=" + encode(effective);
+        }
+        return client.get(path, PluginProtocolCatalogue.class);
+    }
+
+    /** Lists plugin protocols for the client's default namespace. */
+    public PluginProtocolCatalogue listPluginProtocols() throws MockartyException {
+        return listPluginProtocols(null);
     }
 
     /**

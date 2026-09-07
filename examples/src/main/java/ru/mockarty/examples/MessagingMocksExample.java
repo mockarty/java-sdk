@@ -8,6 +8,7 @@ import ru.mockarty.builder.MockBuilder;
 import ru.mockarty.model.AssertAction;
 import ru.mockarty.model.ContentResponse;
 import ru.mockarty.model.Mock;
+import ru.mockarty.model.PluginProtocolCatalogue;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,9 @@ public class MessagingMocksExample {
                 .apiKey("your-api-key")
                 .namespace("sandbox")
                 .build()) {
+
+            PluginProtocolCatalogue protocols = client.mocks().listPluginProtocols();
+            System.out.println("Active plugin protocols: " + protocols.getCount());
 
             // Kafka examples
             createKafkaConsumerMock(client);
