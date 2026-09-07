@@ -12,13 +12,18 @@ public final class CoderDeliveryExample {
                     "repoUrl", System.getenv("CODER_REPO_URL"),
                     "deployTarget", "staging"));
             System.out.println(mission.get("id") + " " + mission.get("status"));
+            System.out.println("independent AQC " + mission.get("aqcEvidence")
+                    + " merge status " + mission.get("mrMergeStatus")
+                    + " repair attempts " + mission.get("deployRepairAttempts"));
             if ("1".equals(System.getenv("CODER_ADD_GO_CHECK"))) {
+                Map<String, Object> requiredCheck = Map.of(
+                        "name", "Go unit tests",
+                        "args", java.util.List.of("go", "test", "./..."));
+                Map<String, Object> task = Map.of(
+                        "prompt", "Run and fix the Go unit suite",
+                        "requiredChecks", java.util.List.of(requiredCheck));
                 mission = client.coderDelivery().addToMission(mission.get("id").toString(), Map.of(
-                        "tasks", java.util.List.of(Map.of(
-                                "prompt", "Run and fix the Go unit suite",
-                                "requiredChecks", java.util.List.of(Map.of(
-                                        "name", "Go unit tests",
-                                        "args", java.util.List.of("go", "test", "./..."))))));
+                        "tasks", java.util.List.of(task)));
             }
             String outcome = System.getenv("CODER_DEPLOY_RECONCILIATION");
             if (outcome != null && !outcome.isBlank()) {
