@@ -63,6 +63,19 @@ public class CoderDeliveryApi {
         return client.post(missionPath(missionId, "/deploy-outcome"), Map.of("outcome", normalized), Map.class);
     }
 
+    /** Lists deployed-system observation sources bound to this client's namespace. */
+    public Map<String, Object> observabilitySources() throws MockartyException {
+        return client.get(observabilityPath("sources"), Map.class);
+    }
+
+    /** Runs one bounded read and returns frozen observation evidence. */
+    public Map<String, Object> queryObservability(Map<String, Object> query) throws MockartyException {
+        if (query == null || blank(query.get("source")) || blank(query.get("expression"))) {
+            throw new IllegalArgumentException("source and expression are required");
+        }
+        return client.post(observabilityPath("query"), query, Map.class);
+    }
+
     private String configPath(String productId) {
         String path = "/api/v1/coder/delivery-config?namespace=" + enc(client.getConfig().getNamespace());
         if (productId != null && !productId.isBlank()) path += "&productId=" + enc(productId.trim());
@@ -71,6 +84,10 @@ public class CoderDeliveryApi {
 
     private String missionsPath() {
         return "/api/v1/coder/missions?namespace=" + enc(client.getConfig().getNamespace());
+    }
+
+    private String observabilityPath(String suffix) {
+        return "/api/v1/observability/" + suffix + "?namespace=" + enc(client.getConfig().getNamespace());
     }
 
     private String missionPath(String missionId) {
@@ -83,6 +100,8 @@ public class CoderDeliveryApi {
     }
 
     private static boolean blank(Object value) { return value == null || value.toString().isBlank(); }
-    private static boolean nonEmptyCollection(Object value) { return value instanceof Collection<?> items && !items.isEmpty(); }
+    private static boolean nonEmptyCollection(Object value) {
+        return value instanceof Collection<?> && !((Collection<?>) value).isEmpty();
+    }
     private static String enc(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20"); }
 }

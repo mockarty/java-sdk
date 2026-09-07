@@ -25,6 +25,10 @@ public final class CoderDeliveryExample {
                 mission = client.coderDelivery().reconcileDeploy(mission.get("id").toString(), outcome);
                 System.out.println("reconciled " + mission.get("deployStopState"));
             }
+            if ("1".equals(System.getenv("CODER_OBSERVE"))) {
+                Map<String, Object> sources = client.coderDelivery().observabilitySources();
+                System.out.println("observability " + sources.get("sources"));
+            }
         }
     }
 

@@ -17,6 +17,7 @@ class CoderDeliveryApiTest {
             assertThrows(IllegalArgumentException.class, () -> api.getMission(""));
             assertThrows(IllegalArgumentException.class, () -> api.reconcileDeploy("m1", ""));
             assertThrows(IllegalArgumentException.class, () -> api.addToMission("m1", Map.of()));
+            assertThrows(IllegalArgumentException.class, () -> api.queryObservability(Map.of("source", "prometheus")));
         }
     }
 
@@ -30,6 +31,9 @@ class CoderDeliveryApiTest {
             assertEquals("/api/v1/coder/missions/m%2F1/approve?namespace=team%20a", method.invoke(api, "m/1", "/approve"));
             assertEquals("/api/v1/coder/missions/m%2F1/deploy-outcome?namespace=team%20a", method.invoke(api, "m/1", "/deploy-outcome"));
             assertEquals("/api/v1/coder/missions/m%2F1/add?namespace=team%20a", method.invoke(api, "m/1", "/add"));
+            var observation = CoderDeliveryApi.class.getDeclaredMethod("observabilityPath", String.class);
+            observation.setAccessible(true);
+            assertEquals("/api/v1/observability/sources?namespace=team%20a", observation.invoke(api, "sources"));
         }
     }
 }
