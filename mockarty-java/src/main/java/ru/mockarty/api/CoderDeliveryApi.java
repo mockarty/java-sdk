@@ -17,6 +17,45 @@ public class CoderDeliveryApi {
 
     public CoderDeliveryApi(MockartyClient client) { this.client = client; }
 
+    /** Upload an original and retain the returned reference for mission artifacts. */
+    public Map<String, Object> uploadMissionMaterial(String namespace, String productId, String filename,
+                                                     byte[] content, String mediaType) throws MockartyException {
+        if (blank(productId) || blank(filename) || content == null || content.length == 0 || content.length > 16 * 1024 * 1024) {
+            throw new IllegalArgumentException("product, filename and a nonempty material up to 16 MiB are required");
+        }
+        if (blank(namespace)) namespace = client.getConfig().getNamespace();
+        String mt = mediaType;
+        if (blank(mt) || mt.equals("application/octet-stream")) {
+            String extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase(java.util.Locale.ROOT);
+            switch (extension) {
+                case "md": mt = "text/markdown"; break;
+                case "yaml": case "yml": mt = "application/yaml"; break;
+                case "js": mt = "text/javascript"; break;
+                default: mt = java.net.URLConnection.guessContentTypeFromName(filename);
+            }
+            if (blank(mt)) throw new IllegalArgumentException("unknown material type; specify mediaType");
+        }
+        String mediaBase = mt.split(";", 2)[0].trim().toLowerCase(java.util.Locale.ROOT);
+        if (!mediaBase.startsWith("image/") && !mediaBase.equals("application/pdf") && content.length > 64 * 1024) {
+            throw new IllegalArgumentException("text mission materials must be at most 64 KiB combined");
+        }
+        if (filename.contains("\r") || filename.contains("\n") || mt.contains("\r") || mt.contains("\n")) {
+            throw new IllegalArgumentException("invalid filename or media type");
+        }
+        String boundary = "Mockarty" + java.util.UUID.randomUUID().toString();
+        String safeName = filename.replace("\\", "\\\\").replace("\"", "\\\"");
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        try {
+            buf.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\"; filename=\"" + safeName
+                    + "\"\r\nContent-Type: " + mt + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+            buf.write(content);
+            buf.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) { throw new MockartyException("build mission material upload", e); }
+        return client.postRaw("/api/v1/missions/materials?namespace=" + URLEncoder.encode(namespace, StandardCharsets.UTF_8)
+                + "&productId=" + URLEncoder.encode(productId, StandardCharsets.UTF_8), buf.toByteArray(),
+                "multipart/form-data; boundary=" + boundary, Map.class);
+    }
+
     public Map<String, Object> getConfig(String productId) throws MockartyException {
         return client.get(configPath(productId), Map.class);
     }

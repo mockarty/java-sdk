@@ -7,6 +7,12 @@ import java.util.Map;
 public final class CoderDeliveryExample {
     public static void main(String[] args) throws Exception {
         try (MockartyClient client = MockartyClient.create()) {
+            if (System.getenv("MISSION_PRODUCT_ID") != null) {
+                // Text originals in one mission must total at most 64 KiB.
+                Map<String, Object> material = client.coderDelivery().uploadMissionMaterial(System.getenv("MOCKARTY_NAMESPACE"), System.getenv("MISSION_PRODUCT_ID"), "design.txt",
+                        "Palette: navy and cream. Keep accessible contrast.".getBytes(java.nio.charset.StandardCharsets.UTF_8), "text/plain");
+                System.out.println("Use in POST /api/v1/missions artifacts: " + material.get("reference"));
+            }
             Map<String, Object> mission = client.coderDelivery().startMission(Map.of(
                     "goal", "Deploy the accepted commit",
                     "repoUrl", System.getenv("CODER_REPO_URL"),

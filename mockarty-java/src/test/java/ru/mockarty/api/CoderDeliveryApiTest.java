@@ -10,6 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CoderDeliveryApiTest {
     @Test
+    void materialUploadRejectsHeaderInjectionAndEmptyProduct() {
+        try (MockartyClient client = MockartyClient.create("http://127.0.0.1:1", "mk_test")) {
+            assertThrows(IllegalArgumentException.class, () -> client.coderDelivery().uploadMissionMaterial("team", "p", "design.txt", new byte[64 * 1024 + 1], "text/plain"));
+            assertThrows(IllegalArgumentException.class, () -> client.coderDelivery().uploadMissionMaterial("team", "", "design.txt", new byte[]{1}, "text/plain"));
+            assertThrows(IllegalArgumentException.class, () -> client.coderDelivery().uploadMissionMaterial("team", "p", "design.txt", new byte[]{1}, "text/plain\r\nX: y"));
+            assertThrows(IllegalArgumentException.class, () -> client.coderDelivery().uploadMissionMaterial("team", "p", "design\r\n.txt", new byte[]{1}, "text/plain"));
+        }
+    }
+    @Test
     void startRequiresGoalAndRepository() {
         try (MockartyClient client = MockartyClient.create("http://127.0.0.1:1", "mk_test")) {
             CoderDeliveryApi api = client.coderDelivery();
