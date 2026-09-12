@@ -787,7 +787,10 @@ public class MockartyClient implements AutoCloseable {
         return postRaw(path, body, contentType, responseType, true);
     }
 
-    /** Performs a non-idempotent raw POST exactly once. */
+    /**
+     * Performs a raw POST without automatic retries. An ambiguous transport failure
+     * does not prove whether the server applied the mutation.
+     */
     public <T> T postRawNoRetry(String path, byte[] body, String contentType, Class<T> responseType)
             throws MockartyException {
         return postRaw(path, body, contentType, responseType, false);

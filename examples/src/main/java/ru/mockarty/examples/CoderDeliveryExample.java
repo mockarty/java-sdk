@@ -7,8 +7,13 @@ import java.util.Map;
 public final class CoderDeliveryExample {
     public static void main(String[] args) throws Exception {
         try (MockartyClient client = MockartyClient.create()) {
+            // Material uploads and addToMission are not auto-replayed; callers decide whether
+            // a retry is safe after an ambiguous transport failure.
             if (System.getenv("MISSION_PRODUCT_ID") != null) {
                 // Text originals in one mission must total at most 64 KiB.
+                // Use a leaf filename of at most 128 UTF-8 bytes (no slash or backslash).
+                // Supported originals: PNG, JPEG, WebP, GIF, PDF, plain text, Markdown,
+                // CSS, JavaScript, JSON, YAML, XML, and HTML.
                 Map<String, Object> material = client.coderDelivery().uploadMissionMaterial(System.getenv("MOCKARTY_NAMESPACE"), System.getenv("MISSION_PRODUCT_ID"), "design.txt",
                         "Palette: navy and cream. Keep accessible contrast.".getBytes(java.nio.charset.StandardCharsets.UTF_8), "text/plain");
                 System.out.println("Use in POST /api/v1/missions artifacts: " + material.get("reference"));
