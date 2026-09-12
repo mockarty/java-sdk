@@ -784,11 +784,22 @@ public class MockartyClient implements AutoCloseable {
      */
     public <T> T postRaw(String path, byte[] body, String contentType, Class<T> responseType)
             throws MockartyException {
+        return postRaw(path, body, contentType, responseType, true);
+    }
+
+    /** Performs a non-idempotent raw POST exactly once. */
+    public <T> T postRawNoRetry(String path, byte[] body, String contentType, Class<T> responseType)
+            throws MockartyException {
+        return postRaw(path, body, contentType, responseType, false);
+    }
+
+    private <T> T postRaw(String path, byte[] body, String contentType, Class<T> responseType,
+                          boolean retryAllowed) throws MockartyException {
         HttpRequest request = buildRequest(path)
                 .header("Content-Type", contentType)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body == null ? new byte[0] : body))
                 .build();
-        return execute(request, responseType);
+        return retryAllowed ? execute(request, responseType) : executeNoRetry(request, responseType);
     }
 
     /**
@@ -977,7 +988,7 @@ public class MockartyClient implements AutoCloseable {
         }
         try {
             String json = objectMapper.writeValueAsString(body);
-            log.trace("Request body: {}", json);
+            log.trace("Request body serialized ({} characters)", json.length());
             return HttpRequest.BodyPublishers.ofString(json);
         } catch (JsonProcessingException e) {
             throw new MockartyException("Failed to serialize request body", e);
