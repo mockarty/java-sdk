@@ -29,6 +29,7 @@ import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.CloudSharedProjectsApi;
 import ru.mockarty.api.CloudCustomerApi;
 import ru.mockarty.api.CloudOperationsApi;
+import ru.mockarty.api.DelegatedCredentialsApi;
 import ru.mockarty.api.DeliveryPolicyApi;
 import ru.mockarty.api.ConnectionAuthorityApi;
 import ru.mockarty.api.MediaDeliveryApi;
@@ -470,6 +471,17 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the canonical explicit-Space collaboration API. */
     public CloudSpacesApi cloudSpaces() {
         return new CloudSpacesApi(this);
+    }
+
+    /**
+     * Returns the issuer-owned project-scoped delegated-credential lifecycle.
+     *
+     * <p>Issue one for work shared with a contractor, a CI job or an MCP client
+     * instead of handing over an API key: the namespace set, action set and expiry
+     * are frozen, and the holder cannot widen them.
+     */
+    public DelegatedCredentialsApi delegatedCredentials() {
+        return new DelegatedCredentialsApi(this);
     }
 
     /** Returns customer-authorized Cloud loyalty, support and risk-appeal APIs. */
