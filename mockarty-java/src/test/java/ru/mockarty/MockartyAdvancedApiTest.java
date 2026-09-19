@@ -13,6 +13,8 @@ import ru.mockarty.model.FuzzingRun;
 import ru.mockarty.model.GeneratorPreview;
 import ru.mockarty.model.GeneratorRequest;
 import ru.mockarty.model.GeneratorResponse;
+import ru.mockarty.model.SpecExportRequest;
+import ru.mockarty.model.SpecExportResponse;
 import ru.mockarty.model.ImportResult;
 import ru.mockarty.model.RecorderEntry;
 import ru.mockarty.model.RecorderSession;
@@ -112,6 +114,38 @@ class MockartyAdvancedApiTest {
                     .namespace("test");
             GeneratorResponse result = client.generator().fromOpenAPI(request);
             assertEquals(5, result.getCreated());
+        }
+
+        @Test
+        @DisplayName("should build a specification from the mocks (the reverse direction)")
+        void exportSpec() throws Exception {
+            server.createContext("/api/v1/generators/spec", exchange -> {
+                String received = new String(exchange.getRequestBody().readAllBytes());
+                assertTrue(received.contains("\"format\":\"openapi\""),
+                        "the format must reach the wire: " + received);
+                String json = "{\"format\":\"openapi\",\"spec\":{\"openapi\":\"3.0.3\"},"
+                        + "\"warnings\":[{\"mockId\":\"scripted\",\"reason\":\"built by a script\"}],"
+                        + "\"stats\":{\"considered\":2,\"exported\":2,\"skipped\":0,\"paths\":1}}";
+                byte[] body = json.getBytes();
+                exchange.getResponseHeaders().set("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            });
+
+            SpecExportResponse result = client.generator()
+                    .exportSpec(new SpecExportRequest("openapi").tags(List.of("orders")));
+
+            assertEquals("openapi", result.getFormat());
+            assertEquals("3.0.3", result.getSpec().get("openapi"));
+            // The warnings are the part a caller must not lose: a document whose
+            // unrepresentable mocks were dropped looks complete.
+            assertEquals(1, result.getWarnings().size());
+            assertEquals("scripted", result.getWarnings().get(0).getMockId());
+            assertNotNull(result.getWarnings().get(0).getReason());
+            assertEquals(2, result.getStats().getExported());
+            assertEquals(1, result.getStats().getPaths());
         }
 
         @Test

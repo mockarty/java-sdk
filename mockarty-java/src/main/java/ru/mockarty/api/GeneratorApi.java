@@ -8,6 +8,8 @@ import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.GeneratorPreview;
 import ru.mockarty.model.GeneratorRequest;
 import ru.mockarty.model.GeneratorResponse;
+import ru.mockarty.model.SpecExportRequest;
+import ru.mockarty.model.SpecExportResponse;
 
 /**
  * API for generating mocks from API specifications (OpenAPI, WSDL, Proto, GraphQL, HAR).
@@ -28,6 +30,21 @@ public class GeneratorApi {
      */
     public GeneratorResponse fromOpenAPI(GeneratorRequest request) throws MockartyException {
         return client.post("/api/v1/generators/openapi", request, GeneratorResponse.class);
+    }
+
+    /**
+     * Builds an OpenAPI/AsyncAPI specification FROM the namespace's mocks — the
+     * reverse of {@link #fromOpenAPI}.
+     *
+     * <p>Inspect {@link SpecExportResponse#getWarnings()} before trusting the
+     * document: the mocks it could not express are named there, with their
+     * reasons, instead of being turned into examples the product never returns.
+     *
+     * @param request the export request (format is required)
+     * @return the document together with its warnings and stats
+     */
+    public SpecExportResponse exportSpec(SpecExportRequest request) throws MockartyException {
+        return client.post("/api/v1/generators/spec", request, SpecExportResponse.class);
     }
 
     /**
