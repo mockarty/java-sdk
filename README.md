@@ -375,6 +375,7 @@ IssueTrackerApi it = client.issueTracker();
 JsonNode issue = it.createIssue(null, Map.of("projectId", pid, "type", "bug", "title", "500 on /pay"));
 it.addComment(null, issue.get("id").asText(), "repro attached");
 it.moveIssue(null, issue.get("id").asText(), "in_progress", null);
+it.updateIssue(null, issue.get("id").asText(), Map.of("type", "task")); // filed as the wrong type? change it
 JsonNode next = it.nextIssue(null, Map.of("assigneeId", me));
 ```
 
