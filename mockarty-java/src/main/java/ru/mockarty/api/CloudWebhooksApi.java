@@ -38,11 +38,21 @@ public class CloudWebhooksApi {
     /** Creates a webhook and returns its signing secret once. */
     public CloudWebhookCredential create(String workspaceId, String name, String targetUrl,
                                          List<String> events) throws MockartyException {
+        return create(workspaceId, name, targetUrl, events, null);
+    }
+
+    /** Reuse the key with the exact same request to recover an ambiguous create response. */
+    public CloudWebhookCredential create(String workspaceId, String name, String targetUrl,
+                                         List<String> events, String idempotencyKey) throws MockartyException {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", name);
         body.put("url", targetUrl);
         body.put("events", events == null ? Collections.emptyList() : events);
-        return client.post(collectionPath(workspaceId), body, CloudWebhookCredential.class);
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return client.post(collectionPath(workspaceId), body, CloudWebhookCredential.class);
+        }
+        return client.postWithHeaders(collectionPath(workspaceId), body, CloudWebhookCredential.class,
+                Map.of("Idempotency-Key", idempotencyKey));
     }
 
     /** Deactivates a webhook while retaining its delivery history. */

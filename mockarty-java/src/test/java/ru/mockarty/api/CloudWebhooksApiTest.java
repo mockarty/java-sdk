@@ -55,7 +55,7 @@ class CloudWebhooksApiTest {
 
         CloudWebhookCredential created = client.cloudWebhooks().create(
                 "space/alpha", "CI alerts", "https://hooks.example.test/mockarty",
-                List.of("instance.ready", "subscription.changed"));
+                List.of("instance.ready", "subscription.changed"), "create-retry-1");
         assertEquals("whsec_create", created.getSecret());
         assertTrue(created.getWebhook().isSigningReady());
 
@@ -69,6 +69,7 @@ class CloudWebhooksApiTest {
 
         assertRequest(0, "GET", "/api/v1/cloud/webhooks", "workspace_id=space%2Falpha", "");
         assertRequest(1, "POST", "/api/v1/cloud/webhooks", "workspace_id=space%2Falpha", null);
+        assertEquals("create-retry-1", requests.get(1).idempotencyKey);
         assertEquals(Map.of(
                         "name", "CI alerts",
                         "url", "https://hooks.example.test/mockarty",

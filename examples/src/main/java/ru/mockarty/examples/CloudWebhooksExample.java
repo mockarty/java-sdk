@@ -26,7 +26,8 @@ public final class CloudWebhooksExample {
                     workspaceId,
                     "Release notifications",
                     "https://hooks.example.com/mockarty",
-                    List.of("instance.ready", "instance.failed", "subscription.changed"));
+                    List.of("instance.created", "instance.failed"),
+                    UUID.randomUUID().toString()); // Reuse this key on an ambiguous retry.
 
             String webhookId = created.getWebhook().getId();
             // Persist this value in a secret manager now: create/rotate responses show it once.
