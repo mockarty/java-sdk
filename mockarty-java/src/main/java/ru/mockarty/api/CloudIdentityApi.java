@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.MockartyException;
 import ru.mockarty.model.CloudOAuthIdentity;
-import ru.mockarty.model.CloudEmailChangeResult;
 import ru.mockarty.model.CloudStepUpResult;
 
 import java.net.URLEncoder;
@@ -35,29 +34,6 @@ public class CloudIdentityApi {
         body.put("credential", credential == null ? "" : credential);
         body.put("force_credential", forceCredential);
         return client.post("/api/v1/cloud/auth/step-up", body, CloudStepUpResult.class);
-    }
-
-    /** Starts a two-mailbox email change. Requires a Cloud cabinet session. */
-    public CloudEmailChangeResult requestEmailChange(String newEmail, String currentPassword, String totpCode) throws MockartyException {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("new_email", require("new email", newEmail));
-        body.put("current_password", currentPassword == null ? "" : currentPassword);
-        body.put("totp_code", totpCode == null ? "" : totpCode);
-        return client.patch("/api/v1/cloud/email", body, CloudEmailChangeResult.class);
-    }
-
-    public CloudEmailChangeResult authorizeCurrentEmail(String token) throws MockartyException {
-        return client.post("/api/v1/cloud/auth/email/change/authorize",
-                Map.of("token", require("token", token)), CloudEmailChangeResult.class);
-    }
-
-    public CloudEmailChangeResult confirmNewEmail(String token) throws MockartyException {
-        return client.post("/api/v1/cloud/auth/email/change/confirm",
-                Map.of("token", require("token", token)), CloudEmailChangeResult.class);
-    }
-
-    public void cancelEmailChange() throws MockartyException {
-        client.delete("/api/v1/cloud/email/pending");
     }
 
     public void unlink(String provider, String idempotencyKey) throws MockartyException {
