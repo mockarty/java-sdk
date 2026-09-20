@@ -30,6 +30,15 @@ public final class CloudSpacesExample {
                             .organization(spaceId).get("organization");
                     System.out.printf("account=%s occupied=%s/%s%n", organization.get("account_id"),
                             organization.get("seats_used"), organization.get("seats_total"));
+                    String teamInviteId = System.getenv("MOCKARTY_TEAM_INVITE_ID");
+                    if (teamInviteId != null && !teamInviteId.isBlank()) {
+                        String key = System.getenv("MOCKARTY_IDEMPOTENCY_KEY");
+                        if (key == null || key.isBlank()) {
+                            throw new IllegalArgumentException("set MOCKARTY_IDEMPOTENCY_KEY for an exact retry");
+                        }
+                        client.cloudSpaces().revokeTeamInvite(spaceId, teamInviteId, key);
+                        System.out.println("Team invitation revoked");
+                    }
                 }
                 List<Map<String, Object>> members = (List<Map<String, Object>>) client.cloudSpaces()
                         .listMembers(spaceId, "", 25).getOrDefault("items", List.of());

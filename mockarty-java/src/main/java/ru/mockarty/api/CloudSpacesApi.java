@@ -31,6 +31,14 @@ public class CloudSpacesApi {
         return map(client.get("/api/v1/cloud/organization?space_id=" + encode(spaceId), Map.class));
     }
 
+    /** Release a pending Team Seat. Reuse the same key after an uncertain response. */
+    public void revokeTeamInvite(String spaceId, String inviteId, String idempotencyKey) throws MockartyException {
+        spacePath(spaceId);
+        client.deleteWithHeaders("/api/v1/cloud/team/invites/" + encode(require(inviteId, "Team invite id"))
+                + "?space_id=" + encode(spaceId),
+                Map.of("Idempotency-Key", require(idempotencyKey, "idempotency key")));
+    }
+
     public Map<String, Object> rename(String spaceId, String name, String etag,
                                        String idempotencyKey) throws MockartyException {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Space name is required");

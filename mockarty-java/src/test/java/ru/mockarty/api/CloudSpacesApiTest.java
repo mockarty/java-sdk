@@ -69,11 +69,19 @@ class CloudSpacesApiTest {
             assertEquals("\"space-s1-r7\"", requests.get(i).ifMatch);
             assertEquals("retry-1", requests.get(i).idempotencyKey);
         }
+        client.cloudSpaces().revokeTeamInvite("s1", "ti1", "team-retry");
+        Captured teamRevoke = requests.get(requests.size() - 1);
+        assertEquals("DELETE /api/v1/cloud/team/invites/ti1?space_id=s1", teamRevoke.methodPath);
+        assertEquals("team-retry", teamRevoke.idempotencyKey);
+        assertEquals(null, teamRevoke.ifMatch);
     }
 
     @Test void missingPreconditionsFailBeforeNetwork() {
         assertThrows(IllegalArgumentException.class,
                 () -> client.cloudSpaces().removeMember("s1", "u1", "", ""));
+        assertEquals(0, requests.size());
+        assertThrows(IllegalArgumentException.class,
+                () -> client.cloudSpaces().revokeTeamInvite("s1", "ti1", ""));
         assertEquals(0, requests.size());
     }
 
@@ -88,6 +96,11 @@ class CloudSpacesApiTest {
         requests.add(new Captured(exchange.getRequestMethod() + " " + exchange.getRequestURI(),
                 exchange.getRequestHeaders().getFirst("If-Match"),
                 exchange.getRequestHeaders().getFirst("Idempotency-Key")));
+        if (exchange.getRequestURI().getPath().startsWith("/api/v1/cloud/team/invites/")) {
+            exchange.sendResponseHeaders(204, -1);
+            exchange.close();
+            return;
+        }
         byte[] body = "{\"items\":[],\"status\":\"ok\",\"revision\":8}".getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, body.length);
