@@ -25,6 +25,12 @@ public class CloudSpacesApi {
         return map(client.get(spacePath(spaceId), Map.class));
     }
 
+    /** Read the billing organization of an explicit Space as its account owner. */
+    public Map<String, Object> organization(String spaceId) throws MockartyException {
+        spacePath(spaceId);
+        return map(client.get("/api/v1/cloud/organization?space_id=" + encode(spaceId), Map.class));
+    }
+
     public Map<String, Object> rename(String spaceId, String name, String etag,
                                        String idempotencyKey) throws MockartyException {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Space name is required");

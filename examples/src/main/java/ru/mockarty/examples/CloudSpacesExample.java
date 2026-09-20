@@ -25,6 +25,12 @@ public final class CloudSpacesExample {
             if (!spaces.isEmpty()) {
                 String spaceId = String.valueOf(spaces.get(0).get("id"));
                 Map<String, Object> selected = (Map<String, Object>) client.cloudSpaces().get(spaceId).get("space");
+                if (Boolean.TRUE.equals(selected.get("owned"))) {
+                    Map<String, Object> organization = (Map<String, Object>) client.cloudSpaces()
+                            .organization(spaceId).get("organization");
+                    System.out.printf("account=%s occupied=%s/%s%n", organization.get("account_id"),
+                            organization.get("seats_used"), organization.get("seats_total"));
+                }
                 List<Map<String, Object>> members = (List<Map<String, Object>>) client.cloudSpaces()
                         .listMembers(spaceId, "", 25).getOrDefault("items", List.of());
                 List<Map<String, Object>> invites = (List<Map<String, Object>>) client.cloudSpaces()

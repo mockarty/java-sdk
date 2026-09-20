@@ -39,6 +39,7 @@ class CloudSpacesApiTest {
     @Test void explicitSpaceRoutesAndMutationHeaders() {
         client.cloudSpaces().list("next", 25);
         client.cloudSpaces().get("s1");
+        client.cloudSpaces().organization("s1");
         client.cloudSpaces().listMembers("s1", "members-next", 25);
         client.cloudSpaces().listInvites("s1", "invites-next", 25);
         client.cloudSpaces().previewInvite("token/one");
@@ -51,6 +52,7 @@ class CloudSpacesApiTest {
         List<String> expected = List.of(
                 "GET /api/v1/cloud/spaces?cursor=next&limit=25",
                 "GET /api/v1/cloud/spaces/s1",
+                "GET /api/v1/cloud/organization?space_id=s1",
                 "GET /api/v1/cloud/spaces/s1/members?cursor=members-next&limit=25",
                 "GET /api/v1/cloud/spaces/s1/invites?cursor=invites-next&limit=25",
                 "GET /api/v1/cloud/invites/token%2Fone",
@@ -63,7 +65,7 @@ class CloudSpacesApiTest {
         for (int i = 0; i < expected.size(); i++) {
             assertEquals(expected.get(i), requests.get(i).methodPath);
         }
-        for (int i = 5; i < requests.size(); i++) {
+        for (int i = 6; i < requests.size(); i++) {
             assertEquals("\"space-s1-r7\"", requests.get(i).ifMatch);
             assertEquals("retry-1", requests.get(i).idempotencyKey);
         }
