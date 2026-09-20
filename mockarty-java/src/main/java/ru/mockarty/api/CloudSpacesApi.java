@@ -31,6 +31,27 @@ public class CloudSpacesApi {
         return map(client.get("/api/v1/cloud/organization?space_id=" + encode(spaceId), Map.class));
     }
 
+    /** Read a redacted, newest-first Team and Space audit page as a seated owner or billing manager.
+     *  Pass next_before_id unchanged for the next page. Zero limit uses the server default of 50.
+     */
+    public Map<String, Object> listTeamAudit(String spaceId, String beforeId, int limit) throws MockartyException {
+        spacePath(spaceId);
+        if (limit < 0 || limit > 200) {
+            throw new IllegalArgumentException("Team audit limit must be 1..200, or zero for the server default");
+        }
+        StringBuilder path = new StringBuilder("/api/v1/cloud/team/audit?space_id=").append(encode(spaceId));
+        if (beforeId != null && !beforeId.isEmpty()) {
+            try {
+                if (Long.parseLong(beforeId) < 1) throw new NumberFormatException("nonpositive");
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("beforeId must be a positive decimal event id", e);
+            }
+            path.append("&before_id=").append(encode(beforeId));
+        }
+        if (limit > 0) path.append("&limit=").append(limit);
+        return map(client.get(path.toString(), Map.class));
+    }
+
     /** Add a Space under an active paid Team. Reuse the key for an uncertain retry. */
     public Map<String, Object> createTeamSpace(String teamId, String name, String audience,
                                                 String slug, String idempotencyKey) throws MockartyException {

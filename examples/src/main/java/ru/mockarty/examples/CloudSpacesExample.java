@@ -22,6 +22,15 @@ public final class CloudSpacesExample {
                     .list("", 25).getOrDefault("items", List.of());
             spaces.forEach(space -> System.out.printf("%s %s role=%s revision=%s%n",
                     space.get("id"), space.get("name"), space.get("role"), space.get("revision")));
+            String auditSpaceId = System.getenv("MOCKARTY_TEAM_AUDIT_SPACE_ID");
+            if (auditSpaceId != null && !auditSpaceId.isBlank()) {
+                Map<String, Object> audit = client.cloudSpaces().listTeamAudit(
+                        auditSpaceId, System.getenv("MOCKARTY_TEAM_AUDIT_BEFORE_ID"), 50);
+                List<Map<String, Object>> records = (List<Map<String, Object>>) audit.getOrDefault("records", List.of());
+                System.out.printf("team=%s events=%d chain_ok=%s has_more=%s next_before_id=%s%n",
+                        audit.get("team_id"), records.size(), audit.get("chain_ok"),
+                        audit.get("has_more"), audit.get("next_before_id"));
+            }
             if (!spaces.isEmpty()) {
                 String spaceId = String.valueOf(spaces.get(0).get("id"));
                 Map<String, Object> selected = (Map<String, Object>) client.cloudSpaces().get(spaceId).get("space");
