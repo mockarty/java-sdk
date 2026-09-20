@@ -30,6 +30,21 @@ public final class CloudSpacesExample {
                             .organization(spaceId).get("organization");
                     System.out.printf("account=%s occupied=%s/%s%n", organization.get("account_id"),
                             organization.get("seats_used"), organization.get("seats_total"));
+                    if ("team".equals(organization.get("account_kind"))) {
+                        String teamSpaceName = System.getenv("MOCKARTY_TEAM_SPACE_NAME");
+                        if (teamSpaceName != null && !teamSpaceName.isBlank()) {
+                            Map<String, Object> created = client.cloudSpaces().createTeamSpace(
+                                    String.valueOf(organization.get("account_id")), teamSpaceName, "team", "",
+                                    System.getenv("MOCKARTY_TEAM_SPACE_KEY"));
+                            System.out.printf("created_team_space=%s%n", created.get("space_id"));
+                        }
+                        String teamEmail = System.getenv("MOCKARTY_TEAM_MEMBER_EMAIL");
+                        if (teamEmail != null && !teamEmail.isBlank()) {
+                            client.cloudSpaces().inviteTeamMember(
+                                    spaceId, teamEmail, "member", System.getenv("MOCKARTY_TEAM_INVITE_KEY"));
+                            System.out.println("Team invitation queued");
+                        }
+                    }
                     String teamInviteId = System.getenv("MOCKARTY_TEAM_INVITE_ID");
                     if (teamInviteId != null && !teamInviteId.isBlank()) {
                         String key = System.getenv("MOCKARTY_IDEMPOTENCY_KEY");

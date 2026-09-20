@@ -31,6 +31,33 @@ public class CloudSpacesApi {
         return map(client.get("/api/v1/cloud/organization?space_id=" + encode(spaceId), Map.class));
     }
 
+    /** Add a Space under an active paid Team. Reuse the key for an uncertain retry. */
+    public Map<String, Object> createTeamSpace(String teamId, String name, String audience,
+                                                String slug, String idempotencyKey) throws MockartyException {
+        if (!"team".equals(audience) && !"restricted".equals(audience)) {
+            throw new IllegalArgumentException("audience must be team or restricted");
+        }
+        Map<String, String> body = new LinkedHashMap<>();
+        body.put("team_id", require(teamId, "Team id"));
+        body.put("name", require(name, "Space name"));
+        body.put("audience", audience);
+        if (slug != null && !slug.isBlank()) body.put("slug", slug);
+        return map(client.postWithHeaders("/api/v1/cloud/team/spaces", body, Map.class,
+                teamKey(idempotencyKey)));
+    }
+
+    /** Reserve a paid Seat and send an invitation; the token stays with the recipient. */
+    public void inviteTeamMember(String spaceId, String email, String role,
+                                 String idempotencyKey) throws MockartyException {
+        spacePath(spaceId);
+        if (!"member".equals(role) && !"admin".equals(role) && !"billing_manager".equals(role)) {
+            throw new IllegalArgumentException("Team role must be member, admin or billing_manager");
+        }
+        client.postWithHeaders("/api/v1/cloud/team/invites",
+                Map.of("space_id", spaceId, "email", require(email, "recipient email"), "role", role),
+                Void.class, teamKey(idempotencyKey));
+    }
+
     /** Release a pending Team Seat. Reuse the same key after an uncertain response. */
     public void revokeTeamInvite(String spaceId, String inviteId, String idempotencyKey) throws MockartyException {
         spacePath(spaceId);
@@ -107,6 +134,10 @@ public class CloudSpacesApi {
     private static Map<String, String> mutationHeaders(String etag, String idempotencyKey) {
         return Map.of("If-Match", require(etag, "Space ETag"),
                 "Idempotency-Key", require(idempotencyKey, "idempotency key"));
+    }
+
+    private static Map<String, String> teamKey(String idempotencyKey) {
+        return Map.of("Idempotency-Key", require(idempotencyKey, "idempotency key"));
     }
 
     private static String require(String value, String name) {
