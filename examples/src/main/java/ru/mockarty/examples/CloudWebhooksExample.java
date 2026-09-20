@@ -8,7 +8,6 @@ import ru.mockarty.model.CloudWebhookCredential;
 import ru.mockarty.model.CloudWebhookDelivery;
 
 import java.util.List;
-import java.util.UUID;
 
 /** Creates, verifies, inspects and safely rotates a Mockarty Cloud webhook. */
 public final class CloudWebhooksExample {
@@ -17,6 +16,10 @@ public final class CloudWebhooksExample {
 
     public static void main(String[] args) {
         String workspaceId = requireEnvironment("MOCKARTY_CLOUD_WORKSPACE_ID");
+        // Generate and save these UUIDs before the first attempts. Reuse each
+        // for its exact operation after a timeout or process restart.
+        String createRequestId = requireEnvironment("MOCKARTY_WEBHOOK_CREATE_REQUEST_ID");
+        String rotateRequestId = requireEnvironment("MOCKARTY_WEBHOOK_ROTATE_REQUEST_ID");
 
         try (MockartyClient client = MockartyClient.builder()
                 .baseUrl(requireEnvironment("MOCKARTY_BASE_URL"))
@@ -27,7 +30,7 @@ public final class CloudWebhooksExample {
                     "Release notifications",
                     "https://hooks.example.com/mockarty",
                     List.of("instance.created", "instance.failed"),
-                    UUID.randomUUID().toString()); // Reuse this key on an ambiguous retry.
+                    createRequestId);
 
             String webhookId = created.getWebhook().getId();
             // Persist this value in a secret manager now: create/rotate responses show it once.
@@ -44,7 +47,7 @@ public final class CloudWebhooksExample {
             }
 
             CloudWebhookCredential rotated = client.cloudWebhooks().rotateSecret(
-                    workspaceId, webhookId, UUID.randomUUID().toString());
+                    workspaceId, webhookId, rotateRequestId);
             String replacementSigningSecret = rotated.getSecret();
             System.out.println("Replacement signing secret received: "
                     + !replacementSigningSecret.isBlank());
