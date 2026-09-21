@@ -74,6 +74,11 @@ class CloudSpacesApiTest {
         assertEquals("DELETE /api/v1/cloud/team/invites/ti1?space_id=s1", teamRevoke.methodPath);
         assertEquals("team-retry", teamRevoke.idempotencyKey);
         assertEquals(null, teamRevoke.ifMatch);
+        client.cloudSpaces().setTeamMemberStatus("s1", "u-team", " SUSPENDED ", "status-retry");
+        Captured teamStatus = requests.get(requests.size() - 1);
+        assertEquals("PATCH /api/v1/cloud/team/members/u-team/status?space_id=s1", teamStatus.methodPath);
+        assertEquals("status-retry", teamStatus.idempotencyKey);
+        assertEquals(null, teamStatus.ifMatch);
     }
 
     @Test void missingPreconditionsFailBeforeNetwork() {
@@ -82,6 +87,11 @@ class CloudSpacesApiTest {
         assertEquals(0, requests.size());
         assertThrows(IllegalArgumentException.class,
                 () -> client.cloudSpaces().revokeTeamInvite("s1", "ti1", ""));
+        assertEquals(0, requests.size());
+        assertThrows(IllegalArgumentException.class,
+                () -> client.cloudSpaces().setTeamMemberStatus("s1", "u1", "removed", "status-retry"));
+        assertThrows(IllegalArgumentException.class,
+                () -> client.cloudSpaces().setTeamMemberStatus("s1", "u1", "active", ""));
         assertEquals(0, requests.size());
     }
 

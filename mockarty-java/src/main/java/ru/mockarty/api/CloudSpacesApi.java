@@ -143,6 +143,19 @@ public class CloudSpacesApi {
                 + "?space_id=" + encode(spaceId), teamKey(idempotencyKey));
     }
 
+    /** Suspend or resume a Team member while keeping their paid Seat assigned. */
+    public void setTeamMemberStatus(String spaceId, String memberId, String status,
+                                    String idempotencyKey) throws MockartyException {
+        spacePath(spaceId);
+        String normalized = require(status, "Team member status").trim().toLowerCase(java.util.Locale.ROOT);
+        if (!"active".equals(normalized) && !"suspended".equals(normalized)) {
+            throw new IllegalArgumentException("Team member status must be active or suspended");
+        }
+        client.patchWithHeaders("/api/v1/cloud/team/members/" + encode(require(memberId, "Team member id"))
+                        + "/status?space_id=" + encode(spaceId), Map.of("status", normalized), Void.class,
+                teamKey(idempotencyKey));
+    }
+
     /** Appoint an active Team member without changing the payer or individual Space owners. */
     public void transferTeamOwner(String spaceId, String successorUserId, String idempotencyKey) throws MockartyException {
         spacePath(spaceId);

@@ -69,6 +69,13 @@ public final class CloudSpacesExample {
                     System.out.printf("account=%s occupied=%s/%s%n", organization.get("account_id"),
                             organization.get("seats_used"), organization.get("seats_total"));
                     if ("team".equals(organization.get("account_kind"))) {
+                        String statusMemberId = System.getenv("MOCKARTY_TEAM_STATUS_MEMBER_ID");
+                        if (statusMemberId != null && !statusMemberId.isBlank()) {
+                            client.cloudSpaces().setTeamMemberStatus(spaceId, statusMemberId,
+                                    System.getenv("MOCKARTY_TEAM_MEMBER_STATUS"),
+                                    System.getenv("MOCKARTY_TEAM_MEMBER_STATUS_KEY"));
+                            System.out.println("Team member status updated");
+                        }
                         String removeMemberId = System.getenv("MOCKARTY_TEAM_REMOVE_MEMBER_ID");
                         if (removeMemberId != null && !removeMemberId.isBlank()) {
                             client.cloudSpaces().removeTeamMember(spaceId, removeMemberId,
