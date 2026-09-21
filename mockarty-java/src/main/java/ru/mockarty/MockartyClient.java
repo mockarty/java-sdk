@@ -27,6 +27,8 @@ import ru.mockarty.api.CloudIdentityApi;
 import ru.mockarty.api.CloudSpacesApi;
 import ru.mockarty.api.CloudEntitlementsApi;
 import ru.mockarty.api.CloudSharedProjectsApi;
+import ru.mockarty.api.CloudServiceAccountApi;
+import ru.mockarty.api.CloudServiceAccountsApi;
 import ru.mockarty.api.CloudCustomerApi;
 import ru.mockarty.api.CloudOperationsApi;
 import ru.mockarty.api.DelegatedCredentialsApi;
@@ -522,6 +524,16 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the public Shared SaaS project CRUD API. */
     public CloudSharedProjectsApi cloudSharedProjects() {
         return new CloudSharedProjectsApi(this);
+    }
+
+    /** Returns the human management API for customer-owned service accounts. */
+    public CloudServiceAccountsApi cloudServiceAccounts() {
+        return new CloudServiceAccountsApi(this);
+    }
+
+    /** Returns the identity and workload API authenticated by an msa_ credential. */
+    public CloudServiceAccountApi cloudServiceAccount() {
+        return new CloudServiceAccountApi(this);
     }
 
     /**
