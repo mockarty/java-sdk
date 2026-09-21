@@ -17,12 +17,12 @@ public class CloudCustomerApi {
 
     public CloudCustomerApi(MockartyClient client) { this.client = client; }
 
-    /** Read the Personal Space quota. Flow rows belong to the Personal host account. */
+    /** Read Personal quota. Mock stock, flow and daily runs use the Personal host account. */
     public Map<String, Object> getQuota() throws MockartyException {
         return map(client.get("/api/v1/cloud/quota", Map.class));
     }
 
-    /** Read quota with flow rows from the selected Space's host billing account. */
+    /** Read selected host mock/flow/daily usage; Personal Space capacity stays personal. */
     public Map<String, Object> getQuota(String spaceId) throws MockartyException {
         return map(client.get("/api/v1/cloud/quota?space_id=" + encode(require(spaceId, "Space id")), Map.class));
     }

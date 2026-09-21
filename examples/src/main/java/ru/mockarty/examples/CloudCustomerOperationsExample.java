@@ -11,6 +11,7 @@ public final class CloudCustomerOperationsExample {
                 .apiKey(System.getenv("MOCKARTY_API_KEY"))
                 .build()) {
             String spaceId = System.getenv("MOCKARTY_CLOUD_SPACE_ID");
+            // Mock stock and run allowances belong to this Space's host BillingAccount.
             System.out.println(client.cloudCustomer().getQuota(spaceId));
             System.out.println(client.cloudCustomer().listLoyaltyRedemptions(spaceId, "", 25));
             System.out.println(client.cloudOperations().listSupportCases("open", "", 50));
