@@ -51,6 +51,8 @@ class CloudCustomerOperationsApiTest {
         client.cloudOperations().transitionSupportCase("case/1", "resolved", 8);
         client.cloudOperations().productAnalytics(30);
         client.cloudSpaces().rename("space/1", "Renamed", "\"space-r7\"", "rename-1");
+        client.cloudCustomer().getQuota();
+        client.cloudCustomer().getQuota("space/1");
 
         assertEquals(List.of(
                 "GET /api/v1/cloud/spaces/space%2F1/loyalty/redemptions?cursor=next&limit=25",
@@ -67,12 +69,19 @@ class CloudCustomerOperationsApiTest {
                 "POST /api/v1/cloud/operator/support/cases/case%2F1/assign",
                 "POST /api/v1/cloud/operator/support/cases/case%2F1/transition",
                 "GET /api/v1/cloud/operator/analytics/product?days=30",
-                "PATCH /api/v1/cloud/spaces/space%2F1"), requests);
+                "PATCH /api/v1/cloud/spaces/space%2F1",
+                "GET /api/v1/cloud/quota",
+                "GET /api/v1/cloud/quota?space_id=space%2F1"), requests);
     }
 
     @Test void productAnalyticsRejectsUnsupportedWindow() {
         assertThrows(IllegalArgumentException.class, () -> client.cloudOperations().productAnalytics(0));
         assertThrows(IllegalArgumentException.class, () -> client.cloudOperations().productAnalytics(91));
+        assertEquals(List.of(), requests);
+    }
+
+    @Test void quotaRejectsBlankSelectedSpace() {
+        assertThrows(IllegalArgumentException.class, () -> client.cloudCustomer().getQuota(" "));
         assertEquals(List.of(), requests);
     }
 

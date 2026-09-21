@@ -17,6 +17,16 @@ public class CloudCustomerApi {
 
     public CloudCustomerApi(MockartyClient client) { this.client = client; }
 
+    /** Read the Personal Space quota. Flow rows belong to the Personal host account. */
+    public Map<String, Object> getQuota() throws MockartyException {
+        return map(client.get("/api/v1/cloud/quota", Map.class));
+    }
+
+    /** Read quota with flow rows from the selected Space's host billing account. */
+    public Map<String, Object> getQuota(String spaceId) throws MockartyException {
+        return map(client.get("/api/v1/cloud/quota?space_id=" + encode(require(spaceId, "Space id")), Map.class));
+    }
+
     public Map<String, Object> listLoyaltyRedemptions(String spaceId, String cursor, int limit) throws MockartyException {
         return map(client.get(spacePath(spaceId) + "/loyalty/redemptions" + pageQuery("", cursor, limit), Map.class));
     }

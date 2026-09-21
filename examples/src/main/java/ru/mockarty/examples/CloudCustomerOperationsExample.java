@@ -11,6 +11,7 @@ public final class CloudCustomerOperationsExample {
                 .apiKey(System.getenv("MOCKARTY_API_KEY"))
                 .build()) {
             String spaceId = System.getenv("MOCKARTY_CLOUD_SPACE_ID");
+            System.out.println(client.cloudCustomer().getQuota(spaceId));
             System.out.println(client.cloudCustomer().listLoyaltyRedemptions(spaceId, "", 25));
             System.out.println(client.cloudOperations().listSupportCases("open", "", 50));
         }
