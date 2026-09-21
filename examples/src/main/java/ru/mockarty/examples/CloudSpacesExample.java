@@ -40,6 +40,18 @@ public final class CloudSpacesExample {
                     System.out.printf("account=%s occupied=%s/%s%n", organization.get("account_id"),
                             organization.get("seats_used"), organization.get("seats_total"));
                     if ("team".equals(organization.get("account_kind"))) {
+                        String removeMemberId = System.getenv("MOCKARTY_TEAM_REMOVE_MEMBER_ID");
+                        if (removeMemberId != null && !removeMemberId.isBlank()) {
+                            client.cloudSpaces().removeTeamMember(spaceId, removeMemberId,
+                                    System.getenv("MOCKARTY_TEAM_MEMBER_REMOVE_KEY"));
+                            System.out.println("Team member removed");
+                        }
+                        String successorId = System.getenv("MOCKARTY_TEAM_SUCCESSOR_ID");
+                        if (successorId != null && !successorId.isBlank()) {
+                            client.cloudSpaces().transferTeamOwner(spaceId, successorId,
+                                    System.getenv("MOCKARTY_TEAM_OWNER_TRANSFER_KEY"));
+                            System.out.println("Team ownership transferred");
+                        }
                         String teamSpaceName = System.getenv("MOCKARTY_TEAM_SPACE_NAME");
                         if (teamSpaceName != null && !teamSpaceName.isBlank()) {
                             Map<String, Object> created = client.cloudSpaces().createTeamSpace(

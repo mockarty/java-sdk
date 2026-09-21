@@ -87,6 +87,21 @@ public class CloudSpacesApi {
                 Map.of("Idempotency-Key", require(idempotencyKey, "idempotency key")));
     }
 
+    /** Release a member's Team Seat and Team access while retaining their Personal Spaces. */
+    public void removeTeamMember(String spaceId, String memberId, String idempotencyKey) throws MockartyException {
+        spacePath(spaceId);
+        client.deleteWithHeaders("/api/v1/cloud/team/members/" + encode(require(memberId, "Team member id"))
+                + "?space_id=" + encode(spaceId), teamKey(idempotencyKey));
+    }
+
+    /** Appoint an active Team member without changing the payer or individual Space owners. */
+    public void transferTeamOwner(String spaceId, String successorUserId, String idempotencyKey) throws MockartyException {
+        spacePath(spaceId);
+        client.postWithHeaders("/api/v1/cloud/team/owner-transfer",
+                Map.of("space_id", spaceId, "successor_user_id", require(successorUserId, "successor user id")),
+                Void.class, teamKey(idempotencyKey));
+    }
+
     public Map<String, Object> rename(String spaceId, String name, String etag,
                                        String idempotencyKey) throws MockartyException {
         if (name == null || name.isBlank()) throw new IllegalArgumentException("Space name is required");
