@@ -25,10 +25,21 @@ public class CloudSpacesApi {
         return map(client.get(spacePath(spaceId), Map.class));
     }
 
-    /** Read the billing organization of an explicit Space as its account owner. */
+    /** Read an account as its owner, or a Team roster as an active admin. */
     public Map<String, Object> organization(String spaceId) throws MockartyException {
         spacePath(spaceId);
         return map(client.get("/api/v1/cloud/organization?space_id=" + encode(spaceId), Map.class));
+    }
+
+    /** Estimate the signed-in recipient's Personal Pro credit before accepting a Team invitation. */
+    public Map<String, Object> previewTeamTransition(String token) throws MockartyException {
+        Map<String, Object> response = map(client.get("/api/v1/cloud/team/invite-links/"
+                + encode(require(token, "Team invite token")) + "/transition", Map.class));
+        Object transition = response.get("transition");
+        if (!(transition instanceof Map<?, ?>)) {
+            throw new IllegalStateException("Team transition preview is missing");
+        }
+        return map((Map) transition);
     }
 
     /** Read a redacted, newest-first Team and Space audit page as a seated owner or billing manager.

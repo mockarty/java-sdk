@@ -31,6 +31,13 @@ public final class CloudSpacesExample {
                         audit.get("team_id"), records.size(), audit.get("chain_ok"),
                         audit.get("has_more"), audit.get("next_before_id"));
             }
+            String teamInviteToken = System.getenv("MOCKARTY_TEAM_INVITE_TOKEN");
+            if (teamInviteToken != null && !teamInviteToken.isBlank()) {
+                Map<String, Object> transition = client.cloudSpaces().previewTeamTransition(teamInviteToken);
+                System.out.printf("team_transition=%s estimated_credit_minor=%s currency=%s%n",
+                        transition.get("status"), transition.getOrDefault("estimated_credit_minor", 0),
+                        transition.getOrDefault("currency", ""));
+            }
             if (!spaces.isEmpty()) {
                 String spaceId = String.valueOf(spaces.get(0).get("id"));
                 Map<String, Object> selected = (Map<String, Object>) client.cloudSpaces().get(spaceId).get("space");
