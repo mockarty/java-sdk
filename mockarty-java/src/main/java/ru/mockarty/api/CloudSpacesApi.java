@@ -42,6 +42,17 @@ public class CloudSpacesApi {
         return map((Map) transition);
     }
 
+    /** Join one paid Team after reviewing the Personal Pro transition. Reuse the key on an uncertain retry. */
+    public void acceptTeamInvite(String token, String idempotencyKey,
+                                 boolean confirmTransition) throws MockartyException {
+        if (!confirmTransition) {
+            throw new IllegalArgumentException("Team transition must be explicitly confirmed");
+        }
+        client.postWithHeaders("/api/v1/cloud/team/invite-links/"
+                + encode(require(token, "Team invite token")) + "/accept",
+                Map.of(), Void.class, teamKey(idempotencyKey));
+    }
+
     /** Read a redacted, newest-first Team and Space audit page as a seated owner or billing manager.
      *  Pass next_before_id unchanged for the next page. Zero limit uses the server default of 50.
      */

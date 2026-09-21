@@ -37,6 +37,15 @@ public final class CloudSpacesExample {
                 System.out.printf("team_transition=%s estimated_credit_minor=%s currency=%s%n",
                         transition.get("status"), transition.getOrDefault("estimated_credit_minor", 0),
                         transition.getOrDefault("currency", ""));
+                if ("1".equals(System.getenv("MOCKARTY_TEAM_CONFIRM_TRANSITION"))) {
+                    if (!"ready_free".equals(transition.get("status"))
+                            && !"ready_credit".equals(transition.get("status"))) {
+                        throw new IllegalStateException("Team transition is currently blocked");
+                    }
+                    client.cloudSpaces().acceptTeamInvite(teamInviteToken,
+                            System.getenv("MOCKARTY_IDEMPOTENCY_KEY"), true);
+                    System.out.println("Team invitation accepted");
+                }
             }
             if (!spaces.isEmpty()) {
                 String spaceId = String.valueOf(spaces.get(0).get("id"));
