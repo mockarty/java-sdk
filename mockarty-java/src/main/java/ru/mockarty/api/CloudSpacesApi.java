@@ -9,6 +9,7 @@ import ru.mockarty.exception.MockartyException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Curated collaboration API with explicit Space context on every scoped call. */
@@ -29,6 +30,32 @@ public class CloudSpacesApi {
     public Map<String, Object> organization(String spaceId) throws MockartyException {
         spacePath(spaceId);
         return map(client.get("/api/v1/cloud/organization?space_id=" + encode(spaceId), Map.class));
+    }
+
+    /** Read published, expiring Team quotes as the owner of a Personal Space. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listTeamPackages(String personalSpaceId) throws MockartyException {
+        spacePath(personalSpaceId);
+        Map<String, Object> response = map(client.get(
+                "/api/v1/cloud/team/packages?space_id=" + encode(personalSpaceId), Map.class));
+        Object packages = response.get("packages");
+        if (!(packages instanceof List<?>)) {
+            throw new IllegalStateException("Team package quotes are missing");
+        }
+        return (List<Map<String, Object>>) packages;
+    }
+
+    /** Read Team billing as its current owner or billing manager. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getTeamBilling(String teamSpaceId) throws MockartyException {
+        spacePath(teamSpaceId);
+        Map<String, Object> response = map(client.get(
+                "/api/v1/cloud/team/billing?space_id=" + encode(teamSpaceId), Map.class));
+        Object billing = response.get("billing");
+        if (!(billing instanceof Map<?, ?>)) {
+            throw new IllegalStateException("Team billing is missing");
+        }
+        return map((Map) billing);
     }
 
     /** Estimate the signed-in recipient's Personal Pro credit before accepting a Team invitation. */

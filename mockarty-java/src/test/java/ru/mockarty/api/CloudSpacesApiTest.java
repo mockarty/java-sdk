@@ -92,6 +92,19 @@ class CloudSpacesApiTest {
         assertEquals("GET /api/v1/cloud/spaces/s1/members?cursor=next", requests.get(1).methodPath);
     }
 
+    @Test void teamReadReportsUseExplicitSpace() {
+        assertThrows(IllegalArgumentException.class, () -> client.cloudSpaces().listTeamPackages(" "));
+        assertThrows(IllegalArgumentException.class, () -> client.cloudSpaces().getTeamBilling(""));
+        assertEquals(0, requests.size());
+
+        assertEquals(5, client.cloudSpaces().listTeamPackages("personal-1").get(0).get("seats"));
+        assertEquals(5, client.cloudSpaces().getTeamBilling("team-space-1").get("package_seats"));
+        assertEquals("GET /api/v1/cloud/team/packages?space_id=personal-1", requests.get(0).methodPath);
+        assertEquals("GET /api/v1/cloud/team/billing?space_id=team-space-1", requests.get(1).methodPath);
+        assertEquals(null, requests.get(0).idempotencyKey);
+        assertEquals(null, requests.get(1).ifMatch);
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         requests.add(new Captured(exchange.getRequestMethod() + " " + exchange.getRequestURI(),
                 exchange.getRequestHeaders().getFirst("If-Match"),
@@ -101,7 +114,12 @@ class CloudSpacesApiTest {
             exchange.close();
             return;
         }
-        byte[] body = "{\"items\":[],\"status\":\"ok\",\"revision\":8}".getBytes(StandardCharsets.UTF_8);
+        String response = switch (exchange.getRequestURI().getPath()) {
+            case "/api/v1/cloud/team/packages" -> "{\"packages\":[{\"seats\":5}]}";
+            case "/api/v1/cloud/team/billing" -> "{\"billing\":{\"package_seats\":5}}";
+            default -> "{\"items\":[],\"status\":\"ok\",\"revision\":8}";
+        };
+        byte[] body = response.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, body.length);
         exchange.getResponseBody().write(body);
