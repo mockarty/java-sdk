@@ -30,8 +30,9 @@ public final class CloudSpacesExample {
             String teamBillingSpaceId = System.getenv("MOCKARTY_TEAM_BILLING_SPACE_ID");
             if (teamBillingSpaceId != null && !teamBillingSpaceId.isBlank()) {
                 Map<String, Object> billing = client.cloudSpaces().getTeamBilling(teamBillingSpaceId);
-                System.out.printf("team_billing=%s package_seats=%s assigned=%s reserved=%s%n",
-                        billing.get("team_id"), billing.get("package_seats"),
+                System.out.printf("team_billing=%s payer=%s package_seats=%s assigned=%s reserved=%s%n",
+                        billing.get("team_id"), billing.getOrDefault("payer_name", billing.get("payer_kind")),
+                        billing.get("package_seats"),
                         billing.get("assigned_seats"), billing.get("reserved_seats"));
             }
             String auditSpaceId = System.getenv("MOCKARTY_TEAM_AUDIT_SPACE_ID");

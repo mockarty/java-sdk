@@ -80,7 +80,7 @@ public class CloudSpacesApi {
                 Map.of(), Void.class, teamKey(idempotencyKey));
     }
 
-    /** Read a redacted, newest-first Team and Space audit page as a seated owner or billing manager.
+    /** Read a redacted, newest-first Team and Space audit page as the seated Team owner.
      *  Pass next_before_id unchanged for the next page. Zero limit uses the server default of 50.
      */
     public Map<String, Object> listTeamAudit(String spaceId, String beforeId, int limit) throws MockartyException {

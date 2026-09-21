@@ -98,7 +98,9 @@ class CloudSpacesApiTest {
         assertEquals(0, requests.size());
 
         assertEquals(5, client.cloudSpaces().listTeamPackages("personal-1").get(0).get("seats"));
-        assertEquals(5, client.cloudSpaces().getTeamBilling("team-space-1").get("package_seats"));
+        Map<String, Object> billing = client.cloudSpaces().getTeamBilling("team-space-1");
+        assertEquals(5, billing.get("package_seats"));
+        assertEquals("Example Org", billing.get("payer_name"));
         assertEquals("GET /api/v1/cloud/team/packages?space_id=personal-1", requests.get(0).methodPath);
         assertEquals("GET /api/v1/cloud/team/billing?space_id=team-space-1", requests.get(1).methodPath);
         assertEquals(null, requests.get(0).idempotencyKey);
@@ -116,7 +118,7 @@ class CloudSpacesApiTest {
         }
         String response = switch (exchange.getRequestURI().getPath()) {
             case "/api/v1/cloud/team/packages" -> "{\"packages\":[{\"seats\":5}]}";
-            case "/api/v1/cloud/team/billing" -> "{\"billing\":{\"package_seats\":5}}";
+            case "/api/v1/cloud/team/billing" -> "{\"billing\":{\"package_seats\":5,\"payer_kind\":\"organization\",\"payer_name\":\"Example Org\"}}";
             default -> "{\"items\":[],\"status\":\"ok\",\"revision\":8}";
         };
         byte[] body = response.getBytes(StandardCharsets.UTF_8);
