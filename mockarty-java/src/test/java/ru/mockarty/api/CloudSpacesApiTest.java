@@ -126,11 +126,21 @@ class CloudSpacesApiTest {
             exchange.close();
             return;
         }
-        String response = switch (exchange.getRequestURI().getPath()) {
-            case "/api/v1/cloud/team/packages" -> "{\"packages\":[{\"seats\":5}]}";
-            case "/api/v1/cloud/team/billing" -> "{\"billing\":{\"package_seats\":5,\"payer_kind\":\"organization\",\"payer_name\":\"Example Org\"}}";
-            default -> "{\"items\":[],\"status\":\"ok\",\"revision\":8}";
-        };
+        // Java 11 syntax on purpose: the module compiles main AND test sources
+        // at VERSION_11 because the published library promises Java 11, and a
+        // switch expression here compiles nowhere that the gate runs.
+        final String response;
+        switch (exchange.getRequestURI().getPath()) {
+            case "/api/v1/cloud/team/packages":
+                response = "{\"packages\":[{\"seats\":5}]}";
+                break;
+            case "/api/v1/cloud/team/billing":
+                response = "{\"billing\":{\"package_seats\":5,\"payer_kind\":\"organization\",\"payer_name\":\"Example Org\"}}";
+                break;
+            default:
+                response = "{\"items\":[],\"status\":\"ok\",\"revision\":8}";
+                break;
+        }
         byte[] body = response.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(200, body.length);
