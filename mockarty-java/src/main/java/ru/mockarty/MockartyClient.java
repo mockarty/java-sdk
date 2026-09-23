@@ -18,7 +18,6 @@ import ru.mockarty.api.IssueTrackerApi;
 import ru.mockarty.api.TcmApi;
 import ru.mockarty.api.ChaosApi;
 import ru.mockarty.api.CloudWebhooksApi;
-import ru.mockarty.api.CloudInstancesApi;
 import ru.mockarty.api.CloudConnectorsApi;
 import ru.mockarty.api.CloudOAuthProvidersApi;
 import ru.mockarty.api.CloudRiskApi;
@@ -438,11 +437,6 @@ public class MockartyClient implements AutoCloseable {
     /** Returns the workspace webhook automation API for Mockarty Cloud. */
     public CloudWebhooksApi cloudWebhooks() {
         return new CloudWebhooksApi(this);
-    }
-
-    /** Returns the dedicated Cloud contour lifecycle API. */
-    public CloudInstancesApi cloudInstances() {
-        return new CloudInstancesApi(this);
     }
 
     /** Returns the operator-only Cloud platform connector lifecycle. */
