@@ -23,7 +23,7 @@ public class SecretsBasicExample {
             Map<String, Object> store = client.secrets().createStore(
                     "payments",
                     "API keys for payment providers",
-                    "software");
+                    "inline");
             String storeId = (String) store.get("id");
             System.out.printf("[1] store=%s id=%s%n", store.get("name"), storeId);
 
