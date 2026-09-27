@@ -50,7 +50,7 @@ public class TcmApi {
 
     // -- cases --
 
-    /** Create a test case (fields: {@code title}, {@code folderId}, {@code steps}, …). */
+    /** Create a test case (fields: {@code name}, {@code folderId}, {@code steps}, …). */
     public JsonNode createCase(String namespace, Map<String, Object> testCase) throws MockartyException {
         return client.post(casesBase(namespace), testCase, JsonNode.class);
     }
@@ -66,9 +66,29 @@ public class TcmApi {
         return array(data, "test_cases", "cases", "items");
     }
 
-    /** Apply an update to a test case. */
+    /** Update case metadata. Use saveCaseSteps to publish edited steps. */
     public JsonNode updateCase(String namespace, String caseId, Map<String, Object> fields) throws MockartyException {
         return client.put(casesBase(namespace) + "/" + enc(caseId), fields, JsonNode.class);
+    }
+
+
+    /** List saved versions; use getCaseVersion to read their steps. */
+    public List<JsonNode> listCaseVersions(String namespace, String caseId) throws MockartyException {
+        return array(client.get(casesBase(namespace)+"/"+enc(caseId)+"/versions", JsonNode.class), "versions");
+    }
+
+    /** Read a saved version including steps and stable stepUid values. */
+    public JsonNode getCaseVersion(String namespace, String caseId, String versionId) throws MockartyException {
+        return client.get(casesBase(namespace)+"/"+enc(caseId)+"/versions/"+enc(versionId), JsonNode.class);
+    }
+
+    /** Publish a complete step list. Preserve stepUid when editing. An empty
+     * list clears steps; null is rejected. Identical content returns the
+     * existing version with dedupSkipped=true. */
+    public JsonNode saveCaseSteps(String namespace, String caseId, List<Map<String,Object>> steps, String notes) throws MockartyException {
+        if (steps == null) throw new IllegalArgumentException("steps must be an explicit list");
+        return client.post(casesBase(namespace)+"/"+enc(caseId)+"/versions",
+                Map.of("steps", steps, "notes", notes == null ? "" : notes), JsonNode.class);
     }
 
     /** Soft-delete a test case. */
@@ -105,7 +125,7 @@ public class TcmApi {
 
     // -- defects --
 
-    /** File a defect (fields: {@code title}, {@code description}, {@code caseRunId}, …). */
+    /** File a defect (fields: {@code name}, {@code description}, {@code caseRunId}, …). */
     public JsonNode createDefect(String namespace, Map<String, Object> defect) throws MockartyException {
         return client.post(tcmBase(namespace) + "/defects", defect, JsonNode.class);
     }

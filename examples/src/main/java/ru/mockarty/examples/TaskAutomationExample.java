@@ -36,7 +36,7 @@ public class TaskAutomationExample {
             it.moveIssue(ns, issueId, "in_progress", null);
 
             TcmApi tcm = client.tcm();
-            JsonNode c = tcm.createCase(ns, Map.of("title", "Checkout smoke"));
+            JsonNode c = tcm.createCase(ns, Map.of("name", "Checkout smoke"));
             JsonNode run = tcm.runCase(ns, c.get("id").asText(), null);
             System.out.println("case run started: " + run.path("runId").asText());
         }
