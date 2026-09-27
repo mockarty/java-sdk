@@ -386,7 +386,7 @@ attachments:
 
 ```java
 TcmApi tcm = client.tcm();
-JsonNode c = tcm.createCase(null, Map.of("folderId", fid, "title", "Checkout smoke"));
+JsonNode c = tcm.createCase(null, Map.of("folderId", fid, "name", "Checkout smoke"));
 JsonNode run = tcm.runCase(null, c.get("id").asText(), null);
 JsonNode cr = tcm.getCaseRun(null, run.get("runId").asText());
 if ("failed".equals(cr.path("status").asText())) {
