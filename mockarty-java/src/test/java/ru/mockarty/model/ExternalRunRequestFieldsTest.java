@@ -82,4 +82,15 @@ class ExternalRunRequestFieldsTest {
         assertEquals(Collections.emptyList(), req.getCustomFields());
         assertTrue(req.isClaimCaseOwnership());
     }
+    @Test
+    void planRunAndBlobReferenceSerializeWithoutInlineBody() throws Exception {
+        ExternalRunRequest req = new ExternalRunRequest().status("passed").caseName("case")
+                .planRunId("11111111-1111-1111-1111-111111111111")
+                .attachments(List.of(new ExternalAttachment().name("video").contentType("video/webm").blobUri("fs://qa/upload/video")));
+        JsonNode node = mapper.valueToTree(req);
+        assertEquals("11111111-1111-1111-1111-111111111111", node.path("planRunId").asText());
+        assertEquals("fs://qa/upload/video", node.path("attachments").get(0).path("blobUri").asText());
+        assertFalse(node.path("attachments").get(0).has("bodyB64"));
+    }
+
 }

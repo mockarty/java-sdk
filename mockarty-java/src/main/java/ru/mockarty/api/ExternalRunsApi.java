@@ -169,6 +169,11 @@ public class ExternalRunsApi {
      * throws {@link FileNotFoundException} — a CI step that silently uploads
      * nothing is a green pipeline hiding a test run that produced nothing.</p>
      *
+     * <p>Nested step media is preflighted before any POST. Limits: 256 KiB/file,
+     * 1 MiB and 32 sources/result, 32 MiB/batch, 64 levels and 5000 steps/result.
+     * Container fixtures are not imported.</p>
+     *
+     * @throws IOException                 referenced media is missing, unsafe or over its limit
      * @throws FileNotFoundException        {@code resultsDir} is null or not a directory
      * @throws AllureUploadEmptyException   the directory holds no {@code *-result.json}
      * @throws AllureUploadPartialException at least one result was not reported
@@ -195,12 +200,32 @@ public class ExternalRunsApi {
         // DirectoryStream order is filesystem-dependent; sort so the upload
         // order matches the Go/Python implementations.
         Collections.sort(files);
+        List<ExternalRunRequest> prepared = new ArrayList<>();
+        List<Path> preparedFiles = new ArrayList<>();
+        long mediaBytes = 0;
         for (Path file : files) {
+            JsonNode root;
             try {
-                JsonNode root = mapper.readTree(file.toFile());
-                ExternalRunRequest req = allureToExternalRun(root, resultsDir, mapper);
-                out.add(report(namespace, req));
-            } catch (Throwable t) {
+                root = mapper.readTree(AllureMedia.readSource(resultsDir, file.getFileName().toString(), 10 << 20));
+            } catch (IOException e) {
+                skipped.add(file.getFileName() + ": " + e.getMessage());
+                continue;
+            }
+            ExternalRunRequest req = allureToExternalRun(root, resultsDir, mapper);
+            if (req.getAttachments() != null) {
+                for (ExternalAttachment attachment : req.getAttachments()) {
+                    mediaBytes += java.util.Base64.getDecoder().decode(attachment.getBodyB64()).length;
+                }
+            }
+            if (mediaBytes > (32 << 20)) throw new IOException("allure: batch attachments exceed 32 MiB");
+            prepared.add(req);
+            preparedFiles.add(file);
+        }
+        for (int index = 0; index < prepared.size(); index++) {
+            Path file = preparedFiles.get(index);
+            try {
+                out.add(report(namespace, prepared.get(index)));
+            } catch (Exception t) {
                 // Fail-soft per-file: the loop continues so one bad
                 // result.json doesn't kill the CI upload. Every skip is
                 // recorded and surfaced below — never silently dropped.
@@ -295,36 +320,12 @@ public class ExternalRunsApi {
                 req.error(err);
             }
         }
-        JsonNode steps = root.path("steps");
-        if (steps.isArray() && steps.size() > 0) {
-            List<ExternalStep> out = new ArrayList<>();
-            flattenSteps(steps, "", out);
-            req.steps(out);
-        }
-        JsonNode atts = root.path("attachments");
-        if (atts.isArray() && atts.size() > 0) {
-            List<ExternalAttachment> wire = new ArrayList<>();
-            Iterator<JsonNode> it = atts.elements();
-            while (it.hasNext()) {
-                JsonNode a = it.next();
-                String source = a.path("source").asText("");
-                String aname = a.path("name").asText("");
-                String type = a.path("type").asText("application/octet-stream");
-                ExternalAttachment ea = new ExternalAttachment()
-                        .name(aname.isEmpty() ? source : aname)
-                        .contentType(type);
-                if (!source.isEmpty()) {
-                    Path body = resultsDir.resolve(source);
-                    if (Files.isRegularFile(body)) {
-                        ea.body(Files.readAllBytes(body));
-                    }
-                }
-                wire.add(ea);
-            }
-            req.attachments(wire);
-        }
+        AllureMedia media = AllureMedia.collect(root, resultsDir);
+        if (!media.steps.isEmpty()) req.steps(media.steps);
+        if (!media.attachments.isEmpty()) req.attachments(media.attachments);
         // Carry labels + parameters into metadata for richer reporting.
         Map<String, Object> metadata = new HashMap<>();
+        if (!media.paths.isEmpty()) metadata.put("allureAttachmentPaths", media.paths);
         if (labels.isArray()) {
             List<Map<String, String>> ml = mapper.convertValue(labels,
                     new TypeReference<List<Map<String, String>>>() {});
@@ -344,23 +345,6 @@ public class ExternalRunsApi {
             req.metadata(metadata);
         }
         return req;
-    }
-
-    /**
-     * Step statuses have a NARROWER server vocabulary than run statuses
-     * (passed / failed / skipped / broken / error) — sending "cancelled" there
-     * fails validation and rejects the whole upload. Anything unrecognised,
-     * including an absent status, maps to broken: a step we never observed is
-     * not a pass.
-     */
-    private static String mapStepStatus(String allure) {
-        if (allure == null) return ExternalRunRequest.STATUS_BROKEN;
-        switch (allure) {
-            case "passed":  return ExternalRunRequest.STATUS_PASSED;
-            case "failed":  return ExternalRunRequest.STATUS_FAILED;
-            case "skipped": return ExternalRunRequest.STATUS_SKIPPED;
-            default:        return ExternalRunRequest.STATUS_BROKEN;
-        }
     }
 
     private static String mapStatus(String allure) {
@@ -492,39 +476,4 @@ public class ExternalRunsApi {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 
-    /**
-     * Flatten nested Allure step trees into ExternalStep records keyed by
-     * a slash-joined path so the TCM report shows the structure. Order of
-     * iteration matches the tree, which preserves the user's intent.
-     */
-    private static void flattenSteps(JsonNode steps, String prefix, List<ExternalStep> out) {
-        Iterator<JsonNode> it = steps.elements();
-        while (it.hasNext()) {
-            JsonNode s = it.next();
-            String name = s.path("name").asText("");
-            String full = prefix.isEmpty() ? name : prefix + " / " + name;
-            // A step with no status has NOT been observed to pass. Defaulting
-            // it to "passed" invents a green result for work we never saw.
-            ExternalStep es = new ExternalStep()
-                    .name(full)
-                    .status(mapStepStatus(s.path("status").asText("")));
-            long st = s.path("start").asLong(0);
-            long sp = s.path("stop").asLong(0);
-            if (sp > st && st > 0) {
-                es.durationMs(sp - st);
-            }
-            JsonNode sd = s.path("statusDetails");
-            if (sd.isObject()) {
-                String msg = sd.path("message").asText("");
-                if (!msg.isEmpty()) {
-                    es.error(msg);
-                }
-            }
-            out.add(es);
-            JsonNode nested = s.path("steps");
-            if (nested.isArray() && nested.size() > 0) {
-                flattenSteps(nested, full, out);
-            }
-        }
-    }
 }

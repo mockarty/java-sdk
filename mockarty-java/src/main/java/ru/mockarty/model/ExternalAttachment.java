@@ -27,6 +27,9 @@ public class ExternalAttachment {
     @JsonProperty("bodyB64")
     private String bodyB64;
 
+    @JsonProperty("blobUri")
+    private String blobUri;
+
     public ExternalAttachment() {}
 
     /** Build a text/plain attachment from a UTF-8 string. */
@@ -56,6 +59,11 @@ public class ExternalAttachment {
 
     /** Set a pre-encoded base64 body directly (advanced — most callers want body()). */
     public ExternalAttachment bodyB64(String s) { this.bodyB64 = s; return this; }
+
+    /** Server-issued reference from a prior upload; do not combine with body/bodyB64.
+     * Namespace access is checked by the server. The SDK does not fetch this URI. */
+    public ExternalAttachment blobUri(String uri) { this.blobUri = uri; return this; }
+    public String getBlobUri() { return blobUri; }
 
     public String getName() { return name; }
     public String getContentType() { return contentType; }

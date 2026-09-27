@@ -69,6 +69,10 @@ public class ExternalRunRequest {
     @JsonProperty("planId")
     private String planId;
 
+    /** Existing ad-hoc launch to receive this result. */
+    @JsonProperty("planRunId")
+    private String planRunId;
+
     @JsonProperty("autoCreate")
     private boolean autoCreate;
 
@@ -147,6 +151,7 @@ public class ExternalRunRequest {
     public ExternalRunRequest caseDescription(String d) { this.caseDescription = d; return this; }
     public ExternalRunRequest caseExpectedResult(String r) { this.caseExpectedResult = r; return this; }
     public ExternalRunRequest planId(String p) { this.planId = p; return this; }
+    public ExternalRunRequest planRunId(String id) { this.planRunId = id; return this; }
     public ExternalRunRequest autoCreate(boolean v) { this.autoCreate = v; return this; }
     public ExternalRunRequest framework(String f) { this.framework = f; return this; }
     public ExternalRunRequest frameworkVersion(String v) { this.frameworkVersion = v; return this; }
@@ -176,6 +181,7 @@ public class ExternalRunRequest {
     public String getCaseDescription() { return caseDescription; }
     public String getCaseExpectedResult() { return caseExpectedResult; }
     public String getPlanId() { return planId; }
+    public String getPlanRunId() { return planRunId; }
     public boolean isAutoCreate() { return autoCreate; }
     public String getStatus() { return status; }
     public String getFramework() { return framework; }

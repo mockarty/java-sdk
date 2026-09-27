@@ -125,4 +125,49 @@ class ExternalRunsApiUploadAllureDirTest {
         assertThrows(FileNotFoundException.class,
                 () -> client.externalRuns().uploadAllureDir("qa", results.resolve("nope")));
     }
+    @Test
+    void nestedMediaAndPreflight() throws Exception {
+        Files.writeString(results.resolve("image.png"), "synthetic image");
+        String body = "{\"uuid\":\"a\",\"name\":\"a\",\"status\":\"passed\",\"steps\":[{\"name\":\"outer\",\"status\":\"passed\",\"steps\":[{\"name\":\"inner\",\"status\":\"passed\",\"attachments\":[{\"source\":\"image.png\",\"name\":\"screen\"}]}]}]}";
+        writeResult("a-result.json", body);
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        ru.mockarty.model.ExternalRunRequest request = ExternalRunsApi.allureToExternalRun(mapper.readTree(body), results, mapper);
+        com.fasterxml.jackson.databind.JsonNode wire = mapper.valueToTree(request);
+        assertEquals(2, wire.path("steps").size());
+        assertEquals(1, wire.path("attachments").size());
+        assertEquals("synthetic image", new String(java.util.Base64.getDecoder().decode(wire.path("attachments").get(0).path("bodyB64").asText()), StandardCharsets.UTF_8));
+        writeResult("b-result.json", "{\"uuid\":\"b\",\"name\":\"b\",\"status\":\"passed\",\"attachments\":[{\"source\":\"missing.png\"}]}");
+        assertThrows(IOException.class, () -> client.externalRuns().uploadAllureDir("qa", results));
+        assertEquals(0, posts.get());
+    }
+
+    @Test
+    void rejectsUnsafeAndOversizedMedia() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (String source : new String[]{"../outside", "/outside", "missing", "C:\\outside"}) {
+            com.fasterxml.jackson.databind.node.ObjectNode doc = mapper.createObjectNode();
+            doc.putArray("attachments").addObject().put("source", source);
+            assertThrows(IOException.class, () -> AllureMedia.collect(doc, results));
+        }
+        Files.write(results.resolve("large"), new byte[(256 << 10) + 1]);
+        Files.write(results.resolve("empty"), new byte[0]);
+        Files.write(results.resolve("target"), new byte[]{1});
+        Files.createSymbolicLink(results.resolve("symlink"), results.resolve("target"));
+        for (String source : new String[]{"large", "empty", "symlink"}) {
+            com.fasterxml.jackson.databind.node.ObjectNode doc = mapper.createObjectNode();
+            doc.putArray("attachments").addObject().put("source", source);
+            assertThrows(IOException.class, () -> AllureMedia.collect(doc, results));
+        }
+        for (int count : new int[]{5, 33}) {
+            com.fasterxml.jackson.databind.node.ObjectNode doc = mapper.createObjectNode();
+            com.fasterxml.jackson.databind.node.ArrayNode refs = doc.putArray("attachments");
+            for (int index = 0; index < count; index++) {
+                String source = "ref-" + index;
+                Files.write(results.resolve(source), new byte[count == 5 ? 256 << 10 : 1]);
+                refs.addObject().put("source", source);
+            }
+            assertThrows(IOException.class, () -> AllureMedia.collect(doc, results));
+        }
+    }
+
 }
