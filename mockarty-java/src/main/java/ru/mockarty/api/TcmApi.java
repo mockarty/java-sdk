@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Test Case Management (TCM) automation API — cases, case-runs, defects.
@@ -182,14 +183,22 @@ public class TcmApi {
      */
     public JsonNode uploadAttachment(String namespace, String parentKind, String parentId,
                                      String filename, byte[] content, String mediaType) throws MockartyException {
+        if (content == null || filename == null || filename.isEmpty()
+                || filename.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("attachment requires content and a safe filename");
+        }
         String path = tcmBase(namespace) + "/attachments/upload"
                 + "?parentKind=" + enc(parentKind) + "&parentId=" + enc(parentId);
         String mt = (mediaType == null || mediaType.isEmpty()) ? "application/octet-stream" : mediaType;
-        String boundary = "----MockartySdk" + Long.toHexString(System.identityHashCode(content));
+        if (mt.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("attachment media type contains control characters");
+        }
+        String boundary = "----MockartySdk" + UUID.randomUUID().toString().replace("-", "");
         java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
         try {
             String head = "--" + boundary + "\r\n"
-                    + "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n"
+                    + "Content-Disposition: form-data; name=\"file\"; filename=\""
+                    + filename.replace("\\", "\\\\").replace("\"", "\\\"") + "\"\r\n"
                     + "Content-Type: " + mt + "\r\n\r\n";
             buf.write(head.getBytes(StandardCharsets.UTF_8));
             buf.write(content);

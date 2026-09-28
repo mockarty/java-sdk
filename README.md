@@ -388,11 +388,18 @@ attachments:
 TcmApi tcm = client.tcm();
 JsonNode c = tcm.createCase(null, Map.of("folderId", fid, "name", "Checkout smoke"));
 JsonNode run = tcm.runCase(null, c.get("id").asText(), null);
-JsonNode cr = tcm.getCaseRun(null, run.get("runId").asText());
+JsonNode cr = tcm.getCaseRun(null, run.get("id").asText());
 if ("failed".equals(cr.path("status").asText())) {
-    tcm.createDefect(null, Map.of("title", "checkout broke", "caseRunId", run.get("runId").asText()));
+    tcm.createDefect(null, Map.of("title", "checkout broke", "caseRunId", run.get("id").asText()));
 }
 ```
+
+The [TCM case workflow](./examples/src/main/java/ru/mockarty/examples/TcmCaseStepsExample.java)
+also saves structured steps and custom fields, verifies PNG attachment bytes,
+and starts a manual run. Set `MOCKARTY_SOURCE_CASE_ID` to a stable source
+identity so later creates resolve to the same case; wait for an active run to
+finish before editing its steps. Use a unique `MOCKARTY_CASE_NAME` if source
+cases share a title.
 
 ## Features
 
