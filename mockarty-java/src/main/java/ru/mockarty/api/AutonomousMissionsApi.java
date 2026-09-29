@@ -36,8 +36,8 @@ public class AutonomousMissionsApi {
         }
         String autonomy = request.getAutonomy();
         if (autonomy != null && !autonomy.isBlank()
-                && !autonomy.equals("recon") && !autonomy.equals("propose") && !autonomy.equals("auto")) {
-            throw new IllegalArgumentException("autonomy must be recon, propose, or auto");
+                && !autonomy.equals("recon") && !autonomy.equals("propose") && !autonomy.equals("auto") && !autonomy.equals("full")) {
+            throw new IllegalArgumentException("autonomy must be recon, propose, auto, or full");
         }
         return client.post("/api/v1/autotester/intents", request, AutonomousMissionSubmitResponse.class);
     }

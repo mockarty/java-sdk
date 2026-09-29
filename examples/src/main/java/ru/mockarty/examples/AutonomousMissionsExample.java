@@ -11,6 +11,7 @@ import ru.mockarty.model.MissionAnswerRequest;
 import ru.mockarty.model.MissionRevisionReference;
 
 import java.util.List;
+import java.util.Map;
 
 public final class AutonomousMissionsExample {
     private AutonomousMissionsExample() {}
@@ -34,9 +35,15 @@ public final class AutonomousMissionsExample {
             var request = new MissionStartRequest()
                     .goal("Take the checkout release to production quality and provide evidence")
                     .productId(productId)
-                    .autonomy("auto")
+                    .autonomy(System.getenv().getOrDefault("MOCKARTY_EXAMPLE_AUTONOMY", "auto"))
                     .budget(100000, 0, 0)
                     .expectedSettingsDigest(settings.getSettingsDigest());
+            // full preapproves testing of this declared product; chaos and paid
+            // effects still need approval. Opt in through the environment above.
+            String productUrl = System.getenv("MOCKARTY_PRODUCT_URL");
+            if (productUrl != null && !productUrl.isBlank()) {
+                request.data(Map.of("contextRefs", List.of(Map.of("kind", "product_url", "value", productUrl))));
+            }
             String targetDigest = System.getenv("MOCKARTY_TARGET_DIGEST");
             if (targetDigest != null && !targetDigest.isBlank()) {
                 request.targets(List.of(new MissionRevisionReference()

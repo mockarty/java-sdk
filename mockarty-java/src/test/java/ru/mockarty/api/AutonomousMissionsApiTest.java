@@ -92,6 +92,16 @@ class AutonomousMissionsApiTest {
     }
 
     @Test
+    void fullAutonomyPreservesDeclaredTarget() throws Exception {
+        var accepted = client.autonomousMissions().submit(new AutonomousMissionSubmitRequest()
+                .goal("verify own target").productUrl("https://shop.example").autonomy("full"));
+        assertEquals("m-1", accepted.getMissionId());
+        JsonNode body = client.getObjectMapper().readTree(requests.get(0).body);
+        assertEquals("full", body.path("autonomy").asText());
+        assertEquals("https://shop.example", body.path("productUrl").asText());
+    }
+
+    @Test
     void effectiveSettingsAndUnifiedStartUseDigestFence() throws Exception {
         String digest = "sha256:" + "a".repeat(64);
         var settings = client.autonomousMissions().getEffectiveSettings(
