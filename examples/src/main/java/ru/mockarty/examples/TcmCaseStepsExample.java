@@ -26,6 +26,7 @@ public final class TcmCaseStepsExample {
             api.listCases(namespace, Map.of());
             JsonNode version = api.getCaseVersion(namespace, caseId, created.path("currentVersionId").asText());
             List<Map<String,Object>> steps = new ObjectMapper().convertValue(version.path("steps"), new TypeReference<List<Map<String,Object>>>() {});
+            // Edit loaded maps to retain expectedAttachmentId and executorConfig.
             steps.get(0).put("expectedResult", "Dashboard displays the signed-in user");
             JsonNode saved = api.saveCaseSteps(namespace, caseId, steps, "Clarify expected result");
             JsonNode repeated = api.saveCaseSteps(namespace, caseId, steps, "Clarify expected result");

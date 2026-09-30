@@ -33,7 +33,7 @@ class TcmCaseStepsTest {
             } else if (path.equals(base)) {
                 response = "{\"versions\":[{\"id\":\"version-1\"}]}";
             } else if (path.equals(base+"/version-1")) {
-                response = "{\"id\":\"version-1\",\"steps\":[{\"stepUid\":\"login\",\"mode\":\"manual\",\"executorType\":\"manual\",\"action\":\"Login\",\"expectedResult\":\"Home\"}]}";
+                response = "{\"id\":\"version-1\",\"steps\":[{\"stepUid\":\"login\",\"mode\":\"manual\",\"executorType\":\"manual\",\"action\":\"Login\",\"expectedResult\":\"Home\",\"expectedAttachmentId\":\"3b41b6d0-7f0b-49cb-9b69-f7007e00c2b4\",\"executorConfig\":{\"kind\":\"inline_copy\",\"sourceSharedCopyInstanceId\":\"captured-instance\"}}]}";
             } else { status = 404; response = "{}"; }
             byte[] bytes = response.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -53,6 +53,8 @@ class TcmCaseStepsTest {
             assertTrue(again.path("dedupSkipped").asBoolean());
             assertEquals("updated expectation",bodies.get(0).path("notes").asText());
             assertEquals("Dashboard",bodies.get(0).path("steps").get(0).path("expectedResult").asText());
+            assertEquals("3b41b6d0-7f0b-49cb-9b69-f7007e00c2b4",bodies.get(0).path("steps").get(0).path("expectedAttachmentId").asText());
+            assertEquals("captured-instance",bodies.get(0).path("steps").get(0).path("executorConfig").path("sourceSharedCopyInstanceId").asText());
             assertThrows(IllegalArgumentException.class,()->api.saveCaseSteps(null,"case-1",null,""));
         } finally { server.stop(0); }
     }
