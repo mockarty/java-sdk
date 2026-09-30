@@ -53,3 +53,24 @@ MOCKARTY_NAMESPACE=sandbox \
 Same matrix as Go / Python — `TESTBACKEND_URL`, `MOCKARTY_URL`,
 `MOCKARTY_API_KEY`, `MOCKARTY_NAMESPACE`, `JIRA_PROJECT_KEY`,
 `GITLAB_PROJECT_ID`.
+
+## Read collection script outcomes
+
+`collections().execute(...)` retains the full report as a `Map`. A skipped
+assertion has `skipped: true`; a pre-script that skips the primary request sets
+`preRequestResult.skipRequest`. These are separate from a failed assertion.
+
+```java
+Map<String, Object> run = client.collections().execute("collection-id");
+Map<?, ?> report = (Map<?, ?>) run.get("report");
+if (report != null) {
+    System.out.println("Skipped assertions: " + report.get("skippedTests"));
+    for (Object item : (List<?>) report.get("requestReports")) {
+        Map<?, ?> step = (Map<?, ?>) item;
+        Map<?, ?> pre = (Map<?, ?>) step.get("preRequestResult");
+        if (pre != null && Boolean.TRUE.equals(pre.get("skipRequest"))) {
+            System.out.println("Primary request skipped: " + step.get("requestName"));
+        }
+    }
+}
+```
