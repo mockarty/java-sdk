@@ -1028,7 +1028,7 @@ public class MockartyClient implements AutoCloseable {
         for (int i = 0; i < attempts; i++) {
             try {
                 HttpResponse<T> resp = httpClient.send(request, handler);
-                if (i < attempts - 1 && isRetryableStatus(resp.statusCode())) {
+                if (i < attempts - 1 && isRetryableStatus(resp.statusCode()) && !isSavedCILaunch(request, resp)) {
                     log.debug("retrying {} {} after HTTP {} (attempt {}/{})",
                             request.method(), request.uri(), resp.statusCode(), i + 1, attempts);
                     sleepBackoff(i);
@@ -1047,6 +1047,19 @@ public class MockartyClient implements AutoCloseable {
         }
         // Unreachable: the loop either returns a response or throws lastIO.
         throw lastIO != null ? lastIO : new IOException("retry budget exhausted");
+    }
+
+    private <T> boolean isSavedCILaunch(HttpRequest request, HttpResponse<T> response) {
+        if (!"POST".equals(request.method()) || (response.statusCode() != 409 && response.statusCode() != 503)) {
+            return false;
+        }
+        Object body = response.body();
+        String text = body instanceof String ? (String) body
+                : body instanceof byte[] ? new String((byte[]) body, java.nio.charset.StandardCharsets.UTF_8) : null;
+        ParsedError parsed = parseErrorEnvelope(text);
+        return parsed.runId != null && !parsed.runId.isEmpty()
+                && ((response.statusCode() == 409 && "ci_dispatch_uncertain".equals(parsed.reason))
+                || (response.statusCode() == 503 && "ci_dispatch_failed".equals(parsed.reason)));
     }
 
     private static boolean isRetryableStatus(int status) {
@@ -1136,11 +1149,15 @@ public class MockartyClient implements AutoCloseable {
         final String message;
         final String code;
         final String requestId;
+        final String reason;
+        final String runId;
 
-        ParsedError(String message, String code, String requestId) {
+        ParsedError(String message, String code, String requestId, String reason, String runId) {
             this.message = message;
             this.code = code;
             this.requestId = requestId;
+            this.reason = reason;
+            this.runId = runId;
         }
     }
 
@@ -1154,23 +1171,23 @@ public class MockartyClient implements AutoCloseable {
         if (code != null && !code.isEmpty()) {
             switch (code) {
                 case "validation":
-                    throw new MockartyValidationException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyValidationException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "unauthorized":
-                    throw new MockartyUnauthorizedException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyUnauthorizedException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "forbidden":
-                    throw new MockartyForbiddenException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyForbiddenException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "not_found":
-                    throw new MockartyNotFoundException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyNotFoundException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "conflict":
-                    throw new MockartyConflictException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyConflictException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "rate_limit":
-                    throw new MockartyRateLimitException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyRateLimitException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "unavailable":
-                    throw new MockartyUnavailableException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyUnavailableException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "external":
-                    throw new MockartyExternalException(errorMessage, responseBody, code, requestId);
+                    throw new MockartyExternalException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 case "internal":
-                    throw new MockartyServerException(statusCode, errorMessage, responseBody, code, requestId);
+                    throw new MockartyServerException(statusCode, errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 default:
                     // Unknown code from a newer server — fall through to status-based dispatch.
                     break;
@@ -1180,26 +1197,26 @@ public class MockartyClient implements AutoCloseable {
         // Fallback: dispatch by HTTP status (legacy servers or unknown codes).
         switch (statusCode) {
             case 400:
-                throw new MockartyValidationException(errorMessage, responseBody, code, requestId);
+                throw new MockartyValidationException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 401:
-                throw new MockartyUnauthorizedException(errorMessage, responseBody, code, requestId);
+                throw new MockartyUnauthorizedException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 403:
-                throw new MockartyForbiddenException(errorMessage, responseBody, code, requestId);
+                throw new MockartyForbiddenException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 404:
-                throw new MockartyNotFoundException(errorMessage, responseBody, code, requestId);
+                throw new MockartyNotFoundException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 409:
-                throw new MockartyConflictException(errorMessage, responseBody, code, requestId);
+                throw new MockartyConflictException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 429:
-                throw new MockartyRateLimitException(errorMessage, responseBody, code, requestId);
+                throw new MockartyRateLimitException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 502:
-                throw new MockartyExternalException(errorMessage, responseBody, code, requestId);
+                throw new MockartyExternalException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             case 503:
-                throw new MockartyUnavailableException(errorMessage, responseBody, code, requestId);
+                throw new MockartyUnavailableException(errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
             default:
                 if (statusCode >= 500) {
-                    throw new MockartyServerException(statusCode, errorMessage, responseBody, code, requestId);
+                    throw new MockartyServerException(statusCode, errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
                 }
-                throw new MockartyApiException(statusCode, errorMessage, responseBody, code, requestId);
+                throw new MockartyApiException(statusCode, errorMessage, responseBody, code, requestId, parsed.reason, parsed.runId);
         }
     }
 
@@ -1211,7 +1228,7 @@ public class MockartyClient implements AutoCloseable {
      */
     private ParsedError parseErrorEnvelope(String responseBody) {
         if (responseBody == null || responseBody.isEmpty()) {
-            return new ParsedError("Unknown error", null, null);
+            return new ParsedError("Unknown error", null, null, null, null);
         }
         try {
             @SuppressWarnings("unchecked")
@@ -1249,10 +1266,14 @@ public class MockartyClient implements AutoCloseable {
                 }
             }
 
-            return new ParsedError(message, code, requestId);
-        } catch (JsonProcessingException e) {
-            // Response is not JSON — return raw text as the message.
-            return new ParsedError(truncate(responseBody), null, null);
+            Object rawReason = errorMap.get("reason");
+            Object rawRunId = errorMap.get("runId");
+            return new ParsedError(message, code, requestId,
+                    rawReason instanceof String ? (String) rawReason : null,
+                    rawRunId instanceof String ? (String) rawRunId : null);
+        } catch (JsonProcessingException | RuntimeException e) {
+            // Response is not a JSON object — return raw text as the message.
+            return new ParsedError(truncate(responseBody), null, null, null, null);
         }
     }
 

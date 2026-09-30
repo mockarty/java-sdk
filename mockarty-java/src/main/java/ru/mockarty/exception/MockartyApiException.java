@@ -22,6 +22,8 @@ public class MockartyApiException extends MockartyException {
     private final String responseBody;
     private final String code;
     private final String requestId;
+    private final String reason;
+    private final String runId;
 
     public MockartyApiException(int statusCode, String errorMessage) {
         this(statusCode, errorMessage, null, null, null);
@@ -37,12 +39,19 @@ public class MockartyApiException extends MockartyException {
             String responseBody,
             String code,
             String requestId) {
+        this(statusCode, errorMessage, responseBody, code, requestId, null, null);
+    }
+
+    public MockartyApiException(int statusCode, String errorMessage, String responseBody,
+                               String code, String requestId, String reason, String runId) {
         super(formatMessage(statusCode, errorMessage, code, requestId));
         this.statusCode = statusCode;
         this.errorMessage = errorMessage;
         this.responseBody = responseBody;
         this.code = code;
         this.requestId = requestId;
+        this.reason = reason;
+        this.runId = runId;
     }
 
     private static String formatMessage(int statusCode, String errorMessage, String code, String requestId) {
@@ -94,4 +103,10 @@ public class MockartyApiException extends MockartyException {
     public String getRequestId() {
         return requestId;
     }
+
+    /** Specific operation failure identifier, or null on older servers. */
+    public String getReason() { return reason; }
+
+    /** Already saved launch ID. Inspect it before launching again. */
+    public String getRunId() { return runId; }
 }

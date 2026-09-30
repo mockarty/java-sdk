@@ -19,4 +19,9 @@ public class MockartyValidationException extends MockartyApiException {
     public MockartyValidationException(String errorMessage, String responseBody, String code, String requestId) {
         super(400, errorMessage, responseBody, code, requestId);
     }
+
+    public MockartyValidationException(String errorMessage, String responseBody,
+                                  String code, String requestId, String reason, String runId) {
+        super(400, errorMessage, responseBody, code, requestId, reason, runId);
+    }
 }

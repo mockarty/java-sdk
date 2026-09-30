@@ -19,4 +19,9 @@ public class MockartyUnauthorizedException extends MockartyApiException {
     public MockartyUnauthorizedException(String errorMessage, String responseBody, String code, String requestId) {
         super(401, errorMessage, responseBody, code, requestId);
     }
+
+    public MockartyUnauthorizedException(String errorMessage, String responseBody,
+                                  String code, String requestId, String reason, String runId) {
+        super(401, errorMessage, responseBody, code, requestId, reason, runId);
+    }
 }

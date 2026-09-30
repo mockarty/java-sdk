@@ -19,4 +19,9 @@ public class MockartyUnavailableException extends MockartyApiException {
     public MockartyUnavailableException(String errorMessage, String responseBody, String code, String requestId) {
         super(503, errorMessage, responseBody, code, requestId);
     }
+
+    public MockartyUnavailableException(String errorMessage, String responseBody,
+                                  String code, String requestId, String reason, String runId) {
+        super(503, errorMessage, responseBody, code, requestId, reason, runId);
+    }
 }

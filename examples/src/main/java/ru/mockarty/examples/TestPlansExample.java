@@ -4,6 +4,7 @@
 package ru.mockarty.examples;
 
 import ru.mockarty.MockartyClient;
+import ru.mockarty.exception.MockartyApiException;
 import ru.mockarty.exception.PlanRunCancelledException;
 import ru.mockarty.exception.PlanRunFailedException;
 import ru.mockarty.exception.PreconditionFailedException;
@@ -123,7 +124,16 @@ public class TestPlansExample {
             System.err.println("attach webhook: " + err + " (continuing)");
         }
 
-        TestPlanRun run = client.testPlans().run(planId, null, null);
+        TestPlanRun run;
+        try {
+            run = client.testPlans().run(planId, null, null);
+        } catch (MockartyApiException error) {
+            if (error.getRunId() != null) {
+                System.err.printf("Saved launch %s (reason=%s): inspect it and its CI job before launching again%n",
+                        error.getRunId(), error.getReason());
+            }
+            throw error;
+        }
         System.out.println("Triggered run " + run.getId());
 
         int exitCode = 0;

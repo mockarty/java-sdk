@@ -19,4 +19,9 @@ public class MockartyConflictException extends MockartyApiException {
     public MockartyConflictException(String errorMessage, String responseBody, String code, String requestId) {
         super(409, errorMessage, responseBody, code, requestId);
     }
+
+    public MockartyConflictException(String errorMessage, String responseBody,
+                                  String code, String requestId, String reason, String runId) {
+        super(409, errorMessage, responseBody, code, requestId, reason, runId);
+    }
 }

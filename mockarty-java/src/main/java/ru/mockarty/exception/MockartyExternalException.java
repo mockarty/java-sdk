@@ -19,4 +19,9 @@ public class MockartyExternalException extends MockartyApiException {
     public MockartyExternalException(String errorMessage, String responseBody, String code, String requestId) {
         super(502, errorMessage, responseBody, code, requestId);
     }
+
+    public MockartyExternalException(String errorMessage, String responseBody,
+                                  String code, String requestId, String reason, String runId) {
+        super(502, errorMessage, responseBody, code, requestId, reason, runId);
+    }
 }

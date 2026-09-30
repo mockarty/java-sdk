@@ -21,4 +21,9 @@ public class MockartyServerException extends MockartyApiException {
             int statusCode, String errorMessage, String responseBody, String code, String requestId) {
         super(statusCode, errorMessage, responseBody, code, requestId);
     }
+
+    public MockartyServerException(int statusCode, String errorMessage, String responseBody,
+                                  String code, String requestId, String reason, String runId) {
+        super(statusCode, errorMessage, responseBody, code, requestId, reason, runId);
+    }
 }
