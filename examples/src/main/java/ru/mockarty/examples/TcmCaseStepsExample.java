@@ -35,6 +35,7 @@ public final class TcmCaseStepsExample {
             String filename = System.getenv("MOCKARTY_ATTACHMENT_NAME");
             if (filename == null || filename.isEmpty()) filename = "login.png";
             JsonNode attachment = api.uploadAttachment(namespace, "tcm_case", caseId, filename, png, "image/png");
+            // Imported launch files: listAttachments(namespace, "test_plan_run", runId) reads all pages (up to 10,000), keeping report ownership.
             List<JsonNode> media = api.listAttachments(namespace, "tcm_case", caseId);
             String expectedFilename = filename;
             if (media.stream().noneMatch(item -> attachment.path("id").equals(item.path("id")) && expectedFilename.equals(item.path("originalName").asText()))) throw new IllegalStateException("attachment name changed");

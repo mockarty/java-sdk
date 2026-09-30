@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Test Case Management (TCM) automation API — cases, case-runs, defects.
@@ -213,7 +215,47 @@ public class TcmApi {
     /** List attachments attached to a (parentKind, parentId). */
     public List<JsonNode> listAttachments(String namespace, String parentKind, String parentId) throws MockartyException {
         String path = tcmBase(namespace) + "/attachments?parentKind=" + enc(parentKind) + "&parentId=" + enc(parentId);
+        if ("test_plan_run".equals(parentKind)) return listLaunchAttachments(path, ns(namespace), parentId);
         return array(client.get(path, JsonNode.class), "items", "attachments");
+    }
+
+
+    private List<JsonNode> listLaunchAttachments(String path, String namespace, String parentId) {
+        List<JsonNode> rows = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        int total = -1;
+        String snapshot = null;
+        for (int page = 0; page < 100; page++) {
+            if (Thread.currentThread().isInterrupted()) throw new MockartyException("TCM: launch file listing interrupted");
+            JsonNode data = client.get(path + "&limit=500&offset=" + rows.size() + (snapshot == null ? "" : "&snapshot=" + enc(snapshot)), JsonNode.class);
+            if (data == null || !data.isObject() || !data.path("items").isArray()
+                    || !data.path("total").isIntegralNumber() || !data.path("total").canConvertToInt()
+                    || !data.path("offset").isIntegralNumber() || !data.path("offset").canConvertToInt()
+                    || !data.path("limit").isIntegralNumber() || !data.path("limit").canConvertToInt()
+                    || !data.path("hasMore").isBoolean()) throw new MockartyException("TCM: inconsistent launch file pagination; retry the report listing");
+            int count = data.path("total").intValue(), offset = data.path("offset").intValue(), limit = data.path("limit").intValue();
+            JsonNode items = data.path("items");
+            boolean more = data.path("hasMore").booleanValue();
+            if (count < 0 || count > 10000 || offset != rows.size() || limit < 1 || limit > 500 || items.size() > limit
+                    || (total >= 0 && total != count) || offset + items.size() > count
+                    || more != (offset + items.size() < count) || (more && items.isEmpty()))
+                throw new MockartyException("TCM: incomplete launch file page; retry the report listing");
+            String revision = data.path("snapshot").asText("");
+            if (!revision.matches("[0-9a-f]{64}") || (snapshot != null && !snapshot.equals(revision)))
+                throw new MockartyException("TCM: launch files changed or snapshot is missing; retry the report listing");
+            snapshot = revision;
+            total = count;
+            for (JsonNode item : items) {
+                String id = item.path("id").asText("");
+                if (!item.path("id").isTextual() || id.isEmpty() || !seen.add(id)
+                        || !namespace.equals(item.path("namespace").asText())
+                        || !"test_plan_run".equals(item.path("parentKind").asText()) || !parentId.equals(item.path("parentId").asText()))
+                    throw new MockartyException("TCM: duplicate or foreign launch file metadata; retry the report listing");
+                rows.add(item);
+            }
+            if (!more) return rows;
+        }
+        throw new MockartyException("TCM: launch file pagination exceeded 100 requests; retry the report listing");
     }
 
     /** Download an attachment's raw bytes. */
