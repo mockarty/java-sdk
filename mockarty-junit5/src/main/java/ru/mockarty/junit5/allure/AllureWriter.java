@@ -148,6 +148,7 @@ public final class AllureWriter {
      * <p>Reference: https://allurereport.org/docs/how-it-works-environment-file/</p>
      */
     public static Path writeEnvironment(Path dir, Map<String, String> env) throws IOException {
+        env=ru.mockarty.model.CIJobContext.sanitizeEnvironment(env);
         ensureDir(dir);
         StringBuilder sb = new StringBuilder();
         if (env != null) {

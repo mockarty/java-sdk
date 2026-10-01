@@ -10,6 +10,8 @@ import ru.mockarty.MockartyClient;
 import ru.mockarty.exception.AllureUploadEmptyException;
 import ru.mockarty.exception.AllureUploadPartialException;
 import ru.mockarty.exception.MockartyException;
+import ru.mockarty.model.CICallback;
+import ru.mockarty.model.CIJobContext;
 import ru.mockarty.model.ExternalAttachment;
 import ru.mockarty.model.ExternalRunRequest;
 import ru.mockarty.model.ExternalRunResponse;
@@ -77,6 +79,7 @@ public class ExternalRunsApi {
         if (request == null) {
             throw new IllegalArgumentException("request is required");
         }
+        request=CIJobContext.prepare(namespace,request,client.getObjectMapper(),System.getenv(CIJobContext.ENVIRONMENT));
         if (request.getStatus() == null || request.getStatus().isEmpty()) {
             throw new IllegalArgumentException("request.status is required");
         }
@@ -85,8 +88,18 @@ public class ExternalRunsApi {
             throw new IllegalArgumentException(
                     "one of request.caseId / request.caseName is required");
         }
-        String path = "/api/v1/namespaces/" + namespace + "/tcm/external-runs";
-        return client.post(path, request, ExternalRunResponse.class);
+        String path = "/api/v1/namespaces/" + encodePath(namespace) + "/tcm/external-runs";
+        return request.getCIContext()!=null ? client.postNoRetry(path,request,ExternalRunResponse.class) : client.post(path, request, ExternalRunResponse.class);
+    }
+
+    private static String encodePath(String value){return URLEncoder.encode(value,StandardCharsets.UTF_8).replace("+","%20");}
+    /** Finish a selected job after uploads; missing results stay a receiver-side failure. */
+    public JsonNode completeGroup(String namespace,CICallback callback,String status) throws MockartyException {
+        if(namespace==null||namespace.isEmpty()||callback==null)throw new IllegalArgumentException("selected CI namespace/callback required");
+        if(!List.of("passed","failed","cancelled").contains(status))throw new IllegalArgumentException("invalid selected CI completion status");
+        Map<String,String> wire=callback.toWire(true);
+        String path="/api/v1/namespaces/"+encodePath(namespace)+"/tcm/ci-launches/"+callback.getLaunchId()+"/groups/"+callback.getGroupId()+"/complete";
+        return client.postNoRetry(path,Map.of("callback",wire,"status",status),JsonNode.class);
     }
 
     /**
@@ -125,9 +138,12 @@ public class ExternalRunsApi {
             throw new IllegalArgumentException("requests must be a non-empty list");
         }
         Map<String, Object> body = new HashMap<>();
-        body.put("runs", requests);
-        String path = "/api/v1/namespaces/" + namespace + "/tcm/external-runs/batch";
-        return client.post(path, body, JsonNode.class);
+        List<ExternalRunRequest> prepared=new ArrayList<>();
+        boolean selected=false;
+        for(ExternalRunRequest request:requests){if(request==null)throw new IllegalArgumentException("request required");ExternalRunRequest row=CIJobContext.prepare(namespace,request,client.getObjectMapper(),System.getenv(CIJobContext.ENVIRONMENT));prepared.add(row);selected|=row.getCIContext()!=null;}
+        body.put("runs", prepared);
+        String path = "/api/v1/namespaces/" + encodePath(namespace) + "/tcm/external-runs/batch";
+        return selected ? client.postNoRetry(path,body,JsonNode.class) : client.post(path, body, JsonNode.class);
     }
 
     /**

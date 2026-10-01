@@ -20,6 +20,12 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class ExternalRunRequest {
 
+    @JsonProperty("ciContext")
+    private CICallback ciContext;
+    @JsonProperty("ciContext")
+    public CICallback getCIContext(){return ciContext;}
+    public ExternalRunRequest ciContext(CICallback value){this.ciContext=value;return this;}
+
     /** Schema version this build of the SDK speaks. */
     public static final int SCHEMA_VERSION = 1;
 
