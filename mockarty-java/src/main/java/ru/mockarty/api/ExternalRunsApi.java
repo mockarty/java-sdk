@@ -27,9 +27,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Client for {@code POST /api/v1/namespaces/:namespace/tcm/external-runs}.
@@ -196,9 +198,22 @@ public class ExternalRunsApi {
      */
     public List<ExternalRunResponse> uploadAllureDir(String namespace, Path resultsDir)
             throws IOException {
+        return uploadAllureDirPrepared(namespace,resultsDir,System.getenv(CIJobContext.ENVIRONMENT));
+    }
+    private static String allurePinnedId(JsonNode root){
+        String pinnedId=root.path("testCaseId").asText("");JsonNode labels=root.path("labels");
+        if(labels.isArray())for(JsonNode label:labels){
+            String name=label.path("name").asText("").toLowerCase(java.util.Locale.ROOT);String value=label.path("value").asText("");
+            if((name.equals("as_id")||name.equals("allure_id")||name.equals("allureid"))&&!value.isEmpty())pinnedId=value;
+        }
+        return pinnedId;
+    }
+    List<ExternalRunResponse> uploadAllureDirPrepared(String namespace,Path resultsDir,String context) throws IOException {
         if (namespace == null || namespace.isEmpty()) {
             throw new IllegalArgumentException("namespace is required");
         }
+        CIJobContext selected=context==null||context.isEmpty()?null:CIJobContext.load(context);
+        if(selected!=null&&!selected.getNamespace().equals(namespace))throw new IllegalArgumentException("invalid or unmatched selected CI context");
         if (resultsDir == null || !Files.isDirectory(resultsDir)) {
             throw new FileNotFoundException(
                     "mockarty: allure-results directory not found: " + resultsDir);
@@ -219,6 +234,7 @@ public class ExternalRunsApi {
         List<ExternalRunRequest> prepared = new ArrayList<>();
         List<Path> preparedFiles = new ArrayList<>();
         long mediaBytes = 0;
+        Set<String> selectedItems=new HashSet<>();
         for (Path file : files) {
             JsonNode root;
             try {
@@ -227,6 +243,10 @@ public class ExternalRunsApi {
                 skipped.add(file.getFileName() + ": " + e.getMessage());
                 continue;
             }
+            if(selected!=null){
+                ExternalRunRequest identity=new ExternalRunRequest().externalId(root.path("uuid").asText("")).fullName(root.path("fullName").asText("")).testCaseId(allurePinnedId(root));
+                if(!selected.matchesReport(identity))continue;
+            }
             ExternalRunRequest req = allureToExternalRun(root, resultsDir, mapper);
             if (req.getAttachments() != null) {
                 for (ExternalAttachment attachment : req.getAttachments()) {
@@ -234,9 +254,11 @@ public class ExternalRunsApi {
                 }
             }
             if (mediaBytes > (32 << 20)) throw new IOException("allure: batch attachments exceed 32 MiB");
+            if(selected!=null){req=CIJobContext.prepare(namespace,req,mapper,context);if(!selectedItems.add(req.getCIContext().getItemUid()))throw new IllegalArgumentException("invalid or unmatched selected CI context");}
             prepared.add(req);
             preparedFiles.add(file);
         }
+        if(selected!=null&&(prepared.isEmpty()||!skipped.isEmpty()))throw new IOException("selected Allure preflight did not produce a complete result set");
         for (int index = 0; index < prepared.size(); index++) {
             Path file = preparedFiles.get(index);
             try {
@@ -293,28 +315,9 @@ public class ExternalRunsApi {
         // Mockarty's internal case UUID: sending "123" there made the server
         // look up a non-existent UUID and fall through, and pinning
         // autoCreate(false) alongside it meant the result was dropped outright.
-        String pinnedId = root.path("testCaseId").asText("");
-        JsonNode labels = root.path("labels");
-        if (labels.isArray()) {
-            Map<String, String> firstByName = new HashMap<>();
-            Iterator<JsonNode> it = labels.elements();
-            while (it.hasNext()) {
-                JsonNode l = it.next();
-                String lname = l.path("name").asText("");
-                String lvalue = l.path("value").asText("");
-                String lkey = lname.toLowerCase(java.util.Locale.ROOT);
-                if (("as_id".equals(lkey) || "allure_id".equals(lkey) || "allureid".equals(lkey))
-                        && !lvalue.isEmpty()) {
-                    pinnedId = lvalue;
-                }
-                if (!firstByName.containsKey(lname)) {
-                    firstByName.put(lname, lvalue);
-                }
-            }
-        }
-        if (!pinnedId.isEmpty()) {
-            req.testCaseId(pinnedId);
-        }
+        JsonNode labels=root.path("labels");
+        String pinnedId=allurePinnedId(root);
+        if(!pinnedId.isEmpty())req.testCaseId(pinnedId);
 
         long start = root.path("start").asLong(0);
         long stop = root.path("stop").asLong(0);

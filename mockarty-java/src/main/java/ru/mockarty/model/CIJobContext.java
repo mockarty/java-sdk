@@ -44,6 +44,17 @@ public final class CIJobContext {
     private static boolean text(JsonNode n,int limit){if(!n.isTextual())return false;String s=n.asText();return !s.isEmpty()&&s.equals(s.strip())&&s.getBytes(StandardCharsets.UTF_8).length<=limit&&s.codePoints().noneMatch(Character::isISOControl);}
     public String getNamespace(){return job.path("namespace").asText();}
     public CICallback callback(){return new CICallback(job.path("token").asText(),job.path("launchId").asText(),CICallback.ZERO,job.path("groupId").asText(),job.path("attemptId").asText(),job.path("invocationId").asText());}
+    /** Local prefilter only; matching a selector does not grant server authority. */
+    public boolean matchesReport(ExternalRunRequest request){
+        int matches=0;
+        for(JsonNode item:job.path("items")){
+            JsonNode selector=item.path("selector");String id=selector.path("id").asText();String full=selector.path("selector").asText();
+            if(!id.isEmpty()&&!id.equals(request.getExternalId())&&!id.equals(request.getTestCaseId()))continue;
+            if(!full.isEmpty()&&!full.equals(request.getFullName()))continue;
+            matches++;
+        }
+        if(matches>1)throw CICallback.invalid();return matches==1;
+    }
     public ExternalRunRequest bindReport(ExternalRunRequest request,ObjectMapper mapper){
         JsonNode match=null;for(JsonNode item:job.path("items")){
             JsonNode s=item.path("selector");String id=s.path("id").asText();String full=s.path("selector").asText();
@@ -61,22 +72,40 @@ public final class CIJobContext {
         ExternalRunRequest out=request;if(raw!=null&&!raw.isEmpty()){CIJobContext ctx=load(raw);if(!ctx.getNamespace().equals(namespace))throw CICallback.invalid();out=ctx.bindReport(request,mapper);}
         CICallback cb=out.getCIContext();if(cb==null)return out;cb.validate(false);
         ObjectNode n=mapper.valueToTree(out);n.remove("ciContext");List<String> secrets=new ArrayList<>();secrets.add(cb.getToken());if(raw!=null&&!raw.isEmpty())secrets.add(raw);
-        n=(ObjectNode)clean(n,secrets,0);n.set("ciContext",mapper.valueToTree(cb));return convert(mapper,n);
+        n=(ObjectNode)clean(n,secrets,0);n.set("ciContext",mapper.valueToTree(cb));validateSelectedReport(n);return convert(mapper,n);
+    }
+
+    private static void validateSelectedReport(JsonNode body){
+        int version=body.path("schemaVersion").asInt();
+        if(version!=0&&version!=1||!Set.of("passed","failed","skipped","cancelled","broken","error").contains(body.path("status").asText()))throw CICallback.invalid();
+        JsonNode steps=body.path("steps"),attachments=body.path("attachments");
+        if(!steps.isMissingNode()&&!steps.isNull()&&!steps.isArray()||!attachments.isMissingNode()&&!attachments.isNull()&&!attachments.isArray()||steps.size()>1000||attachments.size()>32)throw CICallback.invalid();
+        for(JsonNode step:steps)if(step.path("name").asText().isBlank()||!Set.of("passed","failed","skipped","broken","error").contains(step.path("status").asText()))throw CICallback.invalid();
+        int total=0;
+        for(JsonNode attachment:attachments){
+            String inline=attachment.path("bodyB64").asText(""),ref=attachment.path("blobUri").asText("");
+            if(attachment.path("name").asText().isBlank()||inline.isBlank()==ref.isBlank())throw CICallback.invalid();
+            if(!ref.isBlank())continue;
+            if(inline.length()>(256<<10)*4/3+4)throw CICallback.invalid();
+            byte[] bytes;try{bytes=Base64.getDecoder().decode(inline);}catch(IllegalArgumentException e){throw CICallback.invalid();}
+            total+=bytes.length;if(bytes.length>256<<10||total>1<<20)throw CICallback.invalid();
+        }
     }
     private static ExternalRunRequest convert(ObjectMapper mapper,JsonNode n){try{return mapper.treeToValue(n,ExternalRunRequest.class);}catch(Exception e){throw CICallback.invalid();}}
-    private static JsonNode clean(JsonNode value,List<String> secrets,int depth){
+    private static JsonNode clean(JsonNode value,List<String> secrets,int depth){return cleanAt(value,secrets,depth,false);}
+    private static JsonNode cleanAt(JsonNode value,List<String> secrets,int depth,boolean attachment){
         if(depth>64)throw CICallback.invalid();
         if(value.isObject()){
             if(value.path("name").asText().equalsIgnoreCase(ENVIRONMENT))return null;
             ObjectNode out=((ObjectNode)value).deepCopy();Iterator<String> keys=value.fieldNames();while(keys.hasNext()){
                 String key=keys.next();if(key.equalsIgnoreCase(ENVIRONMENT)){out.remove(key);continue;}
                 JsonNode item=value.get(key);
-                if(key.equals("bodyB64")){byte[] bytes;try{bytes=Base64.getDecoder().decode(item.asText());}catch(Exception e){throw new IllegalArgumentException("invalid attachment encoding");}
-                    String data=new String(bytes,StandardCharsets.ISO_8859_1);for(String s:secrets)if(data.contains(s))throw new IllegalArgumentException("attachment contains private CI capability");}
-                JsonNode filtered=clean(item,secrets,depth+1);out.set(key,filtered==null?MAPPER.nullNode():filtered);
+                if(key.equals("bodyB64")&&attachment&&depth==2){byte[] bytes;try{bytes=Base64.getDecoder().decode(item.asText());}catch(Exception e){throw new IllegalArgumentException("invalid attachment encoding");}
+                    String data=new String(bytes,StandardCharsets.ISO_8859_1);for(String s:secrets)if(data.contains(s))throw new IllegalArgumentException("attachment contains private CI capability");if(attachment&&depth==2)continue;}
+                JsonNode filtered=cleanAt(item,secrets,depth+1,depth==0&&key.equals("attachments"));out.set(key,filtered==null?MAPPER.nullNode():filtered);
             }return out;
         }
-        if(value.isArray()){ArrayNode out=MAPPER.createArrayNode();for(JsonNode item:value){JsonNode filtered=clean(item,secrets,depth+1);if(filtered!=null)out.add(filtered);}return out;}
+        if(value.isArray()){ArrayNode out=MAPPER.createArrayNode();for(JsonNode item:value){JsonNode filtered=cleanAt(item,secrets,depth+1,attachment);if(filtered!=null)out.add(filtered);}return out;}
         if(value.isTextual()){String s=value.asText();for(String secret:secrets)s=s.replace(secret,"[REDACTED]");return TextNode.valueOf(s);}return value;
     }
     public static Map<String,String> sanitizeEnvironment(Map<String,String> env){
