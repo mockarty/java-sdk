@@ -46,4 +46,14 @@ class SelectedCIReportTest {
    assertThrows(Exception.class,()->client.externalRuns().report("qa",r));assertEquals(1,calls.get());assertEquals(ID,wire.get().path("ciContext").path("itemUid").asText());
   }finally{server.stop(0);}
  }
+ @Test void optionalSelectorStringsMatchDecoderParity()throws Exception{
+  for(String key:List.of("id","selector")){
+   com.fasterxml.jackson.databind.node.ObjectNode body=(com.fasterxml.jackson.databind.node.ObjectNode)M.readTree(Base64.getUrlDecoder().decode(envelope()));
+   com.fasterxml.jackson.databind.node.ObjectNode selector=(com.fasterxml.jackson.databind.node.ObjectNode)body.path("items").get(0).path("selector");
+   selector.put(key,"");String raw=Base64.getUrlEncoder().withoutPadding().encodeToString(M.writeValueAsBytes(body));
+   assertDoesNotThrow(()->CIJobContext.load(raw));
+   selector.putNull(key);String invalid=Base64.getUrlEncoder().withoutPadding().encodeToString(M.writeValueAsBytes(body));
+   assertThrows(IllegalArgumentException.class,()->CIJobContext.load(invalid));
+  }
+ }
 }

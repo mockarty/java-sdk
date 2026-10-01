@@ -34,7 +34,8 @@ public final class CIJobContext {
                 for(String k:List.of("itemUid","caseId","versionId","jobConfigId"))if(!i.path(k).isTextual()||!CICallback.validUUID(i.path(k).asText()))throw CICallback.invalid();
                 if(!i.path("groupId").equals(j.path("groupId"))||!i.path("attemptId").equals(j.path("attemptId"))||!seen.add(i.path("itemUid").asText()))throw CICallback.invalid();
                 JsonNode selector=i.path("selector");if(!selector.isObject()||selector.size()==0||selector.size()>2)throw CICallback.invalid();
-                Iterator<String> names=selector.fieldNames();while(names.hasNext()){String k=names.next();if(!k.equals("id")&&!k.equals("selector"))throw CICallback.invalid();if(!text(selector.get(k),k.equals("id")?512:2048))throw CICallback.invalid();}
+                Iterator<String> names=selector.fieldNames();while(names.hasNext()){String k=names.next();if(!k.equals("id")&&!k.equals("selector"))throw CICallback.invalid();JsonNode value=selector.get(k);if(!value.isTextual()||!value.asText().isEmpty()&&!text(value,k.equals("id")?512:2048))throw CICallback.invalid();}
+                if(selector.path("id").asText().isEmpty()&&selector.path("selector").asText().isEmpty())throw CICallback.invalid();
             }
             return result;
         } catch(Exception e){throw CICallback.invalid();}
