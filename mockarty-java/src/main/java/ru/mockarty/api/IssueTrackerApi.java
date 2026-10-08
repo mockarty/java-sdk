@@ -97,9 +97,13 @@ public class IssueTrackerApi {
         client.delete(base(namespace) + "/issues/" + enc(issueId));
     }
 
-    /** Post a comment to an issue. */
+    /**
+     * Post once, without replay after an ambiguous failure. A pending result
+     * carries operation/capture IDs, not a saved comment. Preserve an unknown
+     * exception's response body and do not blindly call addComment again.
+     */
     public JsonNode addComment(String namespace, String issueId, String body) throws MockartyException {
-        return client.post(base(namespace) + "/issues/" + enc(issueId) + "/comments",
+        return client.postNoRetry(base(namespace) + "/issues/" + enc(issueId) + "/comments",
                 Map.of("body", body), JsonNode.class);
     }
 

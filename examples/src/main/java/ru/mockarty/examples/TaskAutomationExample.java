@@ -32,7 +32,13 @@ public class TaskAutomationExample {
                     "projectId", pid, "type", "bug", "title", "Checkout returns 500"));
             String issueId = issue.get("id").asText();
             System.out.println("filed issue " + issue.path("issueKey").asText());
-            it.addComment(ns, issueId, "reproduced on staging");
+            // A thrown API exception retains its response body, including
+            // unknown capture handles. Do not automatically post again.
+            JsonNode comment = it.addComment(ns, issueId, "reproduced on staging");
+            if (comment.path("state").asText().equals("pending")) {
+                System.out.println("Comment awaits confirmation; keep handles without posting again: "
+                        + comment.path("operation_id").asText() + " " + comment.path("capture_id").asText());
+            }
             it.moveIssue(ns, issueId, "in_progress", null);
 
             TcmApi tcm = client.tcm();
