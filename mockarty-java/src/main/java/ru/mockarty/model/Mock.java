@@ -105,6 +105,17 @@ public class Mock {
     @JsonProperty("closedAt")
     private Long closedAt;
 
+    // GET places lifecycle fields inside its audit envelope. Read it without
+    // publishing that envelope in create/update requests.
+    @JsonProperty(value = "_meta", access = JsonProperty.Access.WRITE_ONLY)
+    private LifecycleMetadata lifecycleMetadata;
+
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+    private static class LifecycleMetadata {
+        @JsonProperty("closedAt")
+        private Long closedAt;
+    }
+
     @JsonProperty("extract")
     private Extract extract;
 
@@ -395,7 +406,7 @@ public class Mock {
     }
 
     public Long getClosedAt() {
-        return closedAt;
+        return closedAt != null ? closedAt : lifecycleMetadata != null ? lifecycleMetadata.closedAt : null;
     }
 
     public Extract getExtract() {

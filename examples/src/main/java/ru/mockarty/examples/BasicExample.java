@@ -95,6 +95,8 @@ public class BasicExample {
         // --- 8. Delete the mock ---
         client.mocks().delete("example-user-get");
         System.out.println("Mock deleted");
+        Mock deleted = client.mocks().get("example-user-get");
+        System.out.println("Soft-deleted mock closedAt: " + deleted.getClosedAt());
 
         // --- 9. Restore a soft-deleted mock ---
         Mock restored = client.mocks().restore("example-user-get");
