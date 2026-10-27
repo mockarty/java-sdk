@@ -175,6 +175,28 @@ class AutonomousMissionsApiTest {
         assertEquals(0, requests.size());
     }
 
+    @Test
+    void typedAnswerPreservesCapturedIdentityOverHttp() throws Exception {
+        var request = new MissionAnswerRequest().questionId("question-A").revision(2).generation(3)
+                .text("answer A").selected(List.of("staging"))
+                .entity(new MissionAnswerRequest.Entity().kind("environment").id("env-A").namespace("team-a"))
+                .idempotencyKey("retry-A");
+        client.autonomousMissions().answer("m-unified", request);
+        assertEquals(1, requests.size());
+        assertEquals("POST", requests.get(0).method);
+        assertEquals("/api/v1/missions/m-unified/answer", requests.get(0).path);
+        JsonNode body = client.getObjectMapper().readTree(requests.get(0).body);
+        assertEquals("question-A", body.path("questionId").asText());
+        assertEquals(2, body.path("revision").asLong());
+        assertEquals(3, body.path("generation").asLong());
+        assertEquals("staging", body.path("selected").get(0).asText());
+        assertEquals("team-a", body.path("entity").path("namespace").asText());
+        assertEquals("retry-A", body.path("idempotencyKey").asText());
+        assertFalse(body.has("answer"));
+        assertThrows(IllegalArgumentException.class, () -> client.autonomousMissions().answer("m-unified", request.revision(0)));
+        assertEquals(1, requests.size());
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         requests.add(new Request(exchange.getRequestMethod(), exchange.getRequestURI().getRawPath(),

@@ -110,9 +110,8 @@ public class AutonomousMissionsApi {
         if (missionId == null || missionId.isBlank()) {
             throw new IllegalArgumentException("mission id is required");
         }
-        if (request == null || request.getAnswer() == null || request.getAnswer().isBlank()) {
-            throw new IllegalArgumentException("answer is required");
-        }
+        if (request == null) throw new IllegalArgumentException("answer request is required");
+        request.validate();
         String path = "/api/v1/missions/" + enc(missionId.trim()).replace("+", "%20") + "/answer";
         return client.post(path, request, MissionControlResponse.class);
     }

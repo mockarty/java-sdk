@@ -22,6 +22,30 @@ public final class AutonomousMissionsExample {
                 .apiKey(System.getenv("MOCKARTY_API_KEY"))
                 .namespace(System.getenv().getOrDefault("MOCKARTY_NAMESPACE", "sandbox"))
                 .build()) {
+            String exampleAnswer = System.getenv("MOCKARTY_EXAMPLE_ANSWER");
+            if (exampleAnswer != null && !exampleAnswer.isBlank()) {
+                String missionId = System.getenv("MOCKARTY_ANSWER_MISSION_ID");
+                if (missionId == null || missionId.isBlank()) throw new IllegalArgumentException("MOCKARTY_ANSWER_MISSION_ID must identify the mission that asked the captured question");
+                String retryKey = System.getenv("MOCKARTY_ANSWER_IDEMPOTENCY_KEY");
+                if (retryKey == null || retryKey.isBlank()) throw new IllegalArgumentException("Use a nonempty retry key unique per answered question; reuse it on retry");
+                var answerRequest = new MissionAnswerRequest().answer(exampleAnswer)
+                        .idempotencyKey(retryKey);
+                // Echo data.question from the question the user answered; retain
+                // the same identity and retry key after a lost response.
+                String questionId = System.getenv("MOCKARTY_QUESTION_ID");
+                if (questionId != null && !questionId.isBlank()) {
+                    answerRequest.answer(null).questionId(questionId)
+                            .revision(Long.parseLong(System.getenv("MOCKARTY_QUESTION_REVISION")))
+                            .text(exampleAnswer);
+                    String generation = System.getenv("MOCKARTY_QUESTION_GENERATION");
+                    if (generation != null && !generation.isBlank()) answerRequest.generation(Long.parseLong(generation));
+                    // Choice/entity schemas use selected(...) and entity(...) instead.
+                }
+                var answered = client.autonomousMissions().answer(missionId, answerRequest);
+                System.out.printf("answer receipt=%s outcome=%s%n",
+                        answered.getControl().getId(), answered.getControl().getOutcome());
+                return;
+            }
             String archiveMissionId = System.getenv("MOCKARTY_ARCHIVE_MISSION_ID");
             if (archiveMissionId != null && !archiveMissionId.isBlank()) {
                 var archive = client.autonomousMissions().exportArchive(archiveMissionId);
@@ -55,14 +79,6 @@ public final class AutonomousMissionsExample {
             var started = client.autonomousMissions().start(request);
             System.out.printf("mission=%s status=%s created=%s%n",
                     started.getMission().getId(), started.getMission().getStatus(), started.isCreated());
-            String exampleAnswer = System.getenv("MOCKARTY_EXAMPLE_ANSWER");
-            if (exampleAnswer != null && !exampleAnswer.isBlank()) {
-                var answered = client.autonomousMissions().answer(started.getMission().getId(),
-                        new MissionAnswerRequest().answer(exampleAnswer)
-                                .idempotencyKey("autonomous-missions-example-answer"));
-                System.out.printf("answer receipt=%s outcome=%s%n",
-                        answered.getControl().getId(), answered.getControl().getOutcome());
-            }
             if ("1".equals(System.getenv("MOCKARTY_EXAMPLE_CANCEL"))) {
                 var cancelled = client.autonomousMissions().cancel(started.getMission().getId(),
                         new MissionCancelRequest().reason("example run no longer needed")
