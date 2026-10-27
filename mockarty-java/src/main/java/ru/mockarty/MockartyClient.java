@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import ru.mockarty.api.AgentTaskApi;
 import ru.mockarty.api.AutonomousMissionsApi;
+import ru.mockarty.api.DeviceMeshApi;
 import ru.mockarty.api.McpApi;
 import ru.mockarty.api.IssueTrackerApi;
 import ru.mockarty.api.TcmApi;
@@ -179,6 +180,11 @@ public class MockartyClient implements AutoCloseable {
      */
     public MockApi mocks() {
         return new MockApi(this);
+    }
+
+    /** Returns the device mesh: lend machines and place work on them. */
+    public DeviceMeshApi deviceMesh() {
+        return new DeviceMeshApi(this);
     }
 
     /** Returns autonomous mission intake and supervision operations. */
