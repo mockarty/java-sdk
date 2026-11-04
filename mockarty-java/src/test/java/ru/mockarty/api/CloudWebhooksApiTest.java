@@ -130,10 +130,12 @@ class CloudWebhooksApiTest {
 
     @Test
     void namedCreateRefusesBlankKeysAndOrdinaryCreateRemainsUnkeyed() {
-        for (String key : new String[] { null, "", " ", "\t" }) {
+        for (String key : new String[] { null, "", " ", "\t", "\u00a0", "\u0085" }) {
             assertThrows(IllegalArgumentException.class, () -> client.cloudWebhooks().createWithIdempotencyKey(
                     "space-a", "CI alerts", "https://hooks.example.test/mockarty",
                     List.of("instance.ready"), key));
+            assertThrows(IllegalArgumentException.class,
+                    () -> client.cloudWebhooks().rotateSecret("space-a", "hook-1", key));
         }
         assertEquals(0, requests.size());
         client.cloudWebhooks().create("space-a", "CI alerts", "https://hooks.example.test/mockarty",

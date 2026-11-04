@@ -48,7 +48,7 @@ public class CloudWebhooksApi {
     public CloudWebhookCredential createWithIdempotencyKey(String workspaceId, String name,
                                                            String targetUrl, List<String> events,
                                                            String idempotencyKey) throws MockartyException {
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+        if (blankRetryKey(idempotencyKey)) {
             throw new IllegalArgumentException("mockarty: idempotencyKey is required");
         }
         return create(workspaceId, name, targetUrl, events, idempotencyKey);
@@ -96,13 +96,20 @@ public class CloudWebhooksApi {
      */
     public CloudWebhookCredential rotateSecret(String workspaceId, String webhookId,
                                                 String idempotencyKey) throws MockartyException {
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+        if (blankRetryKey(idempotencyKey)) {
             throw new IllegalArgumentException("idempotency key is required");
         }
         return client.postWithHeaders(
                 webhookActionPath(workspaceId, requireWebhookId(webhookId), "rotate-secret"),
                 Collections.emptyMap(), CloudWebhookCredential.class,
                 Map.of("Idempotency-Key", idempotencyKey));
+    }
+
+    private static boolean blankRetryKey(String key) {
+        // Match the server's Unicode whitespace boundary, including NBSP/NEL.
+        // Never trim a valid key: retries must retain the caller's exact value.
+        return key == null || key.codePoints().allMatch(ch ->
+                ch == 0x20 || ch >= 0x09 && ch <= 0x0d || ch == 0x85 || Character.isSpaceChar(ch));
     }
 
     private static String collectionPath(String workspaceId) {
