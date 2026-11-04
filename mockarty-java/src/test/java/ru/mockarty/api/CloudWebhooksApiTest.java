@@ -112,6 +112,36 @@ class CloudWebhooksApiTest {
         assertEquals("workspace_id=space-a&limit=100", requests.get(0).query);
     }
 
+    @Test
+    void namedCreateKeepsCallerKeyAndRequestAcrossRetry() {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            CloudWebhookCredential created = client.cloudWebhooks().createWithIdempotencyKey(
+                    "space/alpha", "CI alerts", "https://hooks.example.test/mockarty",
+                    List.of("instance.ready"), "caller-owned-key");
+            assertEquals("whsec_create", created.getSecret());
+        }
+        assertEquals(2, requests.size());
+        assertEquals("caller-owned-key", requests.get(0).idempotencyKey);
+        assertEquals(requests.get(0).idempotencyKey, requests.get(1).idempotencyKey);
+        assertEquals(requests.get(0).body, requests.get(1).body);
+        assertEquals("workspace_id=space%2Falpha", requests.get(0).query);
+        assertEquals(requests.get(0).query, requests.get(1).query);
+    }
+
+    @Test
+    void namedCreateRefusesBlankKeysAndOrdinaryCreateRemainsUnkeyed() {
+        for (String key : new String[] { null, "", " ", "\t" }) {
+            assertThrows(IllegalArgumentException.class, () -> client.cloudWebhooks().createWithIdempotencyKey(
+                    "space-a", "CI alerts", "https://hooks.example.test/mockarty",
+                    List.of("instance.ready"), key));
+        }
+        assertEquals(0, requests.size());
+        client.cloudWebhooks().create("space-a", "CI alerts", "https://hooks.example.test/mockarty",
+                List.of("instance.ready"));
+        assertEquals(1, requests.size());
+        assertTrue(requests.get(0).idempotencyKey == null || requests.get(0).idempotencyKey.isEmpty());
+    }
+
     private void assertRequest(int index, String method, String path, String query, String body) {
         CapturedRequest request = requests.get(index);
         assertEquals(method, request.method);

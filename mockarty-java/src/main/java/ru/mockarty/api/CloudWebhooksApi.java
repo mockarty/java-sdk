@@ -41,6 +41,19 @@ public class CloudWebhooksApi {
         return create(workspaceId, name, targetUrl, events, null);
     }
 
+    /**
+     * Create a webhook with a caller-supplied retry key. Reuse the same key
+     * and request after an ambiguous response; no key is generated for you.
+     */
+    public CloudWebhookCredential createWithIdempotencyKey(String workspaceId, String name,
+                                                           String targetUrl, List<String> events,
+                                                           String idempotencyKey) throws MockartyException {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("mockarty: idempotencyKey is required");
+        }
+        return create(workspaceId, name, targetUrl, events, idempotencyKey);
+    }
+
     /** Reuse the key with the exact same request to recover an ambiguous create response. */
     public CloudWebhookCredential create(String workspaceId, String name, String targetUrl,
                                          List<String> events, String idempotencyKey) throws MockartyException {
