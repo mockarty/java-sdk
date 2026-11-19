@@ -25,11 +25,11 @@ public final class CloudWebhooksExample {
                 .baseUrl(requireEnvironment("MOCKARTY_BASE_URL"))
                 .apiKey(requireEnvironment("MOCKARTY_API_KEY"))
                 .build()) {
-            CloudWebhookCredential created = client.cloudWebhooks().createWithIdempotencyKey(
+            CloudWebhookCredential created = client.cloudWebhooks().create(
                     workspaceId,
                     "Release notifications",
                     "https://hooks.example.com/mockarty",
-                    List.of("space.deleted"),
+                    List.of("instance.created", "instance.failed"),
                     createRequestId);
 
             String webhookId = created.getWebhook().getId();

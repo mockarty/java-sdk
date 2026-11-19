@@ -42,13 +42,14 @@ public class CloudWebhooksApi {
     }
 
     /**
-     * Create a webhook with a caller-supplied retry key. Reuse the same key
-     * and request after an ambiguous response; no key is generated for you.
+     * Create a webhook with a CALLER-SUPPLIED key, as its own method so the three
+     * SDKs expose the same name for the same capability (the Go SDK has no
+     * optional parameters and the parity gate compares METHOD NAMES).
      */
     public CloudWebhookCredential createWithIdempotencyKey(String workspaceId, String name,
                                                            String targetUrl, List<String> events,
                                                            String idempotencyKey) throws MockartyException {
-        if (blankRetryKey(idempotencyKey)) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("mockarty: idempotencyKey is required");
         }
         return create(workspaceId, name, targetUrl, events, idempotencyKey);
@@ -96,20 +97,13 @@ public class CloudWebhooksApi {
      */
     public CloudWebhookCredential rotateSecret(String workspaceId, String webhookId,
                                                 String idempotencyKey) throws MockartyException {
-        if (blankRetryKey(idempotencyKey)) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("idempotency key is required");
         }
         return client.postWithHeaders(
                 webhookActionPath(workspaceId, requireWebhookId(webhookId), "rotate-secret"),
                 Collections.emptyMap(), CloudWebhookCredential.class,
                 Map.of("Idempotency-Key", idempotencyKey));
-    }
-
-    private static boolean blankRetryKey(String key) {
-        // Match the server's Unicode whitespace boundary, including NBSP/NEL.
-        // Never trim a valid key: retries must retain the caller's exact value.
-        return key == null || key.codePoints().allMatch(ch ->
-                ch == 0x20 || ch >= 0x09 && ch <= 0x0d || ch == 0x85 || Character.isSpaceChar(ch));
     }
 
     private static String collectionPath(String workspaceId) {
