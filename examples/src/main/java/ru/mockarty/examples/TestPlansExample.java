@@ -87,7 +87,7 @@ public class TestPlansExample {
         System.out.printf("Plan created: %s (#%d)%n",
                 created.getId(), created.getNumericId());
 
-        TestPlanRun run = client.testPlans().run(created.getId(), null, null);
+        TestPlanRun run = client.testPlans().run(created.getId());
         System.out.println("Triggered run: " + run.getId());
 
         try {
@@ -126,7 +126,7 @@ public class TestPlansExample {
 
         TestPlanRun run;
         try {
-            run = client.testPlans().run(planId, null, null);
+            run = client.testPlans().run(planId);
         } catch (MockartyApiException error) {
             if (error.getRunId() != null) {
                 System.err.printf("Saved launch %s (reason=%s): inspect it and its CI job before launching again%n",
@@ -227,7 +227,7 @@ public class TestPlansExample {
             System.err.println("patch conflict: " + e.getMessage());
         }
 
-        TestPlanRun run = client.testPlans().run(created.getId(), null, null);
+        TestPlanRun run = client.testPlans().run(created.getId());
         try {
             client.testPlans().waitForRun(run.getId(),
                     Duration.ofSeconds(3), Duration.ofMinutes(15));

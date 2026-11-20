@@ -124,7 +124,7 @@ class TestPlanApiTest {
         respond("/api/v1/test-plans/plan-1/run",
                 202,
                 "{\"runId\":\"r1\",\"planId\":\"plan-1\",\"status\":\"pending\"}");
-        TestPlanRun run = client.testPlans().run("plan-1", null, null);
+        TestPlanRun run = client.testPlans().run("plan-1");
         assertEquals("r1", run.getId());
         assertEquals("plan-1", run.getPlanId());
         assertEquals("pending", run.getStatus());

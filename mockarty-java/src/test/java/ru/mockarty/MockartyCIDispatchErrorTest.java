@@ -26,7 +26,7 @@ class MockartyCIDispatchErrorTest {
         HttpServer server = serve(status, envelope, hits);
         try (MockartyClient client = client(server, 2)) {
             MockartyApiException error = assertThrows(MockartyApiException.class,
-                    () -> client.testPlans().run("plan", null, null));
+                    () -> client.testPlans().run("plan"));
             assertEquals(1, hits.get());
             assertEquals(reason, error.getReason());
             assertEquals("saved-run", error.getRunId());
@@ -42,7 +42,7 @@ class MockartyCIDispatchErrorTest {
             HttpServer server = serve(503, envelope, hits);
             try (MockartyClient client = client(server, 1)) {
                 assertThrows(MockartyApiException.class,
-                        () -> client.testPlans().run("plan", null, null));
+                        () -> client.testPlans().run("plan"));
                 assertEquals(2, hits.get());
             } finally { server.stop(0); }
         }

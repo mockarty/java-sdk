@@ -127,22 +127,14 @@ public class TestPlanApi {
 
     // ── Runs ─────────────────────────────────────────────────────────
 
-    /** Trigger a plan. {@code items} / {@code mode} are nullable. */
-    public TestPlanRun run(String idOrNumeric, List<Integer> items, String mode)
-            throws MockartyException {
+    /** Trigger a plan with the plan's configured execution mode. */
+    public TestPlanRun run(String idOrNumeric) throws MockartyException {
         String key = normalizeId(idOrNumeric);
-        Map<String, Object> body = new LinkedHashMap<>();
-        if (items != null && !items.isEmpty()) {
-            body.put("items", items);
-        }
-        if (mode != null && !mode.isEmpty()) {
-            body.put("mode", mode);
-        }
         JavaType mapType = client.getObjectMapper().getTypeFactory()
                 .constructMapType(Map.class, String.class, Object.class);
         Map<String, Object> payload = client.post(
                 BASE + "/" + encode(key) + "/run",
-                body.isEmpty() ? null : body,
+                null,
                 mapType);
 
         TestPlanRun run = new TestPlanRun();
@@ -844,15 +836,11 @@ public class TestPlanApi {
         private boolean recordDetailed;
         private boolean notifyOnCompletion;
         private List<String> notifyEmails;
-        private List<Integer> items;
-        private String mode;
 
         public RunManualOptions executionModeOverride(String v) { this.executionModeOverride = v; return this; }
         public RunManualOptions recordDetailed(boolean v) { this.recordDetailed = v; return this; }
         public RunManualOptions notifyOnCompletion(boolean v) { this.notifyOnCompletion = v; return this; }
         public RunManualOptions notifyEmails(List<String> v) { this.notifyEmails = v; return this; }
-        public RunManualOptions items(List<Integer> v) { this.items = v; return this; }
-        public RunManualOptions mode(String v) { this.mode = v; return this; }
     }
 
     /**
@@ -887,12 +875,6 @@ public class TestPlanApi {
         }
         if (o.notifyEmails != null && !o.notifyEmails.isEmpty()) {
             body.put("notifyEmails", o.notifyEmails);
-        }
-        if (o.items != null && !o.items.isEmpty()) {
-            body.put("items", o.items);
-        }
-        if (o.mode != null && !o.mode.isEmpty()) {
-            body.put("mode", o.mode);
         }
         JavaType mapType = client.getObjectMapper().getTypeFactory()
                 .constructMapType(Map.class, String.class, Object.class);
