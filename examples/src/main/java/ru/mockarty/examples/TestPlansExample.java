@@ -87,7 +87,8 @@ public class TestPlansExample {
         System.out.printf("Plan created: %s (#%d)%n",
                 created.getId(), created.getNumericId());
 
-        TestPlanRun run = client.testPlans().run(created.getId());
+        TestPlanRun run = client.testPlans().run(created.getId(),
+                new ru.mockarty.api.TestPlanApi.RunOptions(null, true, false, List.of(), List.of()));
         System.out.println("Triggered run: " + run.getId());
 
         try {

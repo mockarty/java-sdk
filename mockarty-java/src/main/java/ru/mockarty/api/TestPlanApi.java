@@ -127,21 +127,59 @@ public class TestPlanApi {
 
     // ── Runs ─────────────────────────────────────────────────────────
 
+    /** Options for one run, or for one independent run per TCM configuration. */
+    public static final class RunOptions {
+        private final String executionModeOverride;
+        private final boolean recordDetailed;
+        private final boolean notifyOnCompletion;
+        private final List<String> notifyEmails;
+        private final List<String> configurationIds;
+
+        public RunOptions(String executionModeOverride, boolean recordDetailed,
+                          boolean notifyOnCompletion, List<String> notifyEmails,
+                          List<String> configurationIds) {
+            this.executionModeOverride = executionModeOverride;
+            this.recordDetailed = recordDetailed;
+            this.notifyOnCompletion = notifyOnCompletion;
+            this.notifyEmails = notifyEmails == null ? List.of() : List.copyOf(notifyEmails);
+            this.configurationIds = configurationIds == null ? List.of() : List.copyOf(configurationIds);
+        }
+
+        private Map<String, Object> requestBody() {
+            Map<String, Object> body = new LinkedHashMap<>();
+            if (executionModeOverride != null && !executionModeOverride.isBlank()) {
+                body.put("executionModeOverride", executionModeOverride);
+            }
+            if (recordDetailed) body.put("recordDetailed", true);
+            if (notifyOnCompletion) body.put("notifyOnCompletion", true);
+            if (!notifyEmails.isEmpty()) body.put("notifyEmails", notifyEmails);
+            if (!configurationIds.isEmpty()) {
+                body.put("configurationIds", configurationIds);
+            }
+            return body;
+        }
+    }
+
     /** Trigger a plan with the plan's configured execution mode. */
     public TestPlanRun run(String idOrNumeric) throws MockartyException {
+        return run(idOrNumeric, null);
+    }
+
+    /** Trigger a plan with per-run options and retain every returned run ID. */
+    public TestPlanRun run(String idOrNumeric, RunOptions options) throws MockartyException {
         String key = normalizeId(idOrNumeric);
         JavaType mapType = client.getObjectMapper().getTypeFactory()
                 .constructMapType(Map.class, String.class, Object.class);
         Map<String, Object> payload = client.post(
                 BASE + "/" + encode(key) + "/run",
-                null,
+                options == null ? null : options.requestBody(),
                 mapType);
 
-        TestPlanRun run = new TestPlanRun();
         // Decode the compact response {runId, planId, status} into a TestPlanRun
         // by round-tripping via a transient map — keeps the model immutable.
         Map<String, Object> shaped = new LinkedHashMap<>();
         shaped.put("id", payload == null ? null : payload.get("runId"));
+        shaped.put("runIds", payload == null ? null : payload.get("runIds"));
         shaped.put("planId", payload == null ? null : payload.get("planId"));
         shaped.put("status", payload == null ? null : payload.get("status"));
         return client.getObjectMapper().convertValue(shaped, TestPlanRun.class);

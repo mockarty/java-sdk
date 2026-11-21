@@ -131,6 +131,29 @@ class TestPlanApiTest {
     }
 
     @Test
+    void runWithConfigurationFanOut() throws IOException {
+        AtomicReference<String> submitted = new AtomicReference<>();
+        server.createContext("/api/v1/test-plans/plan-1/run", exchange -> {
+            submitted.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] data = ("{\"runId\":\"r1\",\"runIds\":[\"r1\",\"r2\"]," +
+                    "\"planId\":\"plan-1\",\"status\":\"pending\"}").getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(202, data.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(data);
+            }
+        });
+        TestPlanRun result = client.testPlans().run("plan-1",
+                new TestPlanApi.RunOptions("manual", true, true, List.of("qa@example.com"), List.of("a", "b")));
+        assertEquals("r1", result.getId());
+        assertEquals(List.of("r1", "r2"), result.getRunIds());
+        assertEquals(client.getObjectMapper().readTree(
+                "{\"executionModeOverride\":\"manual\",\"recordDetailed\":true,\"notifyOnCompletion\":true," +
+                        "\"notifyEmails\":[\"qa@example.com\"],\"configurationIds\":[\"a\",\"b\"]}"),
+                client.getObjectMapper().readTree(submitted.get()));
+    }
+
+    @Test
     @DisplayName("getRun parses itemsState list")
     void getRun() {
         respond("/api/v1/test-plans/runs/r1",

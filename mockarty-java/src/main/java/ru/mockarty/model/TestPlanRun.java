@@ -17,6 +17,9 @@ public class TestPlanRun {
     @JsonProperty("id")
     private String id;
 
+    @JsonProperty("runIds")
+    private List<String> runIds;
+
     @JsonProperty("planId")
     private String planId;
 
@@ -55,6 +58,11 @@ public class TestPlanRun {
 
     public String getId() {
         return id;
+    }
+
+    /** IDs of all runs returned for a configuration fan-out. */
+    public List<String> getRunIds() {
+        return runIds == null ? List.of() : List.copyOf(runIds);
     }
 
     public String getPlanId() {
