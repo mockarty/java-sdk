@@ -5,7 +5,7 @@ plugins {
 
 allprojects {
     group = "ru.mockarty"
-    version = "0.3.0"
+    version = providers.gradleProperty("VERSION_NAME").get()
 
     repositories {
         mavenCentral()
