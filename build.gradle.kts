@@ -13,6 +13,12 @@ allprojects {
 }
 
 subprojects {
+    tasks.withType<Jar>().configureEach {
+        from(rootProject.file("LICENSE")) {
+            into("META-INF")
+        }
+    }
+
     tasks.withType<JavaCompile> {
         options.encoding = "UTF-8"
     }
