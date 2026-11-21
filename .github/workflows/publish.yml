@@ -5,12 +5,14 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,6 +24,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-disabled: true
+
+      - name: Verify the stable SDK tag and package version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" =~ ^refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          version="$(sed -n 's/^VERSION_NAME=//p' gradle.properties)"
+          test "${GITHUB_REF#refs/tags/v}" = "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build and test the tagged SDK
+        run: ./gradlew build --no-configuration-cache
 
       - name: Publish to Maven Central
         run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
@@ -56,15 +71,15 @@ jobs:
             <dependency>
                 <groupId>ru.mockarty</groupId>
                 <artifactId>mockarty-java</artifactId>
-                <version>${{ github.ref_name }}</version>
+                <version>${{ steps.release.outputs.version }}</version>
             </dependency>
             ```
 
             ### Gradle
             ```kotlin
-            implementation("ru.mockarty:mockarty-java:${{ github.ref_name }}")
-            testImplementation("ru.mockarty:mockarty-junit5:${{ github.ref_name }}")
-            implementation("ru.mockarty:mockarty-kotlin:${{ github.ref_name }}")
+            implementation("ru.mockarty:mockarty-java:${{ steps.release.outputs.version }}")
+            testImplementation("ru.mockarty:mockarty-junit5:${{ steps.release.outputs.version }}")
+            implementation("ru.mockarty:mockarty-kotlin:${{ steps.release.outputs.version }}")
             ```
 
             ### Changes
